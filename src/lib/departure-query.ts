@@ -96,9 +96,15 @@ export function calculateBoardingTime(now: Date, walkMinutes: number): string {
 		hour12: false,
 	});
 	const parts = fmt.formatToParts(now);
-	const hours = Number(parts.find((p) => p.type === "hour")?.value);
-	const minutes = Number(parts.find((p) => p.type === "minute")?.value);
-	const seconds = Number(parts.find((p) => p.type === "second")?.value);
+	const hourStr = parts.find((p) => p.type === "hour")?.value;
+	const minuteStr = parts.find((p) => p.type === "minute")?.value;
+	const secondStr = parts.find((p) => p.type === "second")?.value;
+	if (!hourStr || !minuteStr || !secondStr) {
+		throw new Error("Failed to extract time parts from Intl.DateTimeFormat");
+	}
+	const hours = Number(hourStr);
+	const minutes = Number(minuteStr);
+	const seconds = Number(secondStr);
 
 	const totalMinutes = hours * 60 + minutes + walkMinutes;
 	const h = Math.floor(totalMinutes / 60);
