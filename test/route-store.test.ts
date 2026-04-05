@@ -84,6 +84,17 @@ describe("CRUD 操作", () => {
 		const route = await getRoute(999);
 		expect(route).toBeUndefined();
 	});
+
+	it("存在しない ID で更新するとエラーになる", async () => {
+		await expect(
+			updateRoute({
+				id: 999,
+				fromStopId: "S001",
+				toStopId: "S002",
+				walkMinutes: 5,
+			}),
+		).rejects.toThrow("Route not found: 999");
+	});
 });
 
 describe("入力値のサニタイズ", () => {

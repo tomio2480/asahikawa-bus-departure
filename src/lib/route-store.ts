@@ -4,6 +4,9 @@ const DB_NAME = "asahikawa-bus-departure";
 const DB_VERSION = 1;
 const STORE_NAME = "routes";
 
+/** エクスポート形式のバージョン番号 */
+const EXPORT_VERSION = 1 as const;
+
 /** JSON インポート時の最大サイズ（バイト） */
 const MAX_IMPORT_SIZE = 1024 * 1024;
 
@@ -104,7 +107,17 @@ export async function updateRoute(entry: RouteEntry): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const tx = db.transaction(STORE_NAME, "readwrite");
 		const store = tx.objectStore(STORE_NAME);
-		store.put(sanitized);
+		const getRequest = store.get(entry.id as number);
+		getRequest.onsuccess = () => {
+			if (getRequest.result == null) {
+				tx.abort();
+				return;
+			}
+			store.put(sanitized);
+		};
+		getRequest.onerror = () => {
+			tx.abort();
+		};
 		tx.oncomplete = () => {
 			db.close();
 			resolve();
@@ -112,6 +125,10 @@ export async function updateRoute(entry: RouteEntry): Promise<void> {
 		tx.onerror = () => {
 			db.close();
 			reject(tx.error);
+		};
+		tx.onabort = () => {
+			db.close();
+			reject(tx.error ?? new Error(`Route not found: ${entry.id}`));
 		};
 	});
 }
@@ -138,7 +155,7 @@ export async function deleteRoute(id: number): Promise<void> {
 export async function exportRoutes(): Promise<RouteEntryExport> {
 	const routes = await getAllRoutes();
 	return {
-		version: 1,
+		version: EXPORT_VERSION,
 		routes: routes.map(({ fromStopId, toStopId, walkMinutes }) => ({
 			fromStopId,
 			toStopId,
@@ -225,7 +242,7 @@ function validateExportFormat(data: unknown): asserts data is RouteEntryExport {
 		throw new Error("Invalid import data: arrays are not allowed");
 	}
 	const obj = data as Record<string, unknown>;
-	if (obj.version !== 1) {
+	if (obj.version !== EXPORT_VERSION) {
 		throw new Error(`Unsupported version: ${String(obj.version)}`);
 	}
 	if (!Array.isArray(obj.routes)) {
