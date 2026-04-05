@@ -97,6 +97,20 @@ describe("CRUD 操作", () => {
 	});
 });
 
+describe("CRUD バリデーション", () => {
+	it("fromStopId が空文字の場合はエラーになる", async () => {
+		await expect(
+			addRoute({ fromStopId: "", toStopId: "S002", walkMinutes: 5 }),
+		).rejects.toThrow("fromStopId must be a non-empty string");
+	});
+
+	it("toStopId が空文字の場合はエラーになる", async () => {
+		await expect(
+			addRoute({ fromStopId: "S001", toStopId: "", walkMinutes: 5 }),
+		).rejects.toThrow("toStopId must be a non-empty string");
+	});
+});
+
 describe("入力値のサニタイズ", () => {
 	it("walkMinutes の負値は 0 になる", async () => {
 		const id = await addRoute({

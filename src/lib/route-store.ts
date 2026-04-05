@@ -230,11 +230,13 @@ export async function importRoutes(
 /** 入力値をサニタイズする */
 function sanitizeEntry(entry: Omit<RouteEntry, "id">): Omit<RouteEntry, "id"> {
 	const minutes = Number(entry.walkMinutes);
-	return {
+	const sanitized = {
 		fromStopId: String(entry.fromStopId),
 		toStopId: String(entry.toStopId),
 		walkMinutes: Number.isNaN(minutes) ? 0 : Math.max(0, Math.floor(minutes)),
 	};
+	validateRouteFields(sanitized);
+	return sanitized;
 }
 
 /** エクスポート形式のバリデーション */
