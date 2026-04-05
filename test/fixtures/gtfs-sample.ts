@@ -67,4 +67,35 @@ export const sampleGtfsData: GtfsData = {
 	calendar_dates: [
 		{ service_id: "weekday", date: "20260505", exception_type: 2 },
 	],
+	shapes: [
+		{
+			shape_id: "SH001",
+			shape_pt_lat: 43.7631,
+			shape_pt_lon: 142.3582,
+			shape_pt_sequence: 1,
+		},
+		{
+			shape_id: "SH001",
+			shape_pt_lat: 43.7701,
+			shape_pt_lon: 142.3651,
+			shape_pt_sequence: 2,
+		},
+	],
+	fare_attributes: [
+		{
+			fare_id: "F001",
+			price: 200,
+			currency_type: "JPY",
+			payment_method: 0,
+			transfers: 0,
+		},
+	],
+	fare_rules: [
+		{
+			fare_id: "F001",
+			route_id: "R001",
+			origin_id: "Z001",
+			destination_id: "Z002",
+		},
+	],
 };
