@@ -65,7 +65,7 @@ export type FareAttribute = {
 	price: number;
 	currency_type: string;
 	payment_method: 0 | 1;
-	transfers: 0 | 1 | 2 | "";
+	transfers: 0 | 1 | 2 | null;
 };
 
 export type FareRule = {

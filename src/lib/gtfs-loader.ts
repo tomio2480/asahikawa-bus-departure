@@ -65,7 +65,7 @@ export function createSchema(db: Database): void {
 			price REAL NOT NULL,
 			currency_type TEXT NOT NULL,
 			payment_method INTEGER NOT NULL,
-			transfers TEXT NOT NULL
+			transfers INTEGER
 		);
 		CREATE TABLE IF NOT EXISTS fare_rules (
 			fare_id TEXT NOT NULL,

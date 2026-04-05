@@ -9,6 +9,9 @@ function getSqlJs(): Promise<SqlJsStatic> {
 	if (!sqlJsPromise) {
 		sqlJsPromise = initSqlJs({
 			locateFile: (file) => `/${file}`,
+		}).catch((e) => {
+			sqlJsPromise = null;
+			throw e;
 		});
 	}
 	return sqlJsPromise;
