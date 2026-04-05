@@ -32,7 +32,7 @@ function getJstWeekday(date: Date): number {
 		timeZone: TIMEZONE,
 		weekday: "short",
 	}).format(date);
-	const map: Record<string, number> = {
+	const map = {
 		Sun: 0,
 		Mon: 1,
 		Tue: 2,
@@ -40,8 +40,12 @@ function getJstWeekday(date: Date): number {
 		Thu: 4,
 		Fri: 5,
 		Sat: 6,
-	};
-	return map[weekdayStr];
+	} as const;
+	const weekday = map[weekdayStr as keyof typeof map];
+	if (weekday === undefined) {
+		throw new Error(`Unsupported weekday token: ${weekdayStr}`);
+	}
+	return weekday;
 }
 
 function formatDate(date: Date): string {
