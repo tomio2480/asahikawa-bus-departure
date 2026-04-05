@@ -30,6 +30,22 @@ describe("calculateBoardingTime", () => {
 		const now = new Date("2026-04-06T23:50:00+09:00");
 		expect(calculateBoardingTime(now, 15)).toBe("24:05:00");
 	});
+
+	it("負の徒歩時間は 0 として扱う", () => {
+		const now = new Date("2026-04-06T08:00:00+09:00");
+		expect(calculateBoardingTime(now, -5)).toBe("08:00:00");
+	});
+
+	it("小数の徒歩時間は切り捨てる", () => {
+		const now = new Date("2026-04-06T08:00:00+09:00");
+		expect(calculateBoardingTime(now, 5.9)).toBe("08:05:00");
+	});
+
+	it("深夜 0 時を 00 として扱う", () => {
+		// 2026-04-06 00:00:00 JST
+		const now = new Date("2026-04-06T00:00:00+09:00");
+		expect(calculateBoardingTime(now, 0)).toBe("00:00:00");
+	});
 });
 
 describe("getDepartures", () => {
@@ -116,6 +132,34 @@ describe("getDepartures", () => {
 		});
 	});
 
+	describe("路線名のフォールバック", () => {
+		it("route_short_name が空文字列の場合 route_long_name を使う", () => {
+			db.run(
+				"INSERT INTO routes (route_id, agency_id, route_short_name, route_long_name) VALUES (?, ?, ?, ?)",
+				["R001", "A001", "", "長い路線名"],
+			);
+			insertTrip("T001", "R001", "weekday", "市役所前");
+			insertStopTime("T001", "S001", 1, "08:00:00", "08:00:00");
+			insertStopTime("T001", "S002", 2, "08:15:00", "08:15:00");
+
+			const result = getDepartures(db, ["weekday"], "S001", "S002", "07:00:00");
+			expect(result[0].routeName).toBe("長い路線名");
+		});
+
+		it("両方とも空文字列の場合は空文字列を返す", () => {
+			db.run(
+				"INSERT INTO routes (route_id, agency_id, route_short_name, route_long_name) VALUES (?, ?, ?, ?)",
+				["R001", "A001", "", ""],
+			);
+			insertTrip("T001", "R001", "weekday", "市役所前");
+			insertStopTime("T001", "S001", 1, "08:00:00", "08:00:00");
+			insertStopTime("T001", "S002", 2, "08:15:00", "08:15:00");
+
+			const result = getDepartures(db, ["weekday"], "S001", "S002", "07:00:00");
+			expect(result[0].routeName).toBe("");
+		});
+	});
+
 	describe("複数便のソート", () => {
 		beforeEach(() => {
 			insertRoute("R001", "A001", "1");
@@ -152,6 +196,42 @@ describe("getDepartures", () => {
 				2,
 			);
 			expect(result).toHaveLength(2);
+		});
+
+		it("limit が 0 の場合は空配列を返す", () => {
+			const result = getDepartures(
+				db,
+				["weekday"],
+				"S001",
+				"S002",
+				"07:00:00",
+				0,
+			);
+			expect(result).toHaveLength(0);
+		});
+
+		it("limit が負の場合は空配列を返す", () => {
+			const result = getDepartures(
+				db,
+				["weekday"],
+				"S001",
+				"S002",
+				"07:00:00",
+				-1,
+			);
+			expect(result).toHaveLength(0);
+		});
+
+		it("limit が小数の場合は切り捨てる", () => {
+			const result = getDepartures(
+				db,
+				["weekday"],
+				"S001",
+				"S002",
+				"07:00:00",
+				1.9,
+			);
+			expect(result).toHaveLength(1);
 		});
 	});
 

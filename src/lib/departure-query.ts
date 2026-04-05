@@ -37,13 +37,18 @@ export function getDepartures(
 		return [];
 	}
 
+	const sanitizedLimit = Math.max(0, Math.floor(limit));
+	if (sanitizedLimit === 0) {
+		return [];
+	}
+
 	const placeholders = serviceIds.map(() => "?").join(", ");
 
 	const result = db.exec(
 		`SELECT
 			st_from.trip_id,
 			t.route_id,
-			COALESCE(r.route_short_name, r.route_long_name, '') AS route_name,
+			COALESCE(NULLIF(r.route_short_name, ''), NULLIF(r.route_long_name, ''), '') AS route_name,
 			COALESCE(t.trip_headsign, '') AS headsign,
 			st_from.departure_time,
 			st_to.arrival_time,
@@ -61,7 +66,7 @@ export function getDepartures(
 			AND st_from.departure_time >= ?
 		ORDER BY st_from.departure_time ASC
 		LIMIT ?`,
-		[fromStopId, toStopId, ...serviceIds, afterTime, limit],
+		[fromStopId, toStopId, ...serviceIds, afterTime, sanitizedLimit],
 	);
 
 	if (result.length === 0) {
@@ -88,12 +93,14 @@ export function getDepartures(
  * @returns 乗車可能時刻（HH:MM:SS 形式）
  */
 export function calculateBoardingTime(now: Date, walkMinutes: number): string {
+	const sanitizedWalkMinutes = Math.max(0, Math.floor(walkMinutes));
+
 	const fmt = new Intl.DateTimeFormat("en-US", {
 		timeZone: "Asia/Tokyo",
+		hourCycle: "h23",
 		hour: "2-digit",
 		minute: "2-digit",
 		second: "2-digit",
-		hour12: false,
 	});
 	const parts = fmt.formatToParts(now);
 	const hourStr = parts.find((p) => p.type === "hour")?.value;
@@ -106,7 +113,7 @@ export function calculateBoardingTime(now: Date, walkMinutes: number): string {
 	const minutes = Number(minuteStr);
 	const seconds = Number(secondStr);
 
-	const totalMinutes = hours * 60 + minutes + walkMinutes;
+	const totalMinutes = hours * 60 + minutes + sanitizedWalkMinutes;
 	const h = Math.floor(totalMinutes / 60);
 	const m = totalMinutes % 60;
 
