@@ -21,19 +21,17 @@ const REQUIRED_FILES = [
 	"fare_rules.txt",
 ] as const;
 
-const IGNORED_FILES = new Set([
-	"feed_info.txt",
-	"agency_jp.txt",
-	"routes_jp.txt",
-	"office_jp.txt",
-	"translations.txt",
-]);
-
 function parseCsv(text: string): Record<string, string>[] {
 	const result = Papa.parse<Record<string, string>>(text, {
 		header: true,
 		skipEmptyLines: true,
 	});
+	if (result.errors.length > 0) {
+		const firstError = result.errors[0];
+		throw new Error(
+			`CSV parse error at row ${firstError.row}: ${firstError.message}`,
+		);
+	}
 	return result.data;
 }
 
@@ -66,7 +64,7 @@ function validateRequiredField(
 	}
 }
 
-function convertOperator(inputDir: string, operatorId: string): GtfsData {
+function convertOperator(inputDir: string): GtfsData {
 	const readFile = (name: string): string => {
 		const path = join(inputDir, name);
 		if (!existsSync(path)) {
@@ -133,6 +131,19 @@ function convertOperator(inputDir: string, operatorId: string): GtfsData {
 	const calendarRecords = parseCsv(readFile("calendar.txt"));
 	for (let i = 0; i < calendarRecords.length; i++) {
 		validateRequiredField(calendarRecords[i], "service_id", "calendar.txt", i);
+		for (const day of [
+			"monday",
+			"tuesday",
+			"wednesday",
+			"thursday",
+			"friday",
+			"saturday",
+			"sunday",
+		]) {
+			validateRequiredField(calendarRecords[i], day, "calendar.txt", i);
+		}
+		validateRequiredField(calendarRecords[i], "start_date", "calendar.txt", i);
+		validateRequiredField(calendarRecords[i], "end_date", "calendar.txt", i);
 	}
 
 	const calendarDatesRecords = parseCsv(readFile("calendar_dates.txt"));
@@ -158,7 +169,37 @@ function convertOperator(inputDir: string, operatorId: string): GtfsData {
 	}
 
 	const fareAttrRecords = parseCsv(readFile("fare_attributes.txt"));
+	for (let i = 0; i < fareAttrRecords.length; i++) {
+		validateRequiredField(
+			fareAttrRecords[i],
+			"fare_id",
+			"fare_attributes.txt",
+			i,
+		);
+		validateRequiredField(
+			fareAttrRecords[i],
+			"price",
+			"fare_attributes.txt",
+			i,
+		);
+		validateRequiredField(
+			fareAttrRecords[i],
+			"currency_type",
+			"fare_attributes.txt",
+			i,
+		);
+		validateRequiredField(
+			fareAttrRecords[i],
+			"payment_method",
+			"fare_attributes.txt",
+			i,
+		);
+	}
+
 	const fareRulesRecords = parseCsv(readFile("fare_rules.txt"));
+	for (let i = 0; i < fareRulesRecords.length; i++) {
+		validateRequiredField(fareRulesRecords[i], "fare_id", "fare_rules.txt", i);
+	}
 
 	const shapesText = readFile("shapes.txt");
 	const shapesRecords = shapesText ? parseCsv(shapesText) : [];
@@ -262,7 +303,7 @@ function main(): void {
 		}
 
 		console.log(`Converting ${operator.name} (${operator.id})...`);
-		const data = convertOperator(operatorDir, operator.id);
+		const data = convertOperator(operatorDir);
 
 		const outputPath = join(outputDir, `${operator.id}.json`);
 		writeFileSync(outputPath, JSON.stringify(data), "utf-8");
@@ -292,7 +333,6 @@ export {
 	convertOperator,
 	OPERATORS,
 	REQUIRED_FILES,
-	IGNORED_FILES,
 };
 
 const isDirectExecution =

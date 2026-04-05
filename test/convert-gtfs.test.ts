@@ -41,6 +41,11 @@ describe("parseCsv", () => {
 		expect(result[0]).toEqual({ a: "hello, world", b: "2", c: "3" });
 	});
 
+	it("不正な CSV でエラーを投げる", () => {
+		const csv = 'a,b\n"unclosed quote,2';
+		expect(() => parseCsv(csv)).toThrow(/CSV parse error/);
+	});
+
 	it("事業者ごとに列数が異なる stop_times をパースできる", () => {
 		// 旭川電気軌道: 9 列（timepoint あり）
 		const csv9 =
