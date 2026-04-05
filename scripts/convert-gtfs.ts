@@ -9,18 +9,6 @@ const OPERATORS = [
 	{ id: "furano_bus", name: "ふらのバス" },
 ] as const;
 
-const REQUIRED_FILES = [
-	"agency.txt",
-	"stops.txt",
-	"routes.txt",
-	"trips.txt",
-	"stop_times.txt",
-	"calendar.txt",
-	"calendar_dates.txt",
-	"fare_attributes.txt",
-	"fare_rules.txt",
-] as const;
-
 function parseCsv(text: string): Record<string, string>[] {
 	const result = Papa.parse<Record<string, string>>(text, {
 		header: true,
@@ -203,6 +191,17 @@ function convertOperator(inputDir: string): GtfsData {
 
 	const shapesText = readFile("shapes.txt");
 	const shapesRecords = shapesText ? parseCsv(shapesText) : [];
+	for (let i = 0; i < shapesRecords.length; i++) {
+		validateRequiredField(shapesRecords[i], "shape_id", "shapes.txt", i);
+		validateRequiredField(shapesRecords[i], "shape_pt_lat", "shapes.txt", i);
+		validateRequiredField(shapesRecords[i], "shape_pt_lon", "shapes.txt", i);
+		validateRequiredField(
+			shapesRecords[i],
+			"shape_pt_sequence",
+			"shapes.txt",
+			i,
+		);
+	}
 
 	return {
 		agency: agencyRecords.map((r) => ({
@@ -293,6 +292,8 @@ function main(): void {
 		mkdirSync(outputDir, { recursive: true });
 	}
 
+	let hasError = false;
+
 	for (const operator of OPERATORS) {
 		const operatorDir = join(inputBase, operator.id);
 		if (!existsSync(operatorDir)) {
@@ -303,7 +304,17 @@ function main(): void {
 		}
 
 		console.log(`Converting ${operator.name} (${operator.id})...`);
-		const data = convertOperator(operatorDir);
+		let data: GtfsData;
+		try {
+			data = convertOperator(operatorDir);
+		} catch (e) {
+			console.error(
+				`Error converting ${operator.name} (${operator.id}):`,
+				e instanceof Error ? e.message : e,
+			);
+			hasError = true;
+			continue;
+		}
 
 		const outputPath = join(outputDir, `${operator.id}.json`);
 		writeFileSync(outputPath, JSON.stringify(data), "utf-8");
@@ -324,16 +335,14 @@ function main(): void {
 		console.log("  Records:", stats);
 	}
 
+	if (hasError) {
+		process.exitCode = 1;
+	}
+
 	console.log("Done.");
 }
 
-export {
-	parseCsv,
-	validateCoordinate,
-	convertOperator,
-	OPERATORS,
-	REQUIRED_FILES,
-};
+export { parseCsv, validateCoordinate, convertOperator, OPERATORS };
 
 const isDirectExecution =
 	process.argv[1] &&
