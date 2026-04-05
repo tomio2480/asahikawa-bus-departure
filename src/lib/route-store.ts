@@ -191,7 +191,9 @@ export async function importRoutes(
 			request.onsuccess = () => {
 				count++;
 			};
-			request.onerror = () => reject(request.error);
+			request.onerror = () => {
+				tx.abort();
+			};
 		}
 		tx.oncomplete = () => {
 			db.close();
