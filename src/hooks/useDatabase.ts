@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 import initSqlJs from "sql.js";
-import type { Database } from "sql.js";
+import type { Database, SqlJsStatic } from "sql.js";
 import { createSchema } from "../lib/gtfs-loader";
+
+let sqlJsPromise: Promise<SqlJsStatic> | null = null;
+
+function getSqlJs(): Promise<SqlJsStatic> {
+	if (!sqlJsPromise) {
+		sqlJsPromise = initSqlJs({
+			locateFile: (file) => `/${file}`,
+		});
+	}
+	return sqlJsPromise;
+}
 
 export function useDatabase(): {
 	db: Database | null;
@@ -14,13 +25,12 @@ export function useDatabase(): {
 
 	useEffect(() => {
 		let cancelled = false;
+		let database: Database | null = null;
 
-		initSqlJs({
-			locateFile: (file) => `/${file}`,
-		})
+		getSqlJs()
 			.then((SQL) => {
 				if (cancelled) return;
-				const database = new SQL.Database();
+				database = new SQL.Database();
 				createSchema(database);
 				setDb(database);
 				setLoading(false);
@@ -33,6 +43,9 @@ export function useDatabase(): {
 
 		return () => {
 			cancelled = true;
+			if (database) {
+				database.close();
+			}
 		};
 	}, []);
 
