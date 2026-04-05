@@ -35,9 +35,18 @@ export async function addRoute(entry: Omit<RouteEntry, "id">): Promise<number> {
 		const tx = db.transaction(STORE_NAME, "readwrite");
 		const store = tx.objectStore(STORE_NAME);
 		const request = store.add(sanitized);
-		request.onsuccess = () => resolve(request.result as number);
-		request.onerror = () => reject(request.error);
-		tx.oncomplete = () => db.close();
+		let id: number;
+		request.onsuccess = () => {
+			id = request.result as number;
+		};
+		tx.oncomplete = () => {
+			db.close();
+			resolve(id);
+		};
+		tx.onerror = () => {
+			db.close();
+			reject(tx.error);
+		};
 	});
 }
 
@@ -48,9 +57,18 @@ export async function getRoute(id: number): Promise<RouteEntry | undefined> {
 		const tx = db.transaction(STORE_NAME, "readonly");
 		const store = tx.objectStore(STORE_NAME);
 		const request = store.get(id);
-		request.onsuccess = () => resolve(request.result as RouteEntry | undefined);
-		request.onerror = () => reject(request.error);
-		tx.oncomplete = () => db.close();
+		let result: RouteEntry | undefined;
+		request.onsuccess = () => {
+			result = request.result as RouteEntry | undefined;
+		};
+		tx.oncomplete = () => {
+			db.close();
+			resolve(result);
+		};
+		tx.onerror = () => {
+			db.close();
+			reject(tx.error);
+		};
 	});
 }
 
@@ -61,9 +79,18 @@ export async function getAllRoutes(): Promise<RouteEntry[]> {
 		const tx = db.transaction(STORE_NAME, "readonly");
 		const store = tx.objectStore(STORE_NAME);
 		const request = store.getAll();
-		request.onsuccess = () => resolve(request.result as RouteEntry[]);
-		request.onerror = () => reject(request.error);
-		tx.oncomplete = () => db.close();
+		let result: RouteEntry[] = [];
+		request.onsuccess = () => {
+			result = request.result as RouteEntry[];
+		};
+		tx.oncomplete = () => {
+			db.close();
+			resolve(result);
+		};
+		tx.onerror = () => {
+			db.close();
+			reject(tx.error);
+		};
 	});
 }
 
@@ -77,10 +104,15 @@ export async function updateRoute(entry: RouteEntry): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const tx = db.transaction(STORE_NAME, "readwrite");
 		const store = tx.objectStore(STORE_NAME);
-		const request = store.put(sanitized);
-		request.onsuccess = () => resolve();
-		request.onerror = () => reject(request.error);
-		tx.oncomplete = () => db.close();
+		store.put(sanitized);
+		tx.oncomplete = () => {
+			db.close();
+			resolve();
+		};
+		tx.onerror = () => {
+			db.close();
+			reject(tx.error);
+		};
 	});
 }
 
@@ -90,10 +122,15 @@ export async function deleteRoute(id: number): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const tx = db.transaction(STORE_NAME, "readwrite");
 		const store = tx.objectStore(STORE_NAME);
-		const request = store.delete(id);
-		request.onsuccess = () => resolve();
-		request.onerror = () => reject(request.error);
-		tx.oncomplete = () => db.close();
+		store.delete(id);
+		tx.oncomplete = () => {
+			db.close();
+			resolve();
+		};
+		tx.onerror = () => {
+			db.close();
+			reject(tx.error);
+		};
 	});
 }
 
@@ -169,10 +206,11 @@ export async function importRoutes(
 
 /** 入力値をサニタイズする */
 function sanitizeEntry(entry: Omit<RouteEntry, "id">): Omit<RouteEntry, "id"> {
+	const minutes = Number(entry.walkMinutes);
 	return {
 		fromStopId: String(entry.fromStopId),
 		toStopId: String(entry.toStopId),
-		walkMinutes: Math.max(0, Math.floor(Number(entry.walkMinutes))),
+		walkMinutes: Number.isNaN(minutes) ? 0 : Math.max(0, Math.floor(minutes)),
 	};
 }
 
