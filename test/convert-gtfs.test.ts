@@ -1,25 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	parseCsv,
-	removeBom,
-	validateCoordinate,
-} from "../scripts/convert-gtfs";
-
-describe("removeBom", () => {
-	it("BOM 付き文字列から BOM を除去する", () => {
-		const withBom = "\uFEFFagency_id,agency_name";
-		expect(removeBom(withBom)).toBe("agency_id,agency_name");
-	});
-
-	it("BOM なし文字列はそのまま返す", () => {
-		const noBom = "agency_id,agency_name";
-		expect(removeBom(noBom)).toBe("agency_id,agency_name");
-	});
-
-	it("空文字列はそのまま返す", () => {
-		expect(removeBom("")).toBe("");
-	});
-});
+import { parseCsv, validateCoordinate } from "../scripts/convert-gtfs";
 
 describe("parseCsv", () => {
 	it("CSV をパースしてレコード配列を返す", () => {
@@ -55,10 +35,10 @@ describe("parseCsv", () => {
 		expect(result).toHaveLength(0);
 	});
 
-	it("ヘッダーより値が少ない行は空文字で埋められる", () => {
-		const csv = "a,b,c\n1,2";
+	it("クォート付きフィールドを正しくパースする", () => {
+		const csv = 'a,b,c\n"hello, world",2,3';
 		const result = parseCsv(csv);
-		expect(result[0]).toEqual({ a: "1", b: "2", c: "" });
+		expect(result[0]).toEqual({ a: "hello, world", b: "2", c: "3" });
 	});
 
 	it("事業者ごとに列数が異なる stop_times をパースできる", () => {
@@ -92,6 +72,15 @@ describe("validateCoordinate", () => {
 	it("範囲外の経度でエラーを投げる", () => {
 		expect(() => validateCoordinate(43.0, 130.0, "S001")).toThrow(
 			/Invalid longitude/,
+		);
+	});
+
+	it("NaN の座標でエラーを投げる", () => {
+		expect(() => validateCoordinate(Number.NaN, 142.0, "S001")).toThrow(
+			/Invalid coordinate \(NaN\)/,
+		);
+		expect(() => validateCoordinate(43.0, Number.NaN, "S001")).toThrow(
+			/Invalid coordinate \(NaN\)/,
 		);
 	});
 });

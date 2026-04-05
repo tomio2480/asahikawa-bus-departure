@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import Papa from "papaparse";
 import type { GtfsData } from "../src/types/gtfs";
 
 const OPERATORS = [
@@ -28,27 +29,18 @@ const IGNORED_FILES = new Set([
 	"translations.txt",
 ]);
 
-function removeBom(text: string): string {
-	return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
-}
-
 function parseCsv(text: string): Record<string, string>[] {
-	const cleaned = removeBom(text);
-	const lines = cleaned.split(/\r?\n/).filter((line) => line.trim() !== "");
-	if (lines.length === 0) return [];
-
-	const headers = lines[0].split(",").map((h) => h.trim());
-	return lines.slice(1).map((line) => {
-		const values = line.split(",").map((v) => v.trim());
-		const record: Record<string, string> = {};
-		for (let i = 0; i < headers.length; i++) {
-			record[headers[i]] = values[i] ?? "";
-		}
-		return record;
+	const result = Papa.parse<Record<string, string>>(text, {
+		header: true,
+		skipEmptyLines: true,
 	});
+	return result.data;
 }
 
 function validateCoordinate(lat: number, lon: number, stopId: string): void {
+	if (Number.isNaN(lat) || Number.isNaN(lon)) {
+		throw new Error(`Invalid coordinate (NaN) for stop ${stopId}`);
+	}
 	if (lat < 42.0 || lat > 45.0) {
 		throw new Error(
 			`Invalid latitude ${lat} for stop ${stopId} (expected 42.0-45.0 for Hokkaido)`,
@@ -295,7 +287,6 @@ function main(): void {
 }
 
 export {
-	removeBom,
 	parseCsv,
 	validateCoordinate,
 	convertOperator,
