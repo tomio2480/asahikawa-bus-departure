@@ -21,40 +21,20 @@ export function getActiveServiceIds(db: Database, date: Date): string[] {
 	const dateStr = formatDate(date);
 	const weekdayColumn = WEEKDAY_COLUMNS[date.getDay()];
 
-	const calendarResult = db.exec(
+	const result = db.exec(
 		`SELECT service_id FROM calendar
-		 WHERE ${weekdayColumn} = 1
-		   AND start_date <= ?
-		   AND end_date >= ?`,
-		[dateStr, dateStr],
+		   WHERE ${weekdayColumn} = 1 AND start_date <= ? AND end_date >= ?
+		 UNION
+		 SELECT service_id FROM calendar_dates
+		   WHERE date = ? AND exception_type = 1
+		 EXCEPT
+		 SELECT service_id FROM calendar_dates
+		   WHERE date = ? AND exception_type = 2`,
+		[dateStr, dateStr, dateStr, dateStr],
 	);
 
-	const serviceIds = new Set<string>();
-	if (calendarResult.length > 0) {
-		for (const row of calendarResult[0].values) {
-			serviceIds.add(row[0] as string);
-		}
+	if (result.length === 0) {
+		return [];
 	}
-
-	const addResult = db.exec(
-		"SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 1",
-		[dateStr],
-	);
-	if (addResult.length > 0) {
-		for (const row of addResult[0].values) {
-			serviceIds.add(row[0] as string);
-		}
-	}
-
-	const removeResult = db.exec(
-		"SELECT service_id FROM calendar_dates WHERE date = ? AND exception_type = 2",
-		[dateStr],
-	);
-	if (removeResult.length > 0) {
-		for (const row of removeResult[0].values) {
-			serviceIds.delete(row[0] as string);
-		}
-	}
-
-	return [...serviceIds];
+	return result[0].values.map((row) => row[0] as string);
 }
