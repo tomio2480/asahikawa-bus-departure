@@ -39,6 +39,10 @@ export function useDatabase(): {
 				setLoading(false);
 			})
 			.catch((e) => {
+				if (database) {
+					database.close();
+					database = null;
+				}
 				if (cancelled) return;
 				setError(e instanceof Error ? e : new Error(String(e)));
 				setLoading(false);
