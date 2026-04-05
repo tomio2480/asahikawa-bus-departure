@@ -53,6 +53,35 @@ export function createSchema(db: Database): void {
 			exception_type INTEGER NOT NULL,
 			PRIMARY KEY (service_id, date)
 		);
+		CREATE TABLE IF NOT EXISTS shapes (
+			shape_id TEXT NOT NULL,
+			shape_pt_lat REAL NOT NULL,
+			shape_pt_lon REAL NOT NULL,
+			shape_pt_sequence INTEGER NOT NULL,
+			PRIMARY KEY (shape_id, shape_pt_sequence)
+		);
+		CREATE TABLE IF NOT EXISTS fare_attributes (
+			fare_id TEXT PRIMARY KEY,
+			price REAL NOT NULL,
+			currency_type TEXT NOT NULL,
+			payment_method INTEGER NOT NULL,
+			transfers INTEGER
+		);
+		CREATE TABLE IF NOT EXISTS fare_rules (
+			fare_id TEXT NOT NULL,
+			route_id TEXT,
+			origin_id TEXT,
+			destination_id TEXT
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_stop_times_trip_id ON stop_times (trip_id);
+		CREATE INDEX IF NOT EXISTS idx_stop_times_stop_id ON stop_times (stop_id);
+		CREATE INDEX IF NOT EXISTS idx_stop_times_departure ON stop_times (departure_time);
+		CREATE INDEX IF NOT EXISTS idx_trips_route_id ON trips (route_id);
+		CREATE INDEX IF NOT EXISTS idx_trips_service_id ON trips (service_id);
+		CREATE INDEX IF NOT EXISTS idx_stops_stop_name ON stops (stop_name);
+		CREATE INDEX IF NOT EXISTS idx_fare_rules_route_id ON fare_rules (route_id);
+		CREATE INDEX IF NOT EXISTS idx_fare_rules_origin_dest ON fare_rules (origin_id, destination_id);
 	`);
 }
 
@@ -166,6 +195,46 @@ export function loadGtfsData(
 					ns(cd.service_id),
 					cd.date,
 					cd.exception_type,
+				]),
+			);
+		}
+
+		if (data.shapes.length) {
+			runWithStmt(
+				db,
+				"INSERT INTO shapes (shape_id, shape_pt_lat, shape_pt_lon, shape_pt_sequence) VALUES (?, ?, ?, ?)",
+				data.shapes.map((s) => [
+					ns(s.shape_id),
+					s.shape_pt_lat,
+					s.shape_pt_lon,
+					s.shape_pt_sequence,
+				]),
+			);
+		}
+
+		if (data.fare_attributes.length) {
+			runWithStmt(
+				db,
+				"INSERT INTO fare_attributes (fare_id, price, currency_type, payment_method, transfers) VALUES (?, ?, ?, ?, ?)",
+				data.fare_attributes.map((fa) => [
+					ns(fa.fare_id),
+					fa.price,
+					fa.currency_type,
+					fa.payment_method,
+					fa.transfers,
+				]),
+			);
+		}
+
+		if (data.fare_rules.length) {
+			runWithStmt(
+				db,
+				"INSERT INTO fare_rules (fare_id, route_id, origin_id, destination_id) VALUES (?, ?, ?, ?)",
+				data.fare_rules.map((fr) => [
+					ns(fr.fare_id),
+					fr.route_id ? ns(fr.route_id) : null,
+					fr.origin_id ? ns(fr.origin_id) : null,
+					fr.destination_id ? ns(fr.destination_id) : null,
 				]),
 			);
 		}

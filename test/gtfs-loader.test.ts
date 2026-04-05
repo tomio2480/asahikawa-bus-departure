@@ -33,6 +33,28 @@ describe("gtfs-loader", () => {
 			expect(tables).toContain("stop_times");
 			expect(tables).toContain("calendar");
 			expect(tables).toContain("calendar_dates");
+			expect(tables).toContain("shapes");
+			expect(tables).toContain("fare_attributes");
+			expect(tables).toContain("fare_rules");
+		});
+
+		it("インデックスが作成される", () => {
+			createSchema(db);
+
+			const indexes = db
+				.exec(
+					"SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%' ORDER BY name",
+				)[0]
+				.values.map((row) => row[0]);
+
+			expect(indexes).toContain("idx_stop_times_trip_id");
+			expect(indexes).toContain("idx_stop_times_stop_id");
+			expect(indexes).toContain("idx_stop_times_departure");
+			expect(indexes).toContain("idx_trips_route_id");
+			expect(indexes).toContain("idx_trips_service_id");
+			expect(indexes).toContain("idx_stops_stop_name");
+			expect(indexes).toContain("idx_fare_rules_route_id");
+			expect(indexes).toContain("idx_fare_rules_origin_dest");
 		});
 	});
 
@@ -122,6 +144,39 @@ describe("gtfs-loader", () => {
 			expect(result[0].values[0]).toEqual(["test:weekday", "20260505", 2]);
 		});
 
+		it("shapes データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
+
+			const result = db.exec(
+				"SELECT shape_id, shape_pt_lat, shape_pt_lon, shape_pt_sequence FROM shapes ORDER BY shape_pt_sequence",
+			);
+			expect(result[0].values).toHaveLength(2);
+			expect(result[0].values[0][0]).toBe("test:SH001");
+		});
+
+		it("fare_attributes データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
+
+			const result = db.exec(
+				"SELECT fare_id, price, currency_type FROM fare_attributes",
+			);
+			expect(result[0].values[0]).toEqual(["test:F001", 200, "JPY"]);
+		});
+
+		it("fare_rules データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
+
+			const result = db.exec(
+				"SELECT fare_id, route_id, origin_id, destination_id FROM fare_rules",
+			);
+			expect(result[0].values[0]).toEqual([
+				"test:F001",
+				"test:R001",
+				"test:Z001",
+				"test:Z002",
+			]);
+		});
+
 		it("複数事業者のデータを統合できる（ID 衝突なし）", () => {
 			loadGtfsData(db, sampleGtfsData, "opA");
 
@@ -164,6 +219,9 @@ describe("gtfs-loader", () => {
 				],
 				calendar: [],
 				calendar_dates: [],
+				shapes: [],
+				fare_attributes: [],
+				fare_rules: [],
 			};
 			loadGtfsData(db, secondOperator, "opB");
 

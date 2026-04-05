@@ -53,6 +53,28 @@ export type CalendarDate = {
 	exception_type: 1 | 2;
 };
 
+export type Shape = {
+	shape_id: string;
+	shape_pt_lat: number;
+	shape_pt_lon: number;
+	shape_pt_sequence: number;
+};
+
+export type FareAttribute = {
+	fare_id: string;
+	price: number;
+	currency_type: string;
+	payment_method: 0 | 1;
+	transfers: 0 | 1 | 2 | null;
+};
+
+export type FareRule = {
+	fare_id: string;
+	route_id?: string;
+	origin_id?: string;
+	destination_id?: string;
+};
+
 export type GtfsData = {
 	agency: Agency[];
 	stops: Stop[];
@@ -61,4 +83,7 @@ export type GtfsData = {
 	stop_times: StopTime[];
 	calendar: Calendar[];
 	calendar_dates: CalendarDate[];
+	shapes: Shape[];
+	fare_attributes: FareAttribute[];
+	fare_rules: FareRule[];
 };
