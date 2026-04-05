@@ -12,25 +12,11 @@ export type Departure = {
 };
 
 /**
- * GTFS の時刻文字列（HH:MM:SS）を比較用の秒数に変換する。
- * 24 時超の表記（例: "25:30:00"）にも対応する。
- */
-export function timeToSeconds(time: string): number {
-	const parts = time.split(":");
-	if (parts.length !== 3) {
-		throw new Error(`Invalid time format: ${time}`);
-	}
-	const hours = Number(parts[0]);
-	const minutes = Number(parts[1]);
-	const seconds = Number(parts[2]);
-	if (Number.isNaN(hours) || Number.isNaN(minutes) || Number.isNaN(seconds)) {
-		throw new Error(`Invalid time format: ${time}`);
-	}
-	return hours * 3600 + minutes * 60 + seconds;
-}
-
-/**
  * 指定したバス停間の発車案内を取得する。
+ *
+ * GTFS の時刻文字列（HH:MM:SS）はゼロパディングされているため、
+ * 文字列の辞書順比較で正しくフィルタ・ソートできる。
+ * 24 時超の表記（例: "25:30:00"）も辞書順で正しく処理される。
  *
  * @param db - sql.js データベース
  * @param serviceIds - 有効な service_id の配列
@@ -72,32 +58,26 @@ export function getDepartures(
 		WHERE st_from.stop_id = ?
 			AND st_to.stop_id = ?
 			AND t.service_id IN (${placeholders})
+			AND st_from.departure_time >= ?
 		ORDER BY st_from.departure_time ASC
 		LIMIT ?`,
-		[fromStopId, toStopId, ...serviceIds, limit],
+		[fromStopId, toStopId, ...serviceIds, afterTime, limit],
 	);
 
 	if (result.length === 0) {
 		return [];
 	}
 
-	const afterSeconds = timeToSeconds(afterTime);
-
-	return result[0].values
-		.filter((row) => {
-			const departureSeconds = timeToSeconds(row[4] as string);
-			return departureSeconds >= afterSeconds;
-		})
-		.map((row) => ({
-			tripId: row[0] as string,
-			routeId: row[1] as string,
-			routeName: row[2] as string,
-			headsign: row[3] as string,
-			departureTime: row[4] as string,
-			arrivalTime: row[5] as string,
-			fromStopId: row[6] as string,
-			toStopId: row[7] as string,
-		}));
+	return result[0].values.map((row) => ({
+		tripId: row[0] as string,
+		routeId: row[1] as string,
+		routeName: row[2] as string,
+		headsign: row[3] as string,
+		departureTime: row[4] as string,
+		arrivalTime: row[5] as string,
+		fromStopId: row[6] as string,
+		toStopId: row[7] as string,
+	}));
 }
 
 /**

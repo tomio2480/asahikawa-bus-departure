@@ -4,28 +4,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	calculateBoardingTime,
 	getDepartures,
-	timeToSeconds,
 } from "../src/lib/departure-query";
 import { createSchema } from "../src/lib/gtfs-loader";
-
-describe("timeToSeconds", () => {
-	it("通常の時刻を秒数に変換する", () => {
-		expect(timeToSeconds("08:00:00")).toBe(28800);
-		expect(timeToSeconds("00:00:00")).toBe(0);
-		expect(timeToSeconds("12:30:45")).toBe(45045);
-	});
-
-	it("24 時超の時刻を正しく変換する", () => {
-		expect(timeToSeconds("25:30:00")).toBe(91800);
-		expect(timeToSeconds("26:00:00")).toBe(93600);
-	});
-
-	it("不正な形式でエラーを投げる", () => {
-		expect(() => timeToSeconds("invalid")).toThrow(/Invalid time format/);
-		expect(() => timeToSeconds("08:00")).toThrow(/Invalid time format/);
-		expect(() => timeToSeconds("abc:00:00")).toThrow(/Invalid time format/);
-	});
-});
 
 describe("calculateBoardingTime", () => {
 	it("徒歩時間を加算した乗車可能時刻を返す", () => {
