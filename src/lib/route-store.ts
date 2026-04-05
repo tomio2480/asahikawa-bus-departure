@@ -220,6 +220,10 @@ export async function importRoutes(
 			db.close();
 			reject(tx.error);
 		};
+		tx.onabort = () => {
+			db.close();
+			reject(tx.error ?? new Error("Import aborted due to an error"));
+		};
 	});
 }
 
