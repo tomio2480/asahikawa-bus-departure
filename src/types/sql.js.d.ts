@@ -4,9 +4,15 @@ declare module "sql.js" {
 		values: unknown[][];
 	}
 
+	export interface Statement {
+		run(values?: unknown[]): void;
+		free(): void;
+	}
+
 	export interface Database {
 		run(sql: string, params?: unknown[]): Database;
 		exec(sql: string, params?: unknown[]): QueryExecResult[];
+		prepare(sql: string): Statement;
 		close(): void;
 	}
 
