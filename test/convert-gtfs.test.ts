@@ -46,6 +46,12 @@ describe("parseCsv", () => {
 		expect(() => parseCsv(csv)).toThrow(/CSV parse error/);
 	});
 
+	it("存在しない列は undefined になる", () => {
+		const csv = "fare_id,price\nF001,200";
+		const result = parseCsv(csv);
+		expect(result[0].transfers).toBeUndefined();
+	});
+
 	it("事業者ごとに列数が異なる stop_times をパースできる", () => {
 		// 旭川電気軌道: 9 列（timepoint あり）
 		const csv9 =

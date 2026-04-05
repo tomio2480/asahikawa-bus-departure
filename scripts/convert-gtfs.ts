@@ -263,7 +263,10 @@ function convertOperator(inputDir: string): GtfsData {
 			price: Number(r.price),
 			currency_type: r.currency_type,
 			payment_method: Number(r.payment_method) as 0 | 1,
-			transfers: r.transfers === "" ? null : (Number(r.transfers) as 0 | 1 | 2),
+			transfers:
+				r.transfers == null || r.transfers === ""
+					? null
+					: (Number(r.transfers) as 0 | 1 | 2),
 		})),
 		fare_rules: fareRulesRecords.map((r) => ({
 			fare_id: r.fare_id,
