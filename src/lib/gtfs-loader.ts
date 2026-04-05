@@ -56,89 +56,95 @@ export function createSchema(db: Database): void {
 	`);
 }
 
-export function loadGtfsData(db: Database, data: GtfsData): void {
+function runWithStmt(db: Database, sql: string, rows: unknown[][]): void {
+	const stmt = db.prepare(sql);
+	try {
+		for (const row of rows) {
+			stmt.run(row);
+		}
+	} finally {
+		stmt.free();
+	}
+}
+
+export function loadGtfsData(
+	db: Database,
+	data: GtfsData,
+	operatorId: string,
+): void {
+	const ns = (id: string) => `${operatorId}:${id}`;
+
 	db.run("BEGIN TRANSACTION");
 	try {
 		if (data.agency.length) {
-			const stmt = db.prepare(
+			runWithStmt(
+				db,
 				"INSERT INTO agency (agency_id, agency_name) VALUES (?, ?)",
+				data.agency.map((a) => [ns(a.agency_id), a.agency_name]),
 			);
-			for (const a of data.agency) {
-				stmt.run([a.agency_id, a.agency_name]);
-			}
-			stmt.free();
 		}
 
 		if (data.stops.length) {
-			const stmt = db.prepare(
+			runWithStmt(
+				db,
 				"INSERT INTO stops (stop_id, stop_name, stop_lat, stop_lon, zone_id) VALUES (?, ?, ?, ?, ?)",
-			);
-			for (const s of data.stops) {
-				stmt.run([
-					s.stop_id,
+				data.stops.map((s) => [
+					ns(s.stop_id),
 					s.stop_name,
 					s.stop_lat,
 					s.stop_lon,
-					s.zone_id ?? null,
-				]);
-			}
-			stmt.free();
+					s.zone_id ? ns(s.zone_id) : null,
+				]),
+			);
 		}
 
 		if (data.routes.length) {
-			const stmt = db.prepare(
+			runWithStmt(
+				db,
 				"INSERT INTO routes (route_id, agency_id, route_short_name, route_long_name) VALUES (?, ?, ?, ?)",
-			);
-			for (const r of data.routes) {
-				stmt.run([
-					r.route_id,
-					r.agency_id,
+				data.routes.map((r) => [
+					ns(r.route_id),
+					ns(r.agency_id),
 					r.route_short_name ?? null,
 					r.route_long_name ?? null,
-				]);
-			}
-			stmt.free();
+				]),
+			);
 		}
 
 		if (data.trips.length) {
-			const stmt = db.prepare(
+			runWithStmt(
+				db,
 				"INSERT INTO trips (trip_id, route_id, service_id, trip_headsign, shape_id) VALUES (?, ?, ?, ?, ?)",
-			);
-			for (const t of data.trips) {
-				stmt.run([
-					t.trip_id,
-					t.route_id,
-					t.service_id,
+				data.trips.map((t) => [
+					ns(t.trip_id),
+					ns(t.route_id),
+					ns(t.service_id),
 					t.trip_headsign ?? null,
-					t.shape_id ?? null,
-				]);
-			}
-			stmt.free();
+					t.shape_id ? ns(t.shape_id) : null,
+				]),
+			);
 		}
 
 		if (data.stop_times.length) {
-			const stmt = db.prepare(
+			runWithStmt(
+				db,
 				"INSERT INTO stop_times (trip_id, arrival_time, departure_time, stop_id, stop_sequence) VALUES (?, ?, ?, ?, ?)",
-			);
-			for (const st of data.stop_times) {
-				stmt.run([
-					st.trip_id,
+				data.stop_times.map((st) => [
+					ns(st.trip_id),
 					st.arrival_time,
 					st.departure_time,
-					st.stop_id,
+					ns(st.stop_id),
 					st.stop_sequence,
-				]);
-			}
-			stmt.free();
+				]),
+			);
 		}
 
 		if (data.calendar.length) {
-			const stmt = db.prepare(
+			runWithStmt(
+				db,
 				"INSERT INTO calendar (service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-			);
-			for (const c of data.calendar) {
-				stmt.run([
-					c.service_id,
+				data.calendar.map((c) => [
+					ns(c.service_id),
 					c.monday,
 					c.tuesday,
 					c.wednesday,
@@ -148,19 +154,20 @@ export function loadGtfsData(db: Database, data: GtfsData): void {
 					c.sunday,
 					c.start_date,
 					c.end_date,
-				]);
-			}
-			stmt.free();
+				]),
+			);
 		}
 
 		if (data.calendar_dates.length) {
-			const stmt = db.prepare(
+			runWithStmt(
+				db,
 				"INSERT INTO calendar_dates (service_id, date, exception_type) VALUES (?, ?, ?)",
+				data.calendar_dates.map((cd) => [
+					ns(cd.service_id),
+					cd.date,
+					cd.exception_type,
+				]),
 			);
-			for (const cd of data.calendar_dates) {
-				stmt.run([cd.service_id, cd.date, cd.exception_type]);
-			}
-			stmt.free();
 		}
 
 		db.run("COMMIT");

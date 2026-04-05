@@ -36,13 +36,13 @@ export type StopTime = {
 
 export type Calendar = {
 	service_id: string;
-	monday: number;
-	tuesday: number;
-	wednesday: number;
-	thursday: number;
-	friday: number;
-	saturday: number;
-	sunday: number;
+	monday: 0 | 1;
+	tuesday: 0 | 1;
+	wednesday: 0 | 1;
+	thursday: 0 | 1;
+	friday: 0 | 1;
+	saturday: 0 | 1;
+	sunday: 0 | 1;
 	start_date: string;
 	end_date: string;
 };
@@ -50,7 +50,7 @@ export type Calendar = {
 export type CalendarDate = {
 	service_id: string;
 	date: string;
-	exception_type: number;
+	exception_type: 1 | 2;
 };
 
 export type GtfsData = {

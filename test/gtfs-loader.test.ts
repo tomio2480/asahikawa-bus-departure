@@ -41,115 +41,159 @@ describe("gtfs-loader", () => {
 			createSchema(db);
 		});
 
-		it("agency データが投入される", () => {
-			loadGtfsData(db, sampleGtfsData);
+		it("agency データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
 
 			const result = db.exec("SELECT agency_id, agency_name FROM agency");
-			expect(result[0].values).toEqual([["A001", "テストバス"]]);
+			expect(result[0].values).toEqual([["test:A001", "テストバス"]]);
 		});
 
-		it("stops データが投入される", () => {
-			loadGtfsData(db, sampleGtfsData);
+		it("stops データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
 
 			const result = db.exec("SELECT stop_id, stop_name FROM stops");
 			expect(result[0].values).toHaveLength(2);
-			expect(result[0].values[0]).toEqual(["S001", "旭川駅前"]);
+			expect(result[0].values[0]).toEqual(["test:S001", "旭川駅前"]);
 		});
 
-		it("routes データが投入される", () => {
-			loadGtfsData(db, sampleGtfsData);
-
-			const result = db.exec("SELECT route_id, route_long_name FROM routes");
-			expect(result[0].values[0]).toEqual(["R001", "旭川駅前〜市役所前"]);
-		});
-
-		it("trips データが投入される", () => {
-			loadGtfsData(db, sampleGtfsData);
+		it("routes データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
 
 			const result = db.exec(
-				"SELECT trip_id, service_id, trip_headsign FROM trips",
+				"SELECT route_id, agency_id, route_long_name FROM routes",
 			);
-			expect(result[0].values[0]).toEqual(["T001", "weekday", "市役所前"]);
+			expect(result[0].values[0]).toEqual([
+				"test:R001",
+				"test:A001",
+				"旭川駅前〜市役所前",
+			]);
 		});
 
-		it("stop_times データが投入される", () => {
-			loadGtfsData(db, sampleGtfsData);
+		it("trips データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
+
+			const result = db.exec(
+				"SELECT trip_id, route_id, service_id, trip_headsign FROM trips",
+			);
+			expect(result[0].values[0]).toEqual([
+				"test:T001",
+				"test:R001",
+				"test:weekday",
+				"市役所前",
+			]);
+		});
+
+		it("stop_times データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
 
 			const result = db.exec(
 				"SELECT trip_id, departure_time, stop_id, stop_sequence FROM stop_times ORDER BY stop_sequence",
 			);
 			expect(result[0].values).toHaveLength(2);
-			expect(result[0].values[0]).toEqual(["T001", "08:00:00", "S001", 1]);
-			expect(result[0].values[1]).toEqual(["T001", "08:15:00", "S002", 2]);
+			expect(result[0].values[0]).toEqual([
+				"test:T001",
+				"08:00:00",
+				"test:S001",
+				1,
+			]);
+			expect(result[0].values[1]).toEqual([
+				"test:T001",
+				"08:15:00",
+				"test:S002",
+				2,
+			]);
 		});
 
-		it("calendar データが投入される", () => {
-			loadGtfsData(db, sampleGtfsData);
+		it("calendar データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
 
 			const result = db.exec(
 				"SELECT service_id, monday, saturday FROM calendar",
 			);
-			expect(result[0].values[0]).toEqual(["weekday", 1, 0]);
+			expect(result[0].values[0]).toEqual(["test:weekday", 1, 0]);
 		});
 
-		it("calendar_dates データが投入される", () => {
-			loadGtfsData(db, sampleGtfsData);
+		it("calendar_dates データが operatorId 付きで投入される", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
 
 			const result = db.exec(
 				"SELECT service_id, date, exception_type FROM calendar_dates",
 			);
-			expect(result[0].values[0]).toEqual(["weekday", "20260505", 2]);
+			expect(result[0].values[0]).toEqual(["test:weekday", "20260505", 2]);
 		});
 
-		it("複数事業者のデータを統合できる", () => {
-			loadGtfsData(db, sampleGtfsData);
+		it("複数事業者のデータを統合できる（ID 衝突なし）", () => {
+			loadGtfsData(db, sampleGtfsData, "opA");
 
 			const secondOperator = {
 				...sampleGtfsData,
-				agency: [{ agency_id: "A002", agency_name: "第二バス" }],
+				agency: [{ agency_id: "A001", agency_name: "第二バス" }],
 				stops: [
 					{
-						stop_id: "S003",
-						stop_name: "北口",
+						stop_id: "S001",
+						stop_name: "別の駅前",
 						stop_lat: 43.77,
 						stop_lon: 142.36,
+						zone_id: "Z001" as const,
 					},
 				],
 				routes: [
 					{
-						route_id: "R002",
-						agency_id: "A002",
-						route_short_name: "2",
-						route_long_name: "北口線",
+						route_id: "R001",
+						agency_id: "A001",
+						route_short_name: "1",
+						route_long_name: "別路線",
 					},
 				],
 				trips: [
 					{
-						trip_id: "T002",
-						route_id: "R002",
+						trip_id: "T001",
+						route_id: "R001",
 						service_id: "weekday",
-						trip_headsign: "北口",
+						trip_headsign: "別方面",
 					},
 				],
 				stop_times: [
 					{
-						trip_id: "T002",
+						trip_id: "T001",
 						arrival_time: "09:00:00",
 						departure_time: "09:00:00",
-						stop_id: "S003",
+						stop_id: "S001",
 						stop_sequence: 1,
 					},
 				],
 				calendar: [],
 				calendar_dates: [],
 			};
-			loadGtfsData(db, secondOperator);
+			loadGtfsData(db, secondOperator, "opB");
 
 			const agencies = db.exec("SELECT COUNT(*) FROM agency");
 			expect(agencies[0].values[0][0]).toBe(2);
 
 			const stops = db.exec("SELECT COUNT(*) FROM stops");
 			expect(stops[0].values[0][0]).toBe(3);
+
+			const aNames = db.exec(
+				"SELECT agency_id, agency_name FROM agency ORDER BY agency_id",
+			);
+			expect(aNames[0].values).toEqual([
+				["opA:A001", "テストバス"],
+				["opB:A001", "第二バス"],
+			]);
+		});
+
+		it("途中エラー時はロールバックされ部分投入されない", () => {
+			loadGtfsData(db, sampleGtfsData, "test");
+
+			const duplicated = {
+				...sampleGtfsData,
+				agency: [{ agency_id: "A001", agency_name: "重複" }],
+			};
+
+			expect(() => loadGtfsData(db, duplicated, "test")).toThrow();
+
+			const agencies = db.exec("SELECT COUNT(*) FROM agency");
+			expect(agencies[0].values[0][0]).toBe(1);
 		});
 	});
 });
