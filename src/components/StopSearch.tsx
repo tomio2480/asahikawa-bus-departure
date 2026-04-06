@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Database } from "sql.js";
 import { type StopSearchResult, searchStops } from "../lib/stop-search";
 
@@ -23,6 +23,7 @@ export function StopSearch({
 	selectedStop = null,
 	placeholder = "バス停名を入力",
 }: StopSearchProps) {
+	const id = useId();
 	const [query, setQuery] = useState(selectedStop?.stop_name ?? "");
 	const [results, setResults] = useState<StopSearchResult[]>([]);
 	const [isOpen, setIsOpen] = useState(false);
@@ -106,13 +107,13 @@ export function StopSearch({
 	}, []);
 
 	return (
-		<div ref={containerRef} className="form-control w-full">
-			<label className="label" htmlFor={`stop-search-${label}`}>
+		<div ref={containerRef} className="form-control w-full relative">
+			<label className="label" htmlFor={`stop-search-${id}`}>
 				<span className="label-text">{label}</span>
 			</label>
 			<input
 				ref={inputRef}
-				id={`stop-search-${label}`}
+				id={`stop-search-${id}`}
 				type="text"
 				className="input input-bordered w-full"
 				placeholder={placeholder}
@@ -123,25 +124,27 @@ export function StopSearch({
 					if (results.length > 0) setIsOpen(true);
 				}}
 				role="combobox"
+				aria-autocomplete="list"
 				aria-expanded={isOpen}
-				aria-controls={`stop-search-listbox-${label}`}
+				aria-controls={`stop-search-listbox-${id}`}
 				aria-activedescendant={
-					activeIndex >= 0 ? `stop-option-${label}-${activeIndex}` : undefined
+					activeIndex >= 0 ? `stop-option-${id}-${activeIndex}` : undefined
 				}
 				autoComplete="off"
 			/>
 			{isOpen && results.length > 0 && (
 				<div
-					id={`stop-search-listbox-${label}`}
+					id={`stop-search-listbox-${id}`}
 					className="menu dropdown-content bg-base-100 rounded-box z-10 mt-1 max-h-60 w-full overflow-y-auto shadow-lg"
 					// biome-ignore lint/a11y/useSemanticElements: WAI-ARIA combobox パターンでは div + role="listbox" が標準
 					role="listbox"
 					tabIndex={-1}
 				>
 					{results.map((stop, index) => (
+						// biome-ignore lint/a11y/useKeyWithClickEvents: キーボード操作は入力欄の handleKeyDown で処理する
 						<div
 							key={stop.stop_id}
-							id={`stop-option-${label}-${index}`}
+							id={`stop-option-${id}-${index}`}
 							className={`cursor-pointer px-4 py-2 hover:bg-base-200 ${index === activeIndex ? "bg-base-300" : ""}`}
 							// biome-ignore lint/a11y/useSemanticElements: WAI-ARIA combobox パターンでは div + role="option" が標準
 							role="option"
@@ -149,9 +152,6 @@ export function StopSearch({
 							tabIndex={-1}
 							onClick={() => handleSelect(stop)}
 							onMouseEnter={() => setActiveIndex(index)}
-							onKeyDown={(e) => {
-								if (e.key === "Enter") handleSelect(stop);
-							}}
 						>
 							{stop.stop_name}
 						</div>
