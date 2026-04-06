@@ -16,6 +16,9 @@ const MAX_ROUTE_COUNT = 1000;
 function openDb(): Promise<IDBDatabase> {
 	return new Promise((resolve, reject) => {
 		const request = indexedDB.open(DB_NAME, DB_VERSION);
+		request.onblocked = () => {
+			reject(new Error("Database upgrade blocked by another connection"));
+		};
 		request.onupgradeneeded = () => {
 			const db = request.result;
 			if (!db.objectStoreNames.contains(STORE_NAME)) {
