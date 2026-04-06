@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	addRoute,
 	deleteRoute,
@@ -29,20 +29,26 @@ export function useRoutes(): UseRoutesReturn {
 	const [routes, setRoutes] = useState<RegisteredRouteEntry[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<Error | null>(null);
+	const reloadSeqRef = useRef(0);
 
 	const reload = useCallback(async () => {
+		const seq = ++reloadSeqRef.current;
 		setLoading(true);
 		try {
 			const all = await getAllRoutes();
 			const registered = all.filter(
 				(route): route is RegisteredRouteEntry => route.id != null,
 			);
+			if (seq !== reloadSeqRef.current) return;
 			setRoutes(registered);
 			setError(null);
 		} catch (e) {
+			if (seq !== reloadSeqRef.current) return;
 			setError(e instanceof Error ? e : new Error(String(e)));
 		} finally {
-			setLoading(false);
+			if (seq === reloadSeqRef.current) {
+				setLoading(false);
+			}
 		}
 	}, []);
 
