@@ -227,16 +227,16 @@ export async function importRoutes(
 	});
 }
 
-/** 入力値をサニタイズする */
+/** 入力値をバリデーションし正規化する */
 function sanitizeEntry(entry: Omit<RouteEntry, "id">): Omit<RouteEntry, "id"> {
-	const minutes = Number(entry.walkMinutes);
-	const sanitized = {
-		fromStopId: String(entry.fromStopId),
-		toStopId: String(entry.toStopId),
-		walkMinutes: Number.isNaN(minutes) ? 0 : Math.max(0, Math.floor(minutes)),
+	validateRouteFields(entry);
+	return {
+		fromStopId: entry.fromStopId,
+		toStopId: entry.toStopId,
+		walkMinutes: Number.isNaN(entry.walkMinutes)
+			? 0
+			: Math.max(0, Math.floor(entry.walkMinutes)),
 	};
-	validateRouteFields(sanitized);
-	return sanitized;
 }
 
 /** エクスポート形式のバリデーション */

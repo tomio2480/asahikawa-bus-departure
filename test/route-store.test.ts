@@ -132,14 +132,14 @@ describe("入力値のサニタイズ", () => {
 		expect(route?.walkMinutes).toBe(5);
 	});
 
-	it("walkMinutes が NaN の場合は 0 になる", async () => {
-		const id = await addRoute({
-			fromStopId: "S001",
-			toStopId: "S002",
-			walkMinutes: Number.NaN,
-		});
-		const route = await getRoute(id);
-		expect(route?.walkMinutes).toBe(0);
+	it("walkMinutes が NaN の場合はエラーになる", async () => {
+		await expect(
+			addRoute({
+				fromStopId: "S001",
+				toStopId: "S002",
+				walkMinutes: Number.NaN,
+			}),
+		).rejects.toThrow("walkMinutes must be a finite number");
 	});
 });
 
