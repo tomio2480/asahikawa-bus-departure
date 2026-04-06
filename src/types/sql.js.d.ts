@@ -5,9 +5,11 @@ declare module "sql.js" {
 	}
 
 	export interface Statement {
-		bind(values?: unknown[]): boolean;
+		bind(values?: unknown[] | Record<string, unknown>): boolean;
 		step(): boolean;
-		getAsObject(): Record<string, unknown>;
+		getAsObject(
+			params?: unknown[] | Record<string, unknown>,
+		): Record<string, unknown>;
 		run(values?: unknown[]): void;
 		free(): void;
 	}

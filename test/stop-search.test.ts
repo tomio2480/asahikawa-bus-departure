@@ -115,9 +115,18 @@ describe("searchStops", () => {
 	});
 
 	it("limit が 100 を超える場合は 100 に正規化される", () => {
-		// データが 5 件しかないため実際は 5 件以下が返る
-		const results = searchStops(db, "旭川", 200);
-		expect(results.length).toBeLessThanOrEqual(100);
+		const manyStops: GtfsData["stops"] = Array.from(
+			{ length: 101 },
+			(_, i) => ({
+				stop_id: `M${String(i).padStart(4, "0")}`,
+				stop_name: `テスト停留所${i}`,
+				stop_lat: 43.76 + i * 0.001,
+				stop_lon: 142.36 + i * 0.001,
+			}),
+		);
+		const manyDb = createTestDb(manyStops);
+		const results = searchStops(manyDb, "テスト停留所", 200);
+		expect(results).toHaveLength(100);
 	});
 
 	it("結果は stop_name 順にソートされる", () => {
