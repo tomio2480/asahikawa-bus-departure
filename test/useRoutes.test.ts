@@ -92,7 +92,7 @@ describe("useRoutes", () => {
 		expect(result.current.routes).toHaveLength(1);
 
 		await act(async () => {
-			await result.current.remove(result.current.routes[0].id as number);
+			await result.current.remove(result.current.routes[0].id);
 		});
 
 		expect(result.current.routes).toHaveLength(0);

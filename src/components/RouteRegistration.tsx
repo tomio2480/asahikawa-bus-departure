@@ -45,7 +45,11 @@ export function RouteRegistration({
 		}
 		const map = new Map<string, string>();
 		for (const id of ids) {
-			map.set(id, getStopName(db, id));
+			try {
+				map.set(id, getStopName(db, id));
+			} catch {
+				map.set(id, id);
+			}
 		}
 		return map;
 	}, [db, routes]);

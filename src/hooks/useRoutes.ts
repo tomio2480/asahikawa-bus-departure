@@ -31,6 +31,7 @@ export function useRoutes(): UseRoutesReturn {
 	const [error, setError] = useState<Error | null>(null);
 
 	const reload = useCallback(async () => {
+		setLoading(true);
 		try {
 			const all = await getAllRoutes();
 			setRoutes(all as RegisteredRouteEntry[]);
