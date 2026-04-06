@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Database } from "sql.js";
 import { type StopSearchResult, getStopName } from "../lib/stop-search";
 import type { RouteEntry } from "../types/route-entry";
@@ -37,6 +37,19 @@ export function RouteRegistration({
 	onUpdate,
 	onDelete,
 }: RouteRegistrationProps) {
+	const stopNameMap = useMemo(() => {
+		const ids = new Set<string>();
+		for (const route of routes) {
+			ids.add(route.fromStopId);
+			ids.add(route.toStopId);
+		}
+		const map = new Map<string, string>();
+		for (const id of ids) {
+			map.set(id, getStopName(db, id));
+		}
+		return map;
+	}, [db, routes]);
+
 	const [form, setForm] = useState<FormState>(initialFormState);
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [submitting, setSubmitting] = useState(false);
@@ -106,18 +119,18 @@ export function RouteRegistration({
 			setForm({
 				fromStop: {
 					stop_id: route.fromStopId,
-					stop_name: getStopName(db, route.fromStopId),
+					stop_name: stopNameMap.get(route.fromStopId) ?? route.fromStopId,
 				},
 				toStop: {
 					stop_id: route.toStopId,
-					stop_name: getStopName(db, route.toStopId),
+					stop_name: stopNameMap.get(route.toStopId) ?? route.toStopId,
 				},
 				walkMinutes: String(route.walkMinutes),
 			});
 			setEditingId(route.id ?? null);
 			setErrorMessage(null);
 		},
-		[db],
+		[stopNameMap],
 	);
 
 	const handleDelete = useCallback(
@@ -232,8 +245,12 @@ export function RouteRegistration({
 								<tbody>
 									{routes.map((route) => (
 										<tr key={route.id}>
-											<td>{getStopName(db, route.fromStopId)}</td>
-											<td>{getStopName(db, route.toStopId)}</td>
+											<td>
+												{stopNameMap.get(route.fromStopId) ?? route.fromStopId}
+											</td>
+											<td>
+												{stopNameMap.get(route.toStopId) ?? route.toStopId}
+											</td>
 											<td>{route.walkMinutes}</td>
 											<td className="space-x-2">
 												<button

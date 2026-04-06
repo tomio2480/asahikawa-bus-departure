@@ -36,7 +36,9 @@ describe("useRoutes", () => {
 
 	it("add で経路を追加し一覧が更新される", async () => {
 		const { result } = renderHook(() => useRoutes());
-		await act(async () => {});
+		await waitFor(() => {
+			expect(result.current.loading).toBe(false);
+		});
 
 		await act(async () => {
 			const id = await result.current.add({
@@ -52,7 +54,9 @@ describe("useRoutes", () => {
 
 	it("update で経路を更新し一覧が反映される", async () => {
 		const { result } = renderHook(() => useRoutes());
-		await act(async () => {});
+		await waitFor(() => {
+			expect(result.current.loading).toBe(false);
+		});
 
 		await act(async () => {
 			await result.current.add({
@@ -76,7 +80,9 @@ describe("useRoutes", () => {
 
 	it("remove で経路を削除し一覧から消える", async () => {
 		const { result } = renderHook(() => useRoutes());
-		await act(async () => {});
+		await waitFor(() => {
+			expect(result.current.loading).toBe(false);
+		});
 
 		await act(async () => {
 			await result.current.add({
