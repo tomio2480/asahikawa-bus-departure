@@ -34,7 +34,10 @@ export function useRoutes(): UseRoutesReturn {
 		setLoading(true);
 		try {
 			const all = await getAllRoutes();
-			setRoutes(all as RegisteredRouteEntry[]);
+			const registered = all.filter(
+				(route): route is RegisteredRouteEntry => route.id != null,
+			);
+			setRoutes(registered);
 			setError(null);
 		} catch (e) {
 			setError(e instanceof Error ? e : new Error(String(e)));
