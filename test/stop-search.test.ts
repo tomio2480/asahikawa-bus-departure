@@ -1,5 +1,5 @@
 import initSqlJs from "sql.js";
-import { beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import { searchStops } from "../src/lib/stop-search";
 import type { GtfsData } from "../src/types/gtfs";
@@ -62,12 +62,22 @@ describe("searchStops", () => {
 			stop_lat: 43.7901,
 			stop_lon: 142.4001,
 		},
+		{
+			stop_id: "S006",
+			stop_name: "100丁目",
+			stop_lat: 43.7951,
+			stop_lon: 142.4101,
+		},
 	];
 
 	let db: ReturnType<typeof createTestDb>;
 
 	beforeEach(() => {
 		db = createTestDb(stops);
+	});
+
+	afterEach(() => {
+		db.close();
 	});
 
 	it("部分一致で検索できる", () => {
@@ -125,8 +135,12 @@ describe("searchStops", () => {
 			}),
 		);
 		const manyDb = createTestDb(manyStops);
-		const results = searchStops(manyDb, "テスト停留所", 200);
-		expect(results).toHaveLength(100);
+		try {
+			const results = searchStops(manyDb, "テスト停留所", 200);
+			expect(results).toHaveLength(100);
+		} finally {
+			manyDb.close();
+		}
 	});
 
 	it("結果は stop_name 順にソートされる", () => {
@@ -137,6 +151,9 @@ describe("searchStops", () => {
 	});
 
 	it("LIKE ワイルドカード文字 % がエスケープされる", () => {
+		// テストデータに "100丁目" が存在する
+		// % がエスケープされない場合 "100%" は "%100%%" となり "100丁目" にヒットする
+		// エスケープが正しければ "100%" という文字列そのものを検索するため 0 件になる
 		const results = searchStops(db, "100%");
 		expect(results).toHaveLength(0);
 	});
@@ -149,7 +166,11 @@ describe("searchStops", () => {
 
 	it("データが空の場合は空配列を返す", () => {
 		const emptyDb = createTestDb([]);
-		const results = searchStops(emptyDb, "旭川");
-		expect(results).toHaveLength(0);
+		try {
+			const results = searchStops(emptyDb, "旭川");
+			expect(results).toHaveLength(0);
+		} finally {
+			emptyDb.close();
+		}
 	});
 });

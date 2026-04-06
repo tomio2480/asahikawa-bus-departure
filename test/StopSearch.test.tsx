@@ -64,6 +64,7 @@ beforeEach(() => {
 
 afterEach(() => {
 	cleanup();
+	db.close();
 });
 
 describe("StopSearch コンポーネント", () => {
