@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import type { Database } from "sql.js";
-import type { StopSearchResult } from "../lib/stop-search";
+import { type StopSearchResult, getStopName } from "../lib/stop-search";
 import type { RouteEntry } from "../types/route-entry";
 import { StopSearch } from "./StopSearch";
 
@@ -61,9 +61,19 @@ export function RouteRegistration({
 				setErrorMessage("降車バス停を選択してください");
 				return;
 			}
+			if (form.fromStop.stop_id === form.toStop.stop_id) {
+				setErrorMessage(
+					"乗車バス停と降車バス停には異なるバス停を選択してください",
+				);
+				return;
+			}
 			const walkMinutes = Number(form.walkMinutes);
 			if (form.walkMinutes === "" || !Number.isFinite(walkMinutes)) {
 				setErrorMessage("徒歩所要時間を入力してください");
+				return;
+			}
+			if (walkMinutes < 0) {
+				setErrorMessage("徒歩所要時間は0以上で入力してください");
 				return;
 			}
 
@@ -91,15 +101,24 @@ export function RouteRegistration({
 		[form, editingId, onAdd, onUpdate, resetForm],
 	);
 
-	const handleEdit = useCallback((route: RouteEntry) => {
-		setForm({
-			fromStop: { stop_id: route.fromStopId, stop_name: "" },
-			toStop: { stop_id: route.toStopId, stop_name: "" },
-			walkMinutes: String(route.walkMinutes),
-		});
-		setEditingId(route.id ?? null);
-		setErrorMessage(null);
-	}, []);
+	const handleEdit = useCallback(
+		(route: RouteEntry) => {
+			setForm({
+				fromStop: {
+					stop_id: route.fromStopId,
+					stop_name: getStopName(db, route.fromStopId),
+				},
+				toStop: {
+					stop_id: route.toStopId,
+					stop_name: getStopName(db, route.toStopId),
+				},
+				walkMinutes: String(route.walkMinutes),
+			});
+			setEditingId(route.id ?? null);
+			setErrorMessage(null);
+		},
+		[db],
+	);
 
 	const handleDelete = useCallback(
 		async (id: number) => {
@@ -122,7 +141,11 @@ export function RouteRegistration({
 
 	return (
 		<div className="space-y-6">
-			<form onSubmit={handleSubmit} className="card bg-base-100 shadow-sm">
+			<form
+				onSubmit={handleSubmit}
+				className="card bg-base-100 shadow-sm"
+				noValidate
+			>
 				<div className="card-body">
 					<h2 className="card-title">
 						{editingId != null ? "経路を編集" : "経路を登録"}
@@ -209,8 +232,8 @@ export function RouteRegistration({
 								<tbody>
 									{routes.map((route) => (
 										<tr key={route.id}>
-											<td>{route.fromStopId}</td>
-											<td>{route.toStopId}</td>
+											<td>{getStopName(db, route.fromStopId)}</td>
+											<td>{getStopName(db, route.toStopId)}</td>
 											<td>{route.walkMinutes}</td>
 											<td className="space-x-2">
 												<button

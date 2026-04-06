@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import initSqlJs from "sql.js";
 import {
@@ -100,14 +100,14 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(screen.queryByText("登録済み経路")).not.toBeInTheDocument();
 	});
 
-	it("登録済み経路が一覧に表示される", () => {
+	it("登録済み経路が一覧にバス停名で表示される", () => {
 		const routes: RouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
 		];
 		renderComponent(routes);
 		expect(screen.getByText("登録済み経路")).toBeInTheDocument();
-		expect(screen.getByText("test:S001")).toBeInTheDocument();
-		expect(screen.getByText("test:S002")).toBeInTheDocument();
+		expect(screen.getByText("旭川駅前")).toBeInTheDocument();
+		expect(screen.getByText("市役所前")).toBeInTheDocument();
 		expect(screen.getByText("5")).toBeInTheDocument();
 	});
 
@@ -205,6 +205,48 @@ describe("RouteRegistration コンポーネント", () => {
 
 		await userEvent.click(screen.getByRole("button", { name: "削除" }));
 		expect(onDelete).toHaveBeenCalledWith(1);
+	});
+
+	it("同一バス停を選択して登録するとエラーメッセージが表示される", async () => {
+		renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+
+		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
+		await userEvent.type(walkInput, "5");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(
+			screen.getByText(
+				"乗車バス停と降車バス停には異なるバス停を選択してください",
+			),
+		).toBeInTheDocument();
+	});
+
+	it("負の徒歩所要時間で登録するとエラーになる", async () => {
+		renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// type="number" + min="0" の制約下では userEvent.type で "-" が入力できないため
+		// fireEvent.change で直接値を設定する
+		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
+		fireEvent.change(walkInput, { target: { value: "-3" } });
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(
+			screen.getByText("徒歩所要時間は0以上で入力してください"),
+		).toBeInTheDocument();
 	});
 
 	it("複数の経路が一覧に表示される", () => {

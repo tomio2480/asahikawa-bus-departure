@@ -1,7 +1,7 @@
 import initSqlJs from "sql.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
-import { searchStops } from "../src/lib/stop-search";
+import { getStopName, searchStops } from "../src/lib/stop-search";
 import type { GtfsData } from "../src/types/gtfs";
 
 const emptyGtfsBase: GtfsData = {
@@ -172,5 +172,36 @@ describe("searchStops", () => {
 		} finally {
 			emptyDb.close();
 		}
+	});
+});
+
+describe("getStopName", () => {
+	const stops: GtfsData["stops"] = [
+		{
+			stop_id: "S001",
+			stop_name: "旭川駅前",
+			stop_lat: 43.7631,
+			stop_lon: 142.3582,
+		},
+	];
+
+	let db: ReturnType<typeof createTestDb>;
+
+	beforeEach(() => {
+		db = createTestDb(stops);
+	});
+
+	afterEach(() => {
+		db.close();
+	});
+
+	it("stop_id からバス停名を取得できる", () => {
+		const name = getStopName(db, "test:S001");
+		expect(name).toBe("旭川駅前");
+	});
+
+	it("存在しない stop_id の場合は stop_id をそのまま返す", () => {
+		const name = getStopName(db, "test:S999");
+		expect(name).toBe("test:S999");
 	});
 });
