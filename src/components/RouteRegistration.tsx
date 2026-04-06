@@ -1,18 +1,18 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Database } from "sql.js";
 import { type StopSearchResult, getStopName } from "../lib/stop-search";
-import type { RouteEntry } from "../types/route-entry";
+import type { RegisteredRouteEntry, RouteEntry } from "../types/route-entry";
 import { StopSearch } from "./StopSearch";
 
 type RouteRegistrationProps = {
 	/** sql.js データベースインスタンス */
 	db: Database;
 	/** 登録済み経路一覧 */
-	routes: RouteEntry[];
+	routes: RegisteredRouteEntry[];
 	/** 経路追加コールバック */
 	onAdd: (entry: Omit<RouteEntry, "id">) => Promise<number>;
 	/** 経路更新コールバック */
-	onUpdate: (entry: RouteEntry) => Promise<void>;
+	onUpdate: (entry: RegisteredRouteEntry) => Promise<void>;
 	/** 経路削除コールバック */
 	onDelete: (id: number) => Promise<void>;
 };
@@ -115,7 +115,7 @@ export function RouteRegistration({
 	);
 
 	const handleEdit = useCallback(
-		(route: RouteEntry) => {
+		(route: RegisteredRouteEntry) => {
 			setForm({
 				fromStop: {
 					stop_id: route.fromStopId,
@@ -127,7 +127,7 @@ export function RouteRegistration({
 				},
 				walkMinutes: String(route.walkMinutes),
 			});
-			setEditingId(route.id ?? null);
+			setEditingId(route.id);
 			setErrorMessage(null);
 		},
 		[stopNameMap],
@@ -264,9 +264,7 @@ export function RouteRegistration({
 												<button
 													type="button"
 													className="btn btn-ghost btn-xs text-error"
-													onClick={() =>
-														route.id != null && handleDelete(route.id)
-													}
+													onClick={() => handleDelete(route.id)}
 													disabled={submitting}
 												>
 													削除

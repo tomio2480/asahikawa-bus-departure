@@ -9,11 +9,17 @@ beforeEach(() => {
 });
 
 describe("useRoutes", () => {
-	it("初期状態は空の経路一覧を返す", async () => {
-		const { result } = renderHook(() => useRoutes());
+	const waitForLoaded = async (result: {
+		current: { loading: boolean };
+	}) => {
 		await waitFor(() => {
 			expect(result.current.loading).toBe(false);
 		});
+	};
+
+	it("初期状態は空の経路一覧を返す", async () => {
+		const { result } = renderHook(() => useRoutes());
+		await waitForLoaded(result);
 		expect(result.current.routes).toEqual([]);
 		expect(result.current.error).toBeNull();
 	});
@@ -26,9 +32,7 @@ describe("useRoutes", () => {
 		});
 
 		const { result } = renderHook(() => useRoutes());
-		await waitFor(() => {
-			expect(result.current.loading).toBe(false);
-		});
+		await waitForLoaded(result);
 
 		expect(result.current.routes).toHaveLength(1);
 		expect(result.current.routes[0].fromStopId).toBe("S001");
@@ -36,9 +40,7 @@ describe("useRoutes", () => {
 
 	it("add で経路を追加し一覧が更新される", async () => {
 		const { result } = renderHook(() => useRoutes());
-		await waitFor(() => {
-			expect(result.current.loading).toBe(false);
-		});
+		await waitForLoaded(result);
 
 		await act(async () => {
 			const id = await result.current.add({
@@ -54,9 +56,7 @@ describe("useRoutes", () => {
 
 	it("update で経路を更新し一覧が反映される", async () => {
 		const { result } = renderHook(() => useRoutes());
-		await waitFor(() => {
-			expect(result.current.loading).toBe(false);
-		});
+		await waitForLoaded(result);
 
 		await act(async () => {
 			await result.current.add({
@@ -80,9 +80,7 @@ describe("useRoutes", () => {
 
 	it("remove で経路を削除し一覧から消える", async () => {
 		const { result } = renderHook(() => useRoutes());
-		await waitFor(() => {
-			expect(result.current.loading).toBe(false);
-		});
+		await waitForLoaded(result);
 
 		await act(async () => {
 			await result.current.add({

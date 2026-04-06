@@ -5,11 +5,11 @@ import {
 	getAllRoutes,
 	updateRoute,
 } from "../lib/route-store";
-import type { RouteEntry } from "../types/route-entry";
+import type { RegisteredRouteEntry, RouteEntry } from "../types/route-entry";
 
 type UseRoutesReturn = {
 	/** 登録済み経路一覧 */
-	routes: RouteEntry[];
+	routes: RegisteredRouteEntry[];
 	/** データ読み込み中 */
 	loading: boolean;
 	/** エラー情報 */
@@ -17,7 +17,7 @@ type UseRoutesReturn = {
 	/** 経路を追加する */
 	add: (entry: Omit<RouteEntry, "id">) => Promise<number>;
 	/** 経路を更新する */
-	update: (entry: RouteEntry) => Promise<void>;
+	update: (entry: RegisteredRouteEntry) => Promise<void>;
 	/** 経路を削除する */
 	remove: (id: number) => Promise<void>;
 	/** 経路一覧を再読み込みする */
@@ -26,14 +26,14 @@ type UseRoutesReturn = {
 
 /** IndexedDB の経路データを管理するフック */
 export function useRoutes(): UseRoutesReturn {
-	const [routes, setRoutes] = useState<RouteEntry[]>([]);
+	const [routes, setRoutes] = useState<RegisteredRouteEntry[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<Error | null>(null);
 
 	const reload = useCallback(async () => {
 		try {
 			const all = await getAllRoutes();
-			setRoutes(all);
+			setRoutes(all as RegisteredRouteEntry[]);
 			setError(null);
 		} catch (e) {
 			setError(e instanceof Error ? e : new Error(String(e)));
@@ -56,7 +56,7 @@ export function useRoutes(): UseRoutesReturn {
 	);
 
 	const update = useCallback(
-		async (entry: RouteEntry) => {
+		async (entry: RegisteredRouteEntry) => {
 			await updateRoute(entry);
 			await reload();
 		},
