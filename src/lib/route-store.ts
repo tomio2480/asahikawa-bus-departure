@@ -233,9 +233,7 @@ function sanitizeEntry(entry: Omit<RouteEntry, "id">): Omit<RouteEntry, "id"> {
 	return {
 		fromStopId: entry.fromStopId,
 		toStopId: entry.toStopId,
-		walkMinutes: Number.isNaN(entry.walkMinutes)
-			? 0
-			: Math.max(0, Math.floor(entry.walkMinutes)),
+		walkMinutes: Math.max(0, Math.floor(entry.walkMinutes)),
 	};
 }
 
