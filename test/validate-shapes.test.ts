@@ -47,9 +47,9 @@ describe("validateShapesCsv", () => {
 	it("緯度が北海道の範囲外の場合にエラーを返す", () => {
 		const csv = [
 			"shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence",
-			"S001,35.0,142.365,1",
+			"S001,40.0,142.365,1",
 		].join("\n");
-		expect(() => validateShapesCsv(csv)).toThrow("latitude 35 out of range");
+		expect(() => validateShapesCsv(csv)).toThrow("latitude 40 out of range");
 	});
 
 	it("経度が北海道の範囲外の場合にエラーを返す", () => {

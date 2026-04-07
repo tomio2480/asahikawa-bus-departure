@@ -8,10 +8,10 @@ const REQUIRED_COLUMNS = [
 	"shape_pt_sequence",
 ] as const;
 
-const HOKKAIDO_LAT_MIN = 42.0;
-const HOKKAIDO_LAT_MAX = 45.0;
-const HOKKAIDO_LON_MIN = 141.0;
-const HOKKAIDO_LON_MAX = 146.0;
+const HOKKAIDO_LAT_MIN = 41.3;
+const HOKKAIDO_LAT_MAX = 45.6;
+const HOKKAIDO_LON_MIN = 139.3;
+const HOKKAIDO_LON_MAX = 149.0;
 
 function validateShapesCsv(csv: string): void {
 	if (csv.trim() === "") {

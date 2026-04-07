@@ -27,14 +27,14 @@ function validateCoordinate(lat: number, lon: number, stopId: string): void {
 	if (Number.isNaN(lat) || Number.isNaN(lon)) {
 		throw new Error(`Invalid coordinate (NaN) for stop ${stopId}`);
 	}
-	if (lat < 42.0 || lat > 45.0) {
+	if (lat < 41.3 || lat > 45.6) {
 		throw new Error(
-			`Invalid latitude ${lat} for stop ${stopId} (expected 42.0-45.0 for Hokkaido)`,
+			`Invalid latitude ${lat} for stop ${stopId} (expected 41.3-45.6 for Hokkaido)`,
 		);
 	}
-	if (lon < 141.0 || lon > 146.0) {
+	if (lon < 139.3 || lon > 149.0) {
 		throw new Error(
-			`Invalid longitude ${lon} for stop ${stopId} (expected 141.0-146.0 for Hokkaido)`,
+			`Invalid longitude ${lon} for stop ${stopId} (expected 139.3-149.0 for Hokkaido)`,
 		);
 	}
 }

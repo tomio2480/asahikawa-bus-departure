@@ -15,8 +15,9 @@ if [ ! -f "$OSM_FILE" ]; then
   curl -fSL \
     --retry 3 --retry-delay 5 \
     --connect-timeout 30 --max-time 600 \
-    -o "$OSM_FILE" \
+    -o "${OSM_FILE}.tmp" \
     "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf"
+  mv "${OSM_FILE}.tmp" "$OSM_FILE"
   echo "Download complete."
 fi
 
