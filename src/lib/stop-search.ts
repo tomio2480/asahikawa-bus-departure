@@ -42,6 +42,21 @@ export function searchStops(
 	}
 }
 
+/** stop_id からバス停名を取得する。見つからない場合は stop_id をそのまま返す */
+export function getStopName(db: Database, stopId: string): string {
+	const stmt = db.prepare("SELECT stop_name FROM stops WHERE stop_id = ?");
+	try {
+		stmt.bind([stopId]);
+		if (stmt.step()) {
+			const row = stmt.getAsObject() as unknown as { stop_name: string };
+			return row.stop_name;
+		}
+		return stopId;
+	} finally {
+		stmt.free();
+	}
+}
+
 /** LIKE のワイルドカード文字をエスケープする */
 function escapeLike(value: string): string {
 	return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");

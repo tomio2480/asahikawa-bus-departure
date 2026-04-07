@@ -10,6 +10,9 @@ export type RouteEntry = {
 	walkMinutes: number;
 };
 
+/** IndexedDB に保存済みの経路情報（id 必須） */
+export type RegisteredRouteEntry = RouteEntry & { id: number };
+
 /** JSON エクスポート形式 */
 export type RouteEntryExport = {
 	version: 1;
