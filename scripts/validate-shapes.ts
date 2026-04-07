@@ -73,7 +73,13 @@ function validateShapesCsv(csv: string): void {
 			);
 		}
 
-		const seq = Number(row.shape_pt_sequence);
+		const seqRaw = row.shape_pt_sequence;
+		if (seqRaw == null || seqRaw.trim() === "") {
+			throw new Error(
+				`Invalid shape_pt_sequence "${row.shape_pt_sequence}" at row ${rowNum}`,
+			);
+		}
+		const seq = Number(seqRaw);
 		if (!Number.isInteger(seq) || seq < 0) {
 			throw new Error(
 				`Invalid shape_pt_sequence "${row.shape_pt_sequence}" at row ${rowNum}`,

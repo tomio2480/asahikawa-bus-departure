@@ -41,7 +41,11 @@ for operator in "${OPERATORS[@]}"; do
   fi
 
   echo "Generating shapes for ${operator}..."
-  pfaedle -D -x --osm-file "$OSM_FILE" "$gtfs_dir"
+  if ! pfaedle -D -x --osm-file "$OSM_FILE" "$gtfs_dir"; then
+    echo "Error: pfaedle failed for ${operator}"
+    has_error=true
+    continue
+  fi
 
   shapes_file="${gtfs_dir}/shapes.txt"
   if [ ! -f "$shapes_file" ]; then

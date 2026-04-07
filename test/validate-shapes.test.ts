@@ -68,6 +68,14 @@ describe("validateShapesCsv", () => {
 		expect(() => validateShapesCsv(csv)).toThrow("Invalid shape_pt_sequence");
 	});
 
+	it("shape_pt_sequence が空の場合にエラーを返す", () => {
+		const csv = [
+			"shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence",
+			"S001,43.770,142.365,",
+		].join("\n");
+		expect(() => validateShapesCsv(csv)).toThrow("Invalid shape_pt_sequence");
+	});
+
 	it("shape_id が空の場合にエラーを返す", () => {
 		const csv = [
 			"shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence",
