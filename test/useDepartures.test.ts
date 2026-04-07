@@ -22,18 +22,21 @@ const baseGtfs: GtfsData = {
 			stop_name: "旭川駅前",
 			stop_lat: 43.7631,
 			stop_lon: 142.3582,
+			zone_id: "Z001",
 		},
 		{
 			stop_id: "S002",
 			stop_name: "市役所前",
 			stop_lat: 43.7701,
 			stop_lon: 142.3651,
+			zone_id: "Z002",
 		},
 		{
 			stop_id: "S003",
 			stop_name: "旭川四条駅",
 			stop_lat: 43.7551,
 			stop_lon: 142.3612,
+			zone_id: "Z003",
 		},
 	],
 	routes: [
@@ -133,8 +136,21 @@ const baseGtfs: GtfsData = {
 	],
 	calendar_dates: [],
 	shapes: [],
-	fare_attributes: [],
-	fare_rules: [],
+	fare_attributes: [
+		{
+			fare_id: "F001",
+			price: 200,
+			currency_type: "JPY",
+			payment_method: 0,
+			transfers: 0,
+		},
+	],
+	fare_rules: [
+		{
+			fare_id: "F001",
+			route_id: "R001",
+		},
+	],
 };
 
 let SQL: Awaited<ReturnType<typeof initSqlJs>>;
@@ -274,6 +290,30 @@ describe("useDepartures", () => {
 		expect(result.current.groups).toEqual([]);
 		// afterEach で db.close() が再度呼ばれてもエラーにならないよう再生成
 		db = new SQL.Database();
+	});
+
+	it("各便に運賃情報が付与される", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 0 },
+		];
+		const { result } = renderHook(() => useDepartures(db, routes));
+
+		expect(result.current.groups).toHaveLength(1);
+		const dep = result.current.groups[0].departures[0];
+		expect(dep.fare).not.toBeNull();
+		expect(dep.fare?.price).toBe(200);
+		expect(dep.fare?.currencyType).toBe("JPY");
+	});
+
+	it("運賃ルールがない場合は fare が null になる", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S003", walkMinutes: 0 },
+		];
+		const { result } = renderHook(() => useDepartures(db, routes));
+
+		expect(result.current.groups).toHaveLength(1);
+		const dep = result.current.groups[0].departures[0];
+		expect(dep.fare).toBeNull();
 	});
 
 	it("同じ降車バス停への複数経路は 1 グループに統合される", () => {

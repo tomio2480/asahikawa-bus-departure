@@ -14,6 +14,14 @@ function formatTime(time: string): string {
 	return time.split(":").slice(0, 2).join(":");
 }
 
+/** 運賃を表示用にフォーマットする */
+function formatFare(price: number, currencyType: string): string {
+	if (currencyType === "JPY") {
+		return `${price}円`;
+	}
+	return `${price} ${currencyType}`;
+}
+
 const updatedTimeFormatter = new Intl.DateTimeFormat("ja-JP", {
 	timeZone: "Asia/Tokyo",
 	hour: "2-digit",
@@ -62,6 +70,10 @@ export function DepartureBoard({ db, routes }: DepartureBoardProps) {
 				</div>
 			)}
 
+			<div className="text-sm text-base-content/60">
+				{"※ IC カード「Asaca」利用時、同一停留所から 1 時間以内の乗り継ぎで 100円引き（小児 50円引き）"}
+			</div>
+
 			{groups.length === 0 ? (
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
@@ -81,6 +93,7 @@ export function DepartureBoard({ db, routes }: DepartureBoardProps) {
 											<th>到着</th>
 											<th>路線</th>
 											<th>行き先</th>
+											<th>運賃</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -94,6 +107,11 @@ export function DepartureBoard({ db, routes }: DepartureBoardProps) {
 												</td>
 												<td>{dep.routeName}</td>
 												<td>{dep.headsign}</td>
+												<td>
+													{dep.fare
+														? formatFare(dep.fare.price, dep.fare.currencyType)
+														: "-"}
+												</td>
 											</tr>
 										))}
 									</tbody>

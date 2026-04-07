@@ -6,6 +6,7 @@ import {
 	calculateBoardingTime,
 	getDepartures,
 } from "../lib/departure-query";
+import { type Fare, getFare } from "../lib/fare-query";
 import { getStopName } from "../lib/stop-search";
 import type { RegisteredRouteEntry } from "../types/route-entry";
 
@@ -79,6 +80,22 @@ export function useDepartures(
 				);
 
 				if (departures.length === 0) continue;
+
+				const fareCache = new Map<string, Fare | null>();
+				for (const dep of departures) {
+					if (!fareCache.has(dep.routeId)) {
+						fareCache.set(
+							dep.routeId,
+							getFare(
+								currentDb,
+								route.fromStopId,
+								route.toStopId,
+								dep.routeId,
+							),
+						);
+					}
+					dep.fare = fareCache.get(dep.routeId) ?? null;
+				}
 
 				const existing = groupMap.get(route.toStopId);
 				if (existing) {

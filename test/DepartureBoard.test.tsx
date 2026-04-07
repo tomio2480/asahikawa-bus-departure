@@ -22,18 +22,21 @@ const baseGtfs: GtfsData = {
 			stop_name: "旭川駅前",
 			stop_lat: 43.7631,
 			stop_lon: 142.3582,
+			zone_id: "Z001",
 		},
 		{
 			stop_id: "S002",
 			stop_name: "市役所前",
 			stop_lat: 43.7701,
 			stop_lon: 142.3651,
+			zone_id: "Z002",
 		},
 		{
 			stop_id: "S003",
 			stop_name: "旭川四条駅",
 			stop_lat: 43.7551,
 			stop_lon: 142.3612,
+			zone_id: "Z003",
 		},
 	],
 	routes: [
@@ -130,8 +133,21 @@ const baseGtfs: GtfsData = {
 	],
 	calendar_dates: [],
 	shapes: [],
-	fare_attributes: [],
-	fare_rules: [],
+	fare_attributes: [
+		{
+			fare_id: "F001",
+			price: 290,
+			currency_type: "JPY",
+			payment_method: 0,
+			transfers: 0,
+		},
+	],
+	fare_rules: [
+		{
+			fare_id: "F001",
+			route_id: "R001",
+		},
+	],
 };
 
 let SQL: Awaited<ReturnType<typeof initSqlJs>>;
@@ -267,6 +283,7 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(screen.getByText("到着")).toBeInTheDocument();
 		expect(screen.getByText("路線")).toBeInTheDocument();
 		expect(screen.getByText("行き先")).toBeInTheDocument();
+		expect(screen.getByText("運賃")).toBeInTheDocument();
 	});
 
 	it("エラー発生時はエラーメッセージを表示する", () => {
@@ -286,6 +303,47 @@ describe("DepartureBoard コンポーネント", () => {
 		).toBeInTheDocument();
 		// afterEach で db.close() が再度呼ばれてもエラーにならないよう再生成
 		db = new SQL.Database();
+	});
+
+	it("運賃が表示される", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 0,
+			},
+		];
+		render(<DepartureBoard db={db} routes={routes} />);
+		const fares = screen.getAllByText("290円");
+		expect(fares.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("運賃がない場合はハイフンを表示する", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S003",
+				walkMinutes: 0,
+			},
+		];
+		render(<DepartureBoard db={db} routes={routes} />);
+		expect(screen.getByText("-")).toBeInTheDocument();
+	});
+
+	it("Asaca 乗り継ぎ割引の注釈が表示される", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 0,
+			},
+		];
+		render(<DepartureBoard db={db} routes={routes} />);
+		expect(screen.getByText(/Asaca/)).toBeInTheDocument();
+		expect(screen.getByText(/100円引き/)).toBeInTheDocument();
 	});
 
 	it("徒歩時間を考慮して乗れない便は表示されない", () => {
