@@ -28,6 +28,22 @@ describe("validateShapesCsv", () => {
 		expect(() => validateShapesCsv(csv)).toThrow("shape_pt_sequence");
 	});
 
+	it("緯度が空の場合にエラーを返す", () => {
+		const csv = [
+			"shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence",
+			"S001,,142.365,1",
+		].join("\n");
+		expect(() => validateShapesCsv(csv)).toThrow("Invalid latitude");
+	});
+
+	it("経度が空の場合にエラーを返す", () => {
+		const csv = [
+			"shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence",
+			"S001,43.770,,1",
+		].join("\n");
+		expect(() => validateShapesCsv(csv)).toThrow("Invalid longitude");
+	});
+
 	it("緯度が数値でない場合にエラーを返す", () => {
 		const csv = [
 			"shape_id,shape_pt_lat,shape_pt_lon,shape_pt_sequence",

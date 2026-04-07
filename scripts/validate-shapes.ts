@@ -49,7 +49,13 @@ function validateShapesCsv(csv: string): void {
 			throw new Error(`Missing shape_id at row ${rowNum}`);
 		}
 
-		const lat = Number(row.shape_pt_lat);
+		const latRaw = row.shape_pt_lat;
+		if (latRaw == null || latRaw.trim() === "") {
+			throw new Error(
+				`Invalid latitude "${row.shape_pt_lat}" at row ${rowNum}`,
+			);
+		}
+		const lat = Number(latRaw);
 		if (Number.isNaN(lat)) {
 			throw new Error(
 				`Invalid latitude "${row.shape_pt_lat}" at row ${rowNum}`,
@@ -61,7 +67,13 @@ function validateShapesCsv(csv: string): void {
 			);
 		}
 
-		const lon = Number(row.shape_pt_lon);
+		const lonRaw = row.shape_pt_lon;
+		if (lonRaw == null || lonRaw.trim() === "") {
+			throw new Error(
+				`Invalid longitude "${row.shape_pt_lon}" at row ${rowNum}`,
+			);
+		}
+		const lon = Number(lonRaw);
 		if (Number.isNaN(lon)) {
 			throw new Error(
 				`Invalid longitude "${row.shape_pt_lon}" at row ${rowNum}`,
