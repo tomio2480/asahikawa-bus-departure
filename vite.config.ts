@@ -2,7 +2,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
-export default defineConfig({
-	base: "/asahikawa-bus-departure/",
+export default defineConfig(({ command }) => ({
+	base: command === "build" ? "/asahikawa-bus-departure/" : "/",
 	plugins: [react(), tailwindcss()],
-});
+}));
