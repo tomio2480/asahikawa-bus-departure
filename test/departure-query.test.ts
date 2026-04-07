@@ -113,6 +113,7 @@ describe("getDepartures", () => {
 				arrivalTime: "08:15:00",
 				fromStopId: "S001",
 				toStopId: "S002",
+				fare: null,
 			});
 		});
 

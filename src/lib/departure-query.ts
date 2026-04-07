@@ -1,4 +1,5 @@
 import type { Database } from "sql.js";
+import type { Fare } from "./fare-query";
 
 export type Departure = {
 	tripId: string;
@@ -9,6 +10,7 @@ export type Departure = {
 	arrivalTime: string;
 	fromStopId: string;
 	toStopId: string;
+	fare: Fare | null;
 };
 
 /**
@@ -82,6 +84,7 @@ export function getDepartures(
 		arrivalTime: row[5] as string,
 		fromStopId: row[6] as string,
 		toStopId: row[7] as string,
+		fare: null,
 	}));
 }
 
