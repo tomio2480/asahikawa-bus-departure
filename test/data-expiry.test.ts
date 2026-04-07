@@ -114,10 +114,13 @@ describe("getDataExpiry", () => {
 			calendar: [],
 		};
 		const emptyDb = new SQL.Database();
-		createSchema(emptyDb);
-		loadGtfsData(emptyDb, emptyGtfs, "empty");
-		const expiry = getDataExpiry(emptyDb);
-		expect(expiry).toBeNull();
-		emptyDb.close();
+		try {
+			createSchema(emptyDb);
+			loadGtfsData(emptyDb, emptyGtfs, "empty");
+			const expiry = getDataExpiry(emptyDb);
+			expect(expiry).toBeNull();
+		} finally {
+			emptyDb.close();
+		}
 	});
 });
