@@ -94,6 +94,20 @@ describe("getDataExpiry", () => {
 		expect(expiry?.isPartiallyExpired("20260601")).toBe(false);
 	});
 
+	it("earliestEndDate 当日は全データ有効と判定する", () => {
+		const expiry = getDataExpiry(db);
+		// 20261130 は WD の最終有効日 → まだ全データ有効
+		expect(expiry?.isExpired("20261130")).toBe(false);
+		expect(expiry?.isPartiallyExpired("20261130")).toBe(false);
+	});
+
+	it("latestEndDate 当日は一部期限切れと判定する", () => {
+		const expiry = getDataExpiry(db);
+		// 20280407 は HD の最終有効日 → WD は既に期限切れ
+		expect(expiry?.isExpired("20280407")).toBe(false);
+		expect(expiry?.isPartiallyExpired("20280407")).toBe(true);
+	});
+
 	it("calendar が空の場合は null を返す", () => {
 		const emptyGtfs: GtfsData = {
 			...baseGtfs,
