@@ -28,7 +28,7 @@ function formatUpdatedTime(date: Date): string {
 
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */
 export function DepartureBoard({ db, routes }: DepartureBoardProps) {
-	const { groups, lastUpdated } = useDepartures(db, routes);
+	const { groups, lastUpdated, error } = useDepartures(db, routes);
 
 	if (routes.length === 0) {
 		return (
@@ -37,6 +37,18 @@ export function DepartureBoard({ db, routes }: DepartureBoardProps) {
 					<p className="text-base-content/60">
 						経路が登録されていません。経路を登録すると発車案内が表示されます。
 					</p>
+				</div>
+			</div>
+		);
+	}
+
+	if (error) {
+		return (
+			<div className="card bg-base-100 shadow-sm">
+				<div className="card-body">
+					<div className="text-error" role="alert">
+						発車案内の取得に失敗しました: {error.message}
+					</div>
 				</div>
 			</div>
 		);

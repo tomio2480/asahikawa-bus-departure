@@ -269,6 +269,25 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(screen.getByText("行き先")).toBeInTheDocument();
 	});
 
+	it("エラー発生時はエラーメッセージを表示する", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 0,
+			},
+		];
+		// DB を閉じてクエリを失敗させる
+		db.close();
+		render(<DepartureBoard db={db} routes={routes} />);
+		expect(
+			screen.getByText(/発車案内の取得に失敗しました/),
+		).toBeInTheDocument();
+		// afterEach で db.close() が再度呼ばれてもエラーにならないよう再生成
+		db = new SQL.Database();
+	});
+
 	it("徒歩時間を考慮して乗れない便は表示されない", () => {
 		// 07:50 + 徒歩15分 = 08:05 → 08:00の便は乗れない
 		const routes: RegisteredRouteEntry[] = [

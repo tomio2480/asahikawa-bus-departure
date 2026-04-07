@@ -24,6 +24,8 @@ type UseDeparturesReturn = {
 	groups: DepartureGroup[];
 	/** 最終更新時刻 */
 	lastUpdated: Date | null;
+	/** データ取得時のエラー */
+	error: Error | null;
 };
 
 /**
@@ -39,6 +41,7 @@ export function useDepartures(
 ): UseDeparturesReturn {
 	const [groups, setGroups] = useState<DepartureGroup[]>([]);
 	const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+	const [error, setError] = useState<Error | null>(null);
 
 	const dbRef = useRef(db);
 	dbRef.current = db;
@@ -52,57 +55,64 @@ export function useDepartures(
 		if (currentDb === null || currentRoutes.length === 0) {
 			setGroups([]);
 			setLastUpdated(currentRoutes.length === 0 ? new Date() : null);
+			setError(null);
 			return;
 		}
 
-		const now = new Date();
-		const serviceIds = getActiveServiceIds(currentDb, now);
+		try {
+			const now = new Date();
+			const serviceIds = getActiveServiceIds(currentDb, now);
 
-		const groupMap = new Map<
-			string,
-			{ toStopName: string; departures: Departure[] }
-		>();
+			const groupMap = new Map<
+				string,
+				{ toStopName: string; departures: Departure[] }
+			>();
 
-		for (const route of currentRoutes) {
-			const boardingTime = calculateBoardingTime(now, route.walkMinutes);
-			const departures = getDepartures(
-				currentDb,
-				serviceIds,
-				route.fromStopId,
-				route.toStopId,
-				boardingTime,
-			);
+			for (const route of currentRoutes) {
+				const boardingTime = calculateBoardingTime(now, route.walkMinutes);
+				const departures = getDepartures(
+					currentDb,
+					serviceIds,
+					route.fromStopId,
+					route.toStopId,
+					boardingTime,
+				);
 
-			if (departures.length === 0) continue;
+				if (departures.length === 0) continue;
 
-			const existing = groupMap.get(route.toStopId);
-			if (existing) {
-				existing.departures.push(...departures);
-			} else {
-				const toStopName = getStopName(currentDb, route.toStopId);
-				groupMap.set(route.toStopId, { toStopName, departures });
+				const existing = groupMap.get(route.toStopId);
+				if (existing) {
+					existing.departures.push(...departures);
+				} else {
+					const toStopName = getStopName(currentDb, route.toStopId);
+					groupMap.set(route.toStopId, { toStopName, departures });
+				}
 			}
+
+			const result: DepartureGroup[] = [];
+			for (const [toStopId, { toStopName, departures }] of groupMap) {
+				const unique = Array.from(
+					new Map(
+						departures.map((d) => [`${d.tripId}-${d.departureTime}`, d]),
+					).values(),
+				);
+				unique.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+				result.push({ toStopId, toStopName, departures: unique });
+			}
+
+			result.sort((a, b) => {
+				const aTime = a.departures[0]?.departureTime ?? "";
+				const bTime = b.departures[0]?.departureTime ?? "";
+				return aTime.localeCompare(bTime);
+			});
+
+			setGroups(result);
+			setLastUpdated(now);
+			setError(null);
+		} catch (e) {
+			setGroups([]);
+			setError(e instanceof Error ? e : new Error(String(e)));
 		}
-
-		const result: DepartureGroup[] = [];
-		for (const [toStopId, { toStopName, departures }] of groupMap) {
-			const unique = Array.from(
-				new Map(
-					departures.map((d) => [`${d.tripId}-${d.departureTime}`, d]),
-				).values(),
-			);
-			unique.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-			result.push({ toStopId, toStopName, departures: unique });
-		}
-
-		result.sort((a, b) => {
-			const aTime = a.departures[0]?.departureTime ?? "";
-			const bTime = b.departures[0]?.departureTime ?? "";
-			return aTime.localeCompare(bTime);
-		});
-
-		setGroups(result);
-		setLastUpdated(now);
 	}, []);
 
 	// タイマーによる定期更新（初回取得は変更検知用 useEffect に統一）
@@ -120,5 +130,5 @@ export function useDepartures(
 		fetchDepartures();
 	}, [db, routesKey, fetchDepartures]);
 
-	return { groups, lastUpdated };
+	return { groups, lastUpdated, error };
 }

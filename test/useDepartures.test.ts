@@ -262,6 +262,20 @@ describe("useDepartures", () => {
 		);
 	});
 
+	it("DB 操作でエラーが発生した場合は error を返す", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 0 },
+		];
+		// DB を閉じてクエリを失敗させる
+		db.close();
+		const { result } = renderHook(() => useDepartures(db, routes));
+
+		expect(result.current.error).not.toBeNull();
+		expect(result.current.groups).toEqual([]);
+		// afterEach で db.close() が再度呼ばれてもエラーにならないよう再生成
+		db = new SQL.Database();
+	});
+
 	it("同じ降車バス停への複数経路は 1 グループに統合される", () => {
 		// 同じ S002 への 2 経路を登録（実際には同じだが、テスト用）
 		const routes: RegisteredRouteEntry[] = [
