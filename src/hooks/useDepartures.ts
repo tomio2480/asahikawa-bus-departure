@@ -105,9 +105,8 @@ export function useDepartures(
 		setLastUpdated(now);
 	}, []);
 
-	// タイマーによる定期更新
+	// タイマーによる定期更新（初回取得は変更検知用 useEffect に統一）
 	useEffect(() => {
-		fetchDepartures();
 		const id = setInterval(fetchDepartures, REFRESH_INTERVAL_MS);
 		return () => clearInterval(id);
 	}, [fetchDepartures]);
