@@ -42,13 +42,13 @@ export function getFare(
 			END AS priority
 		FROM fare_rules fr
 		JOIN fare_attributes fa ON fr.fare_id = fa.fare_id
-		LEFT JOIN stops s_from ON s_from.stop_id = ?
-		LEFT JOIN stops s_to ON s_to.stop_id = ?
+		JOIN stops s_from ON s_from.stop_id = ?
+		JOIN stops s_to ON s_to.stop_id = ?
 		WHERE
 			(fr.route_id = ? OR fr.route_id IS NULL)
 			AND (fr.origin_id = s_from.zone_id OR fr.origin_id IS NULL)
 			AND (fr.destination_id = s_to.zone_id OR fr.destination_id IS NULL)
-		ORDER BY priority DESC
+		ORDER BY priority DESC, fa.price ASC
 		LIMIT 1
 	`);
 
