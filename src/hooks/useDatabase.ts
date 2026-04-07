@@ -8,7 +8,7 @@ let sqlJsPromise: Promise<SqlJsStatic> | null = null;
 function getSqlJs(): Promise<SqlJsStatic> {
 	if (!sqlJsPromise) {
 		sqlJsPromise = initSqlJs({
-			locateFile: (file) => `/${file}`,
+			locateFile: (file) => `${import.meta.env.BASE_URL}${file}`,
 		}).catch((e) => {
 			sqlJsPromise = null;
 			throw e;
