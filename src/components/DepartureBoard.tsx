@@ -71,8 +71,7 @@ export function DepartureBoard({ db, routes }: DepartureBoardProps) {
 			)}
 
 			<div className="text-sm text-base-content/60">
-				※ IC カード「Asaca」利用時、同一停留所から 1 時間以内の乗り継ぎで 100
-				円引き（小児 50 円引き）
+				{"※ IC カード「Asaca」利用時、同一停留所から 1 時間以内の乗り継ぎで 100円引き（小児 50円引き）"}
 			</div>
 
 			{groups.length === 0 ? (

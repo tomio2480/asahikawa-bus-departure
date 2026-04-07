@@ -343,7 +343,7 @@ describe("DepartureBoard コンポーネント", () => {
 		];
 		render(<DepartureBoard db={db} routes={routes} />);
 		expect(screen.getByText(/Asaca/)).toBeInTheDocument();
-		expect(screen.getByText(/100 円引き/)).toBeInTheDocument();
+		expect(screen.getByText(/100円引き/)).toBeInTheDocument();
 	});
 
 	it("徒歩時間を考慮して乗れない便は表示されない", () => {
