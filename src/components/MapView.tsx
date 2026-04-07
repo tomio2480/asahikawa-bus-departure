@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
 	MapContainer,
 	Marker,
@@ -13,6 +13,7 @@ import "leaflet/dist/leaflet.css";
 const ASAHIKAWA_CENTER: [number, number] = [43.7706, 142.3649];
 const DEFAULT_ZOOM = 13;
 const ROUTE_COLOR_DEFAULT = "#CCCCCC";
+const ROUTE_COLOR_HIGHLIGHT = "#3B82F6";
 
 type MapRoute = {
 	tripId: string;
@@ -87,7 +88,7 @@ function MapView({ db, routes }: MapViewProps) {
 
 			if (positions.length > 0) {
 				polylinesArr.push({
-					key: route.tripId,
+					key: `${route.tripId}-${route.fromStopId}-${route.toStopId}`,
 					positions,
 					color: ROUTE_COLOR_DEFAULT,
 				});
@@ -96,6 +97,16 @@ function MapView({ db, routes }: MapViewProps) {
 
 		return { markers: markersMap, polylines: polylinesArr };
 	}, [db, routes]);
+
+	const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+
+	const handleMouseOver = useCallback((key: string) => {
+		setHoveredKey(key);
+	}, []);
+
+	const handleMouseOut = useCallback(() => {
+		setHoveredKey(null);
+	}, []);
 
 	return (
 		<MapContainer
@@ -116,7 +127,16 @@ function MapView({ db, routes }: MapViewProps) {
 				<Polyline
 					key={pl.key}
 					positions={pl.positions}
-					pathOptions={{ color: pl.color }}
+					pathOptions={{
+						color:
+							hoveredKey === pl.key
+								? ROUTE_COLOR_HIGHLIGHT
+								: ROUTE_COLOR_DEFAULT,
+					}}
+					eventHandlers={{
+						mouseover: () => handleMouseOver(pl.key),
+						mouseout: handleMouseOut,
+					}}
 				/>
 			))}
 		</MapContainer>
