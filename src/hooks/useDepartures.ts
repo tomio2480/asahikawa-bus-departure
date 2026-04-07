@@ -86,12 +86,7 @@ export function useDepartures(
 					if (!fareCache.has(dep.routeId)) {
 						fareCache.set(
 							dep.routeId,
-							getFare(
-								currentDb,
-								route.fromStopId,
-								route.toStopId,
-								dep.routeId,
-							),
+							getFare(currentDb, route.fromStopId, route.toStopId, dep.routeId),
 						);
 					}
 					dep.fare = fareCache.get(dep.routeId) ?? null;
