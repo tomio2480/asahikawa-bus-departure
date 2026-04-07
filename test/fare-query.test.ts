@@ -23,6 +23,7 @@ import type { GtfsData } from "../src/types/gtfs";
  *   F002: 250円 (Z001→Z003)       zone のみ一致
  *   F003: 150円 (R002)             route のみ一致
  *   F004: 300円 (R001, Z001→Z003) route + zone 完全一致
+ *   F005: 180円 (R002)             route のみ一致（F003 と同一 priority）
  */
 const baseGtfs: GtfsData = {
 	agency: [{ agency_id: "A001", agency_name: "テストバス" }],
@@ -110,6 +111,13 @@ const baseGtfs: GtfsData = {
 			payment_method: 0,
 			transfers: 0,
 		},
+		{
+			fare_id: "F005",
+			price: 180,
+			currency_type: "JPY",
+			payment_method: 0,
+			transfers: 0,
+		},
 	],
 	fare_rules: [
 		{
@@ -125,6 +133,10 @@ const baseGtfs: GtfsData = {
 		},
 		{
 			fare_id: "F003",
+			route_id: "R002",
+		},
+		{
+			fare_id: "F005",
 			route_id: "R002",
 		},
 		{
@@ -216,6 +228,13 @@ describe("getFare", () => {
 	it("存在しないバス停 ID の場合は null を返す", () => {
 		const fare = getFare(db, "test:NONEXISTENT", "test:S002", "test:R001");
 		expect(fare).toBeNull();
+	});
+
+	it("同一 priority の場合は最安値を返す", () => {
+		// R002 の route-only が F003(150) と F005(180) で競合
+		const fare = getFare(db, "test:S002", "test:S001", "test:R002");
+		expect(fare).not.toBeNull();
+		expect(fare?.price).toBe(150);
 	});
 
 	it("存在しない路線 ID の場合は zone のみ一致にフォールバックする", () => {

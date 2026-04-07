@@ -37,7 +37,7 @@ export function getFare(
 			CASE
 				WHEN fr.route_id IS NOT NULL AND fr.origin_id IS NOT NULL AND fr.destination_id IS NOT NULL THEN 3
 				WHEN fr.origin_id IS NOT NULL AND fr.destination_id IS NOT NULL THEN 2
-				WHEN fr.route_id IS NOT NULL THEN 1
+				WHEN fr.route_id IS NOT NULL AND fr.origin_id IS NULL AND fr.destination_id IS NULL THEN 1
 				ELSE 0
 			END AS priority
 		FROM fare_rules fr
