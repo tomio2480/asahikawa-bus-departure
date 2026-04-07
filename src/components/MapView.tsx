@@ -59,7 +59,6 @@ function MapView({ db, routes }: MapViewProps) {
 		const polylinesArr: {
 			key: string;
 			positions: [number, number][];
-			color: string;
 		}[] = [];
 		const seenPolylineKeys = new Set<string>();
 
@@ -96,7 +95,6 @@ function MapView({ db, routes }: MapViewProps) {
 				polylinesArr.push({
 					key: polylineKey,
 					positions,
-					color: ROUTE_COLOR_DEFAULT,
 				});
 			}
 		}
