@@ -17,7 +17,10 @@ jobs:
       - name: Download hokkaido-latest.osm.pbf
         run: |
           mkdir -p data/osm
-          curl -fSL -o data/osm/hokkaido-latest.osm.pbf \
+          curl -fSL \
+            --retry 3 --retry-delay 5 \
+            --connect-timeout 30 --max-time 600 \
+            -o data/osm/hokkaido-latest.osm.pbf \
             "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf"
 
       - name: Verify downloaded file
