@@ -61,6 +61,7 @@ function MapView({ db, routes }: MapViewProps) {
 			positions: [number, number][];
 			color: string;
 		}[] = [];
+		const seenPolylineKeys = new Set<string>();
 
 		for (const route of routes) {
 			if (!markersMap.has(route.fromStopId)) {
@@ -86,9 +87,14 @@ function MapView({ db, routes }: MapViewProps) {
 				positions = stopPoints.map((p) => [p.lat, p.lon] as [number, number]);
 			}
 
-			if (positions.length > 0) {
+			const polylineKey = route.shapeId
+				? `shape:${route.shapeId}`
+				: `trip:${route.tripId}`;
+
+			if (positions.length > 0 && !seenPolylineKeys.has(polylineKey)) {
+				seenPolylineKeys.add(polylineKey);
 				polylinesArr.push({
-					key: `${route.tripId}-${route.fromStopId}-${route.toStopId}`,
+					key: polylineKey,
 					positions,
 					color: ROUTE_COLOR_DEFAULT,
 				});
