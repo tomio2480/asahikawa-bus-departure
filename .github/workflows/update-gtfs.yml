@@ -1,0 +1,90 @@
+name: Update GTFS Data
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-gtfs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download GTFS data from HODA
+        run: |
+          mkdir -p data/gtfs/asahikawa_denkikido
+          mkdir -p data/gtfs/dohoku_bus
+          mkdir -p data/gtfs/furano_bus
+
+          curl -fSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 120 \
+            -o /tmp/asahikawa_denkikido.zip \
+            "https://ckan.hoda.jp/dataset/24d1dd70-5395-4d6b-b41f-0d83e8eabdb9/resource/41ea2ac6-c6e4-47b2-9c1c-b482feaee17c/download/asahikawa_denki.zip"
+
+          curl -fSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 120 \
+            -o /tmp/dohoku_bus.zip \
+            "https://ckan.hoda.jp/dataset/24d1dd70-5395-4d6b-b41f-0d83e8eabdb9/resource/a89a7707-f346-45e7-8f98-0da0f3332531/download/dohoku_bus.zip"
+
+          curl -fSL --retry 3 --retry-delay 5 --connect-timeout 30 --max-time 120 \
+            -o /tmp/furano_bus.zip \
+            "https://ckan.hoda.jp/dataset/24d1dd70-5395-4d6b-b41f-0d83e8eabdb9/resource/3623aa5b-7d0b-4621-a3c8-b09e55863d27/download/furano_bus.zip"
+
+          for z in /tmp/asahikawa_denkikido.zip /tmp/dohoku_bus.zip /tmp/furano_bus.zip; do
+            if zipinfo -1 "$z" | grep -Eq '^/|(^|/)\.\.(/|$)'; then
+              echo "Error: unsafe zip entry detected in $z"
+              exit 1
+            fi
+          done
+
+          unzip -o /tmp/asahikawa_denkikido.zip -d data/gtfs/asahikawa_denkikido
+          unzip -o /tmp/dohoku_bus.zip -d data/gtfs/dohoku_bus
+          unzip -o /tmp/furano_bus.zip -d data/gtfs/furano_bus
+
+      - name: Restore OSM data from cache
+        id: osm-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: data/osm/hokkaido-latest.osm.pbf
+          key: osm-hokkaido-
+          restore-keys: |
+            osm-hokkaido-
+
+      - name: Generate shapes with pfaedle
+        if: ${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pfaedle
+          bash scripts/run-pfaedle.sh data/osm/hokkaido-latest.osm.pbf data/gtfs
+
+      - name: Convert GTFS to JSON
+        run: npx tsx scripts/convert-gtfs.ts data/gtfs public/data
+
+      - name: Check for changes
+        id: diff
+        run: |
+          git add public/data/
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No changes detected."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Changes detected."
+          fi
+
+      - name: Commit and push
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: update GTFS data $(date -u +%Y-%m-%d)"
+          git push
