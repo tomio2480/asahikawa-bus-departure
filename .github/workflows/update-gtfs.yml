@@ -53,7 +53,7 @@ jobs:
             osm-hokkaido-
 
       - name: Generate shapes with pfaedle
-        if: steps.osm-cache.outputs.cache-hit == 'true'
+        if: ${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') != '' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y pfaedle
