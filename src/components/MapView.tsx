@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
 	MapContainer,
 	Marker,
@@ -49,42 +50,52 @@ function getStopInfo(
 }
 
 function MapView({ db, routes }: MapViewProps) {
-	const markers = new Map<string, { name: string; lat: number; lon: number }>();
-	const polylines: {
-		key: string;
-		positions: [number, number][];
-		color: string;
-	}[] = [];
+	const { markers, polylines } = useMemo(() => {
+		const markersMap = new Map<
+			string,
+			{ name: string; lat: number; lon: number }
+		>();
+		const polylinesArr: {
+			key: string;
+			positions: [number, number][];
+			color: string;
+		}[] = [];
 
-	for (const route of routes) {
-		const fromStop = getStopInfo(db, route.fromStopId);
-		const toStop = getStopInfo(db, route.toStopId);
+		for (const route of routes) {
+			if (!markersMap.has(route.fromStopId)) {
+				const fromStop = getStopInfo(db, route.fromStopId);
+				if (fromStop) {
+					markersMap.set(route.fromStopId, fromStop);
+				}
+			}
+			if (!markersMap.has(route.toStopId)) {
+				const toStop = getStopInfo(db, route.toStopId);
+				if (toStop) {
+					markersMap.set(route.toStopId, toStop);
+				}
+			}
 
-		if (fromStop) {
-			markers.set(route.fromStopId, fromStop);
+			let positions: [number, number][];
+
+			if (route.shapeId) {
+				const shapePoints = getShapePoints(db, route.shapeId);
+				positions = shapePoints.map((p) => [p.lat, p.lon] as [number, number]);
+			} else {
+				const stopPoints = getStopsForTrip(db, route.tripId);
+				positions = stopPoints.map((p) => [p.lat, p.lon] as [number, number]);
+			}
+
+			if (positions.length > 0) {
+				polylinesArr.push({
+					key: route.tripId,
+					positions,
+					color: ROUTE_COLOR_DEFAULT,
+				});
+			}
 		}
-		if (toStop) {
-			markers.set(route.toStopId, toStop);
-		}
 
-		let positions: [number, number][];
-
-		if (route.shapeId) {
-			const shapePoints = getShapePoints(db, route.shapeId);
-			positions = shapePoints.map((p) => [p.lat, p.lon] as [number, number]);
-		} else {
-			const stopPoints = getStopsForTrip(db, route.tripId);
-			positions = stopPoints.map((p) => [p.lat, p.lon] as [number, number]);
-		}
-
-		if (positions.length > 0) {
-			polylines.push({
-				key: route.tripId,
-				positions,
-				color: ROUTE_COLOR_DEFAULT,
-			});
-		}
-	}
+		return { markers: markersMap, polylines: polylinesArr };
+	}, [db, routes]);
 
 	return (
 		<MapContainer
