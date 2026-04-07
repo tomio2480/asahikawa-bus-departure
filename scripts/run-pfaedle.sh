@@ -36,7 +36,8 @@ for operator in "${OPERATORS[@]}"; do
   gtfs_dir="${GTFS_BASE}/${operator}"
 
   if [ ! -d "$gtfs_dir" ]; then
-    echo "Warning: Skipping ${operator}: directory ${gtfs_dir} not found"
+    echo "Error: required directory not found: ${gtfs_dir}"
+    has_error=true
     continue
   fi
 
