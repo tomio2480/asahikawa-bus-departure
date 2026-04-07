@@ -9,20 +9,21 @@ type DepartureBoardProps = {
 	routes: RegisteredRouteEntry[];
 };
 
-/** HH:MM:SS 形式の時刻を HH:MM に短縮する */
+/** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
 function formatTime(time: string): string {
-	return time.slice(0, 5);
+	return time.split(":").slice(0, 2).join(":");
 }
+
+const updatedTimeFormatter = new Intl.DateTimeFormat("ja-JP", {
+	timeZone: "Asia/Tokyo",
+	hour: "2-digit",
+	minute: "2-digit",
+	hourCycle: "h23",
+});
 
 /** Date を HH:MM 形式（JST）にフォーマットする */
 function formatUpdatedTime(date: Date): string {
-	const fmt = new Intl.DateTimeFormat("ja-JP", {
-		timeZone: "Asia/Tokyo",
-		hour: "2-digit",
-		minute: "2-digit",
-		hourCycle: "h23",
-	});
-	return fmt.format(date);
+	return updatedTimeFormatter.format(date);
 }
 
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */

@@ -86,8 +86,13 @@ export function useDepartures(
 
 		const result: DepartureGroup[] = [];
 		for (const [toStopId, { toStopName, departures }] of groupMap) {
-			departures.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-			result.push({ toStopId, toStopName, departures });
+			const unique = Array.from(
+				new Map(
+					departures.map((d) => [`${d.tripId}-${d.departureTime}`, d]),
+				).values(),
+			);
+			unique.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+			result.push({ toStopId, toStopName, departures: unique });
 		}
 
 		result.sort((a, b) => {
@@ -110,7 +115,7 @@ export function useDepartures(
 	// db または routes の内容が変わったときに即時再取得する。
 	// fetchDepartures は ref 経由で db/routes を参照するため、
 	// 依存配列に db と routesKey を含めて変更検知する。
-	const routesKey = routes.map((r) => r.id).join(",");
+	const routesKey = JSON.stringify(routes);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: db と routesKey の変更で再取得を発火させる意図的な依存
 	useEffect(() => {
 		fetchDepartures();
