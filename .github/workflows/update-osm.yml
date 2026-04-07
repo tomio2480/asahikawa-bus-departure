@@ -1,0 +1,36 @@
+name: Update OSM Data
+
+on:
+  schedule:
+    - cron: "0 2 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-osm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download hokkaido-latest.osm.pbf
+        run: |
+          mkdir -p data/osm
+          curl -fSL -o data/osm/hokkaido-latest.osm.pbf \
+            "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf"
+
+      - name: Verify downloaded file
+        run: |
+          file_size=$(stat -c%s data/osm/hokkaido-latest.osm.pbf)
+          echo "Downloaded file size: ${file_size} bytes"
+          if [ "$file_size" -lt 1000000 ]; then
+            echo "Error: Downloaded file is too small (${file_size} bytes)"
+            exit 1
+          fi
+
+      - name: Save to cache
+        uses: actions/cache/save@v4
+        with:
+          path: data/osm/hokkaido-latest.osm.pbf
+          key: osm-hokkaido-${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') }}
