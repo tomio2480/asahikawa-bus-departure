@@ -23,11 +23,14 @@ function injectCsp(): Plugin {
 
 	return {
 		name: "inject-csp",
-		transformIndexHtml(html) {
-			return html.replace(
-				"<head>",
-				`<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />`,
-			);
+		transformIndexHtml() {
+			return [
+				{
+					tag: "meta",
+					attrs: { "http-equiv": "Content-Security-Policy", content: csp },
+					injectTo: "head-prepend",
+				},
+			];
 		},
 		apply: "build",
 	};
