@@ -317,6 +317,49 @@ describe("getDepartures", () => {
 		});
 	});
 
+	describe("複数バス停 ID での検索", () => {
+		beforeEach(() => {
+			// 同名バス停が 2 つ（上り・下りの想定）
+			insertRoute("R001", "A001", "1");
+			insertRoute("R002", "A001", "2");
+
+			// 便 1: S001A → S002A
+			insertTrip("T001", "R001", "weekday", "市役所前");
+			insertStopTime("T001", "S001A", 1, "08:00:00", "08:00:00");
+			insertStopTime("T001", "S002A", 2, "08:15:00", "08:15:00");
+
+			// 便 2: S001B → S002B（同じ物理バス停の別ポール）
+			insertTrip("T002", "R002", "weekday", "市役所前");
+			insertStopTime("T002", "S001B", 1, "08:30:00", "08:30:00");
+			insertStopTime("T002", "S002B", 2, "08:45:00", "08:45:00");
+		});
+
+		it("fromStopIds 配列で複数の乗車バス停を検索できる", () => {
+			const result = getDepartures(
+				db,
+				["weekday"],
+				["S001A", "S001B"],
+				["S002A", "S002B"],
+				"07:00:00",
+			);
+			expect(result).toHaveLength(2);
+			expect(result[0].departureTime).toBe("08:00:00");
+			expect(result[1].departureTime).toBe("08:30:00");
+		});
+
+		it("単一 stop_id の文字列でも引き続き動作する", () => {
+			const result = getDepartures(
+				db,
+				["weekday"],
+				"S001A",
+				"S002A",
+				"07:00:00",
+			);
+			expect(result).toHaveLength(1);
+			expect(result[0].tripId).toBe("T001");
+		});
+	});
+
 	describe("複数事業者の統合", () => {
 		it("異なる事業者の便が混在しても正しくソートされる", () => {
 			insertRoute("denkikido:R001", "denkikido:A001", "電気軌道1");

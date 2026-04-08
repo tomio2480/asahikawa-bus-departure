@@ -7,7 +7,7 @@ import {
 	getDepartures,
 } from "../lib/departure-query";
 import { type Fare, getFare } from "../lib/fare-query";
-import { getStopName } from "../lib/stop-search";
+import { getSiblingStopIds, getStopName } from "../lib/stop-search";
 import type { RegisteredRouteEntry } from "../types/route-entry";
 
 /** 1 分間隔で自動更新する */
@@ -71,11 +71,13 @@ export function useDepartures(
 
 			for (const route of currentRoutes) {
 				const boardingTime = calculateBoardingTime(now, route.walkMinutes);
+				const fromStopIds = getSiblingStopIds(currentDb, route.fromStopId);
+				const toStopIds = getSiblingStopIds(currentDb, route.toStopId);
 				const departures = getDepartures(
 					currentDb,
 					serviceIds,
-					route.fromStopId,
-					route.toStopId,
+					fromStopIds,
+					toStopIds,
 					boardingTime,
 				);
 

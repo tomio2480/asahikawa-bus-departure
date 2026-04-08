@@ -1,7 +1,11 @@
 import initSqlJs from "sql.js";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
-import { getStopName, searchStops } from "../src/lib/stop-search";
+import {
+	getSiblingStopIds,
+	getStopName,
+	searchStops,
+} from "../src/lib/stop-search";
 import type { GtfsData } from "../src/types/gtfs";
 
 const emptyGtfsBase: GtfsData = {
@@ -172,6 +176,217 @@ describe("searchStops", () => {
 		} finally {
 			emptyDb.close();
 		}
+	});
+});
+
+describe("searchStops（同名バス停の重複排除）", () => {
+	let db: ReturnType<typeof createTestDb>;
+
+	afterEach(() => {
+		db.close();
+	});
+
+	it("近距離の同名バス停はひとつに統合される", () => {
+		// 同じ「旭川駅前」が上り・下りで 2 つ存在（約 50m 離れ）
+		db = createTestDb([
+			{
+				stop_id: "S001",
+				stop_name: "旭川駅前",
+				stop_lat: 43.7631,
+				stop_lon: 142.3582,
+			},
+			{
+				stop_id: "S002",
+				stop_name: "旭川駅前",
+				stop_lat: 43.7635,
+				stop_lon: 142.3582,
+			},
+		]);
+		const results = searchStops(db, "旭川駅前");
+		expect(results).toHaveLength(1);
+		expect(results[0].stop_name).toBe("旭川駅前");
+	});
+
+	it("遠距離の同名バス停は別エントリとして返される", () => {
+		// 同じ「東橋」が旭川と富良野に存在（約 70km 離れ）
+		db = createTestDb([
+			{
+				stop_id: "S001",
+				stop_name: "東橋",
+				stop_lat: 43.77,
+				stop_lon: 142.37,
+			},
+			{
+				stop_id: "S002",
+				stop_name: "東橋",
+				stop_lat: 43.34,
+				stop_lon: 142.38,
+			},
+		]);
+		const results = searchStops(db, "東橋");
+		expect(results).toHaveLength(2);
+	});
+
+	it("遠距離の同名バス停には区別ラベルが付与される", () => {
+		db = createTestDb([]);
+		// 異なる事業者でロード
+		loadGtfsData(
+			db,
+			{
+				...emptyGtfsBase,
+				agency: [{ agency_id: "A001", agency_name: "道北バス" }],
+				stops: [
+					{
+						stop_id: "S001",
+						stop_name: "東橋",
+						stop_lat: 43.77,
+						stop_lon: 142.37,
+					},
+				],
+			},
+			"dohoku",
+		);
+		loadGtfsData(
+			db,
+			{
+				...emptyGtfsBase,
+				agency: [{ agency_id: "A001", agency_name: "ふらのバス" }],
+				stops: [
+					{
+						stop_id: "S001",
+						stop_name: "東橋",
+						stop_lat: 43.34,
+						stop_lon: 142.38,
+					},
+				],
+			},
+			"furano",
+		);
+		const results = searchStops(db, "東橋");
+		expect(results).toHaveLength(2);
+		// 各エントリに区別ラベルが存在する
+		for (const r of results) {
+			expect(r.disambiguationLabel).toBeDefined();
+			expect(r.disambiguationLabel).not.toBe("");
+		}
+		// ラベルが異なる
+		expect(results[0].disambiguationLabel).not.toBe(
+			results[1].disambiguationLabel,
+		);
+	});
+
+	it("同名バス停がすべて近距離なら区別ラベルは付かない", () => {
+		db = createTestDb([
+			{
+				stop_id: "S001",
+				stop_name: "旭川駅前",
+				stop_lat: 43.7631,
+				stop_lon: 142.3582,
+			},
+			{
+				stop_id: "S002",
+				stop_name: "旭川駅前",
+				stop_lat: 43.7635,
+				stop_lon: 142.3582,
+			},
+		]);
+		const results = searchStops(db, "旭川駅前");
+		expect(results).toHaveLength(1);
+		expect(results[0].disambiguationLabel).toBeUndefined();
+	});
+
+	it("3 つの近距離同名バス停がひとつに統合される", () => {
+		db = createTestDb([
+			{
+				stop_id: "S001",
+				stop_name: "市役所前",
+				stop_lat: 43.7701,
+				stop_lon: 142.3651,
+			},
+			{
+				stop_id: "S002",
+				stop_name: "市役所前",
+				stop_lat: 43.7703,
+				stop_lon: 142.3651,
+			},
+			{
+				stop_id: "S003",
+				stop_name: "市役所前",
+				stop_lat: 43.7705,
+				stop_lon: 142.3651,
+			},
+		]);
+		const results = searchStops(db, "市役所前");
+		expect(results).toHaveLength(1);
+	});
+});
+
+describe("getSiblingStopIds", () => {
+	let db: ReturnType<typeof createTestDb>;
+
+	afterEach(() => {
+		db.close();
+	});
+
+	it("同名の近距離バス停の stop_id をすべて返す", () => {
+		db = createTestDb([
+			{
+				stop_id: "S001",
+				stop_name: "旭川駅前",
+				stop_lat: 43.7631,
+				stop_lon: 142.3582,
+			},
+			{
+				stop_id: "S002",
+				stop_name: "旭川駅前",
+				stop_lat: 43.7635,
+				stop_lon: 142.3582,
+			},
+		]);
+		const ids = getSiblingStopIds(db, "test:S001");
+		expect(ids).toContain("test:S001");
+		expect(ids).toContain("test:S002");
+		expect(ids).toHaveLength(2);
+	});
+
+	it("同名でも遠距離のバス停は含めない", () => {
+		db = createTestDb([
+			{
+				stop_id: "S001",
+				stop_name: "東橋",
+				stop_lat: 43.77,
+				stop_lon: 142.37,
+			},
+			{
+				stop_id: "S002",
+				stop_name: "東橋",
+				stop_lat: 43.34,
+				stop_lon: 142.38,
+			},
+		]);
+		const ids = getSiblingStopIds(db, "test:S001");
+		expect(ids).toContain("test:S001");
+		expect(ids).not.toContain("test:S002");
+		expect(ids).toHaveLength(1);
+	});
+
+	it("同名バス停が存在しない場合は自身のみ返す", () => {
+		db = createTestDb([
+			{
+				stop_id: "S001",
+				stop_name: "旭川駅前",
+				stop_lat: 43.7631,
+				stop_lon: 142.3582,
+			},
+		]);
+		const ids = getSiblingStopIds(db, "test:S001");
+		expect(ids).toEqual(["test:S001"]);
+	});
+
+	it("存在しない stop_id を指定した場合はその ID のみ返す", () => {
+		db = createTestDb([]);
+		const ids = getSiblingStopIds(db, "test:S999");
+		expect(ids).toEqual(["test:S999"]);
 	});
 });
 
