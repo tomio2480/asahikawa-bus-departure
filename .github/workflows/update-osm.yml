@@ -12,7 +12,7 @@ jobs:
   update-osm:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Download hokkaido-latest.osm.pbf
         run: |
@@ -42,7 +42,7 @@ jobs:
           rm hokkaido-latest.osm.pbf.md5
 
       - name: Save to cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: data/osm/hokkaido-latest.osm.pbf
           key: osm-hokkaido-${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') }}
