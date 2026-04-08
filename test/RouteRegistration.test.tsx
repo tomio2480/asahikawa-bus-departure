@@ -13,7 +13,7 @@ import {
 import { RouteRegistration } from "../src/components/RouteRegistration";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
-import type { RouteEntry } from "../src/types/route-entry";
+import type { RegisteredRouteEntry } from "../src/types/route-entry";
 
 const testStops: GtfsData["stops"] = [
 	{
@@ -67,7 +67,7 @@ afterEach(() => {
 	db.close();
 });
 
-function renderComponent(routes: RouteEntry[] = []) {
+function renderComponent(routes: RegisteredRouteEntry[] = []) {
 	const onAdd = vi.fn().mockResolvedValue(1);
 	const onUpdate = vi.fn().mockResolvedValue(undefined);
 	const onDelete = vi.fn().mockResolvedValue(undefined);
@@ -101,7 +101,7 @@ describe("RouteRegistration コンポーネント", () => {
 	});
 
 	it("登録済み経路が一覧にバス停名で表示される", () => {
-		const routes: RouteEntry[] = [
+		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
 		];
 		renderComponent(routes);
@@ -170,7 +170,7 @@ describe("RouteRegistration コンポーネント", () => {
 	});
 
 	it("編集ボタンで編集モードに切り替わる", async () => {
-		const routes: RouteEntry[] = [
+		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
 		];
 		renderComponent(routes);
@@ -185,7 +185,7 @@ describe("RouteRegistration コンポーネント", () => {
 	});
 
 	it("キャンセルボタンで編集モードを解除できる", async () => {
-		const routes: RouteEntry[] = [
+		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
 		];
 		renderComponent(routes);
@@ -198,7 +198,7 @@ describe("RouteRegistration コンポーネント", () => {
 	});
 
 	it("削除ボタンで onDelete が呼ばれる", async () => {
-		const routes: RouteEntry[] = [
+		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
 		];
 		const { onDelete } = renderComponent(routes);
@@ -250,7 +250,7 @@ describe("RouteRegistration コンポーネント", () => {
 	});
 
 	it("複数の経路が一覧に表示される", () => {
-		const routes: RouteEntry[] = [
+		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
 			{
 				id: 2,
