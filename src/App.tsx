@@ -24,7 +24,7 @@ function App() {
 				<h1 className="text-xl font-bold">旭川バス発車案内</h1>
 			</header>
 			<main className="container mx-auto p-4 space-y-6">
-				{loading && <LoadingSpinner />}
+				{loading && !error && <LoadingSpinner />}
 
 				{error && (
 					<div className="alert alert-error" role="alert">

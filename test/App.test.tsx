@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/hooks/useDatabase", () => ({
@@ -27,6 +27,7 @@ vi.mock("../src/components/RouteRegistration", () => ({
 import App from "../src/App";
 
 afterEach(() => {
+	cleanup();
 	vi.restoreAllMocks();
 });
 
