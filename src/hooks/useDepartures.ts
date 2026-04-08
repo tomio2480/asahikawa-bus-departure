@@ -85,13 +85,14 @@ export function useDepartures(
 
 				const fareCache = new Map<string, Fare | null>();
 				for (const dep of departures) {
-					if (!fareCache.has(dep.routeId)) {
+					const fareKey = `${dep.routeId}:${dep.fromStopId}:${dep.toStopId}`;
+					if (!fareCache.has(fareKey)) {
 						fareCache.set(
-							dep.routeId,
-							getFare(currentDb, route.fromStopId, route.toStopId, dep.routeId),
+							fareKey,
+							getFare(currentDb, dep.fromStopId, dep.toStopId, dep.routeId),
 						);
 					}
-					dep.fare = fareCache.get(dep.routeId) ?? null;
+					dep.fare = fareCache.get(fareKey) ?? null;
 				}
 
 				const existing = groupMap.get(route.toStopId);
