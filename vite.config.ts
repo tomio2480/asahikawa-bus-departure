@@ -12,6 +12,10 @@ function copySqlWasm(): Plugin {
 				"node_modules/sql.js/dist/sql-wasm.wasm",
 				"public/sql-wasm.wasm",
 			);
+			copyFileSync(
+				"node_modules/sql.js/dist/sql-wasm-browser.wasm",
+				"public/sql-wasm-browser.wasm",
+			);
 		},
 	};
 }
