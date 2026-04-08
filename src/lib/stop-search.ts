@@ -95,8 +95,8 @@ export function searchStops(
 /**
  * 同名バス停を距離ベースでクラスタリングする。
  *
- * 同じ名前のバス停を近距離（500m 以内）でグループ化し、
- * 各クラスタの代表 stop_id（辞書順で最小）を返す。
+ * 同じ名前のバス停を近距離（500m 以内）でグループ化する。
+ * 入力は stop_id 昇順であるため、最初にクラスタを形成した stop_id が代表となる。
  */
 function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 	const byName = new Map<string, RawStopRow[]>();
@@ -126,12 +126,6 @@ function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 					) <= NEARBY_THRESHOLD_METERS
 				) {
 					cluster.stopIds.push(stop.stop_id);
-					// 代表 ID は辞書順で最小のものを採用
-					if (stop.stop_id < cluster.representativeId) {
-						cluster.representativeId = stop.stop_id;
-						cluster.lat = stop.stop_lat;
-						cluster.lon = stop.stop_lon;
-					}
 					merged = true;
 					break;
 				}
@@ -218,30 +212,43 @@ export function getStopName(db: Database, stopId: string): string {
  * 遠距離の同名バス停は含めない。
  */
 export function getSiblingStopIds(db: Database, stopId: string): string[] {
-	const result = db.exec(
-		`SELECT s2.stop_id, s2.stop_lat, s2.stop_lon, s1.stop_lat AS ref_lat, s1.stop_lon AS ref_lon
-		 FROM stops s1
-		 JOIN stops s2 ON s1.stop_name = s2.stop_name
-		 WHERE s1.stop_id = ?`,
-		[stopId],
+	const refStmt = db.prepare(
+		"SELECT stop_name, stop_lat, stop_lon FROM stops WHERE stop_id = ?",
 	);
-	if (result.length === 0) {
-		return [stopId];
+	let refStop: { stop_name: string; stop_lat: number; stop_lon: number };
+	try {
+		refStmt.bind([stopId]);
+		if (!refStmt.step()) {
+			return [stopId];
+		}
+		refStop = refStmt.getAsObject() as typeof refStop;
+	} finally {
+		refStmt.free();
 	}
 
-	const siblings: string[] = [];
-	for (const row of result[0].values) {
-		const siblingId = row[0] as string;
-		const sibLat = row[1] as number;
-		const sibLon = row[2] as number;
-		const refLat = row[3] as number;
-		const refLon = row[4] as number;
+	const { stop_name: refName, stop_lat: refLat, stop_lon: refLon } = refStop;
 
-		if (
-			distanceMeters(refLat, refLon, sibLat, sibLon) <= NEARBY_THRESHOLD_METERS
-		) {
-			siblings.push(siblingId);
+	const siblingsStmt = db.prepare(
+		"SELECT stop_id, stop_lat, stop_lon FROM stops WHERE stop_name = ?",
+	);
+	const siblings: string[] = [];
+	try {
+		siblingsStmt.bind([refName]);
+		while (siblingsStmt.step()) {
+			const row = siblingsStmt.getAsObject() as {
+				stop_id: string;
+				stop_lat: number;
+				stop_lon: number;
+			};
+			if (
+				distanceMeters(refLat, refLon, row.stop_lat, row.stop_lon) <=
+				NEARBY_THRESHOLD_METERS
+			) {
+				siblings.push(row.stop_id);
+			}
 		}
+	} finally {
+		siblingsStmt.free();
 	}
 
 	return siblings.length > 0 ? siblings : [stopId];
