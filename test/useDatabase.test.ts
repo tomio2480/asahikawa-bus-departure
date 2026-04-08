@@ -1,6 +1,6 @@
 import { cleanup } from "@testing-library/react";
 import { renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 import { useDatabase } from "../src/hooks/useDatabase";
 
 const mockClose = vi.hoisted(() => vi.fn());
@@ -51,6 +51,10 @@ const mockFetch = vi.fn(() =>
 vi.stubGlobal("fetch", mockFetch);
 
 describe("useDatabase", () => {
+	afterAll(() => {
+		vi.unstubAllGlobals();
+	});
+
 	afterEach(() => {
 		cleanup();
 		vi.clearAllMocks();
