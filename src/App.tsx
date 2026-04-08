@@ -9,12 +9,14 @@ function App() {
 	const {
 		routes,
 		loading: routesLoading,
+		error: routesError,
 		add,
 		update,
 		remove,
 	} = useRoutes();
 
 	const loading = dbLoading || routesLoading;
+	const error = dbError || routesError;
 
 	return (
 		<div className="min-h-screen bg-base-200">
@@ -24,13 +26,13 @@ function App() {
 			<main className="container mx-auto p-4 space-y-6">
 				{loading && <LoadingSpinner />}
 
-				{dbError && (
+				{error && (
 					<div className="alert alert-error" role="alert">
-						データの読み込みに失敗しました: {dbError.message}
+						データの読み込みに失敗しました: {error.message}
 					</div>
 				)}
 
-				{db && !loading && (
+				{db && !loading && !error && (
 					<>
 						<DepartureBoard db={db} routes={routes} />
 						<RouteRegistration

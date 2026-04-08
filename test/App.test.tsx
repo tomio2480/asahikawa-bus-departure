@@ -81,6 +81,28 @@ describe("App", () => {
 		expect(screen.getByText(/DB load failed/)).toBeInTheDocument();
 	});
 
+	it("経路データエラー時にエラーメッセージが表示される", () => {
+		mockUseDatabase.mockReturnValue({
+			db: {} as ReturnType<typeof useDatabase>["db"],
+			error: null,
+			loading: false,
+		});
+		mockUseRoutes.mockReturnValue({
+			routes: [],
+			loading: false,
+			error: new Error("IndexedDB not available"),
+			add: vi.fn(),
+			update: vi.fn(),
+			remove: vi.fn(),
+			reload: vi.fn(),
+		});
+		render(<App />);
+		expect(
+			screen.getByText(/IndexedDB not available/),
+		).toBeInTheDocument();
+		expect(screen.queryByTestId("departure-board")).not.toBeInTheDocument();
+	});
+
 	it("読み込み完了後に発車案内と経路登録が表示される", () => {
 		mockUseDatabase.mockReturnValue({
 			db: {} as ReturnType<typeof useDatabase>["db"],
