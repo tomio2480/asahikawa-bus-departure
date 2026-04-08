@@ -1,6 +1,7 @@
 import { DepartureBoard } from "./components/DepartureBoard";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 import { RouteRegistration } from "./components/RouteRegistration";
+import { RouteTransfer } from "./components/RouteTransfer";
 import { useDatabase } from "./hooks/useDatabase";
 import { useRoutes } from "./hooks/useRoutes";
 
@@ -13,6 +14,7 @@ function App() {
 		add,
 		update,
 		remove,
+		reload,
 	} = useRoutes();
 
 	const loading = dbLoading || routesLoading;
@@ -21,7 +23,12 @@ function App() {
 	return (
 		<div className="min-h-screen bg-base-200">
 			<header className="navbar bg-base-100">
-				<h1 className="text-xl font-bold">旭川バス発車案内</h1>
+				<div className="flex-1">
+					<h1 className="text-xl font-bold">旭川バス発車案内</h1>
+				</div>
+				<div className="flex-none">
+					<RouteTransfer onImportComplete={reload} />
+				</div>
 			</header>
 			<main className="container mx-auto p-4 space-y-6">
 				{loading && !error && <LoadingSpinner />}

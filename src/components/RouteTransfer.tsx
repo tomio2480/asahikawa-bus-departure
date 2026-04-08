@@ -1,0 +1,140 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { exportRoutes, importRoutes } from "../lib/route-store";
+
+type RouteTransferProps = {
+	/** インポート完了時のコールバック */
+	onImportComplete: () => void | Promise<void>;
+};
+
+/** File の内容をテキストとして読み取る */
+function readFileAsText(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result as string);
+		reader.onerror = () => reject(reader.error);
+		reader.readAsText(file);
+	});
+}
+
+/** 経路データのエクスポート/インポートを行うコンポーネント */
+export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
+	const [message, setMessage] = useState<{
+		type: "success" | "error";
+		text: string;
+	} | null>(null);
+	const [processing, setProcessing] = useState(false);
+	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const handleExport = useCallback(async () => {
+		setMessage(null);
+		setProcessing(true);
+		try {
+			const data = await exportRoutes();
+			const json = JSON.stringify(data, null, 2);
+			const blob = new Blob([json], { type: "application/json" });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `routes-${new Date().toLocaleDateString("sv-SE")}.json`;
+			a.style.display = "none";
+			document.body.appendChild(a);
+			try {
+				a.click();
+			} finally {
+				setTimeout(() => {
+					if (a.parentNode) {
+						a.parentNode.removeChild(a);
+					}
+					URL.revokeObjectURL(url);
+				}, 100);
+			}
+		} catch (err) {
+			setMessage({
+				type: "error",
+				text: err instanceof Error ? err.message : "エクスポートに失敗しました",
+			});
+		} finally {
+			setProcessing(false);
+		}
+	}, []);
+
+	const handleFileChange = useCallback(
+		async (e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			if (!file) return;
+
+			setMessage(null);
+			setProcessing(true);
+			try {
+				const text = await readFileAsText(file);
+				const count = await importRoutes(text);
+				setMessage({
+					type: "success",
+					text: `${count} 件の経路をインポートしました`,
+				});
+				await onImportComplete();
+			} catch (err) {
+				setMessage({
+					type: "error",
+					text: err instanceof Error ? err.message : "インポートに失敗しました",
+				});
+			} finally {
+				setProcessing(false);
+				if (fileInputRef.current) {
+					fileInputRef.current.value = "";
+				}
+			}
+		},
+		[onImportComplete],
+	);
+
+	// 成功メッセージは 3 秒後に自動消去する
+	useEffect(() => {
+		if (message?.type === "success") {
+			const timer = setTimeout(() => setMessage(null), 3000);
+			return () => clearTimeout(timer);
+		}
+	}, [message]);
+
+	const handleImportClick = useCallback(() => {
+		fileInputRef.current?.click();
+	}, []);
+
+	return (
+		<div className="relative">
+			<div className="flex items-center gap-2">
+				<button
+					type="button"
+					className="btn btn-outline btn-sm"
+					onClick={handleExport}
+					disabled={processing}
+				>
+					エクスポート
+				</button>
+				<button
+					type="button"
+					className="btn btn-outline btn-sm"
+					onClick={handleImportClick}
+					disabled={processing}
+				>
+					インポート
+				</button>
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept=".json"
+					className="hidden"
+					onChange={handleFileChange}
+				/>
+			</div>
+			{message && (
+				<div
+					className={`absolute right-0 mt-1 whitespace-nowrap text-sm ${message.type === "error" ? "text-error" : "text-success"}`}
+					role="alert"
+				>
+					{message.text}
+				</div>
+			)}
+		</div>
+	);
+}
