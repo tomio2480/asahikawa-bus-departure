@@ -24,10 +24,20 @@ describe("RouteTransfer", () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		// jsdom は URL.createObjectURL/revokeObjectURL を実装していないため
+		// vi.spyOn で上書きできるようスタブを設定する
+		if (!URL.createObjectURL) {
+			URL.createObjectURL = () => "";
+		}
+		if (!URL.revokeObjectURL) {
+			URL.revokeObjectURL = () => {};
+		}
 	});
 
 	afterEach(() => {
 		cleanup();
+		vi.restoreAllMocks();
+		vi.useRealTimers();
 	});
 
 	it("エクスポートボタンとインポートボタンが表示される", () => {
@@ -49,10 +59,12 @@ describe("RouteTransfer", () => {
 				],
 			});
 
-			const createObjectURL = vi.fn(() => "blob:mock-url");
-			const revokeObjectURL = vi.fn();
-			globalThis.URL.createObjectURL = createObjectURL;
-			globalThis.URL.revokeObjectURL = revokeObjectURL;
+			const createObjectURLSpy = vi
+				.spyOn(URL, "createObjectURL")
+				.mockReturnValue("blob:mock-url");
+			const revokeObjectURLSpy = vi
+				.spyOn(URL, "revokeObjectURL")
+				.mockImplementation(() => {});
 
 			const clickSpy = vi.fn();
 			const appendChildSpy = vi.spyOn(document.body, "appendChild");
@@ -70,17 +82,15 @@ describe("RouteTransfer", () => {
 
 			await waitFor(() => {
 				expect(mockExportRoutes).toHaveBeenCalledOnce();
-				expect(createObjectURL).toHaveBeenCalledOnce();
+				expect(createObjectURLSpy).toHaveBeenCalledOnce();
 				expect(appendChildSpy).toHaveBeenCalled();
 				expect(clickSpy).toHaveBeenCalledOnce();
 			});
 
 			// setTimeout(100ms) 後に revokeObjectURL が呼ばれる
 			await waitFor(() => {
-				expect(revokeObjectURL).toHaveBeenCalledOnce();
+				expect(revokeObjectURLSpy).toHaveBeenCalledOnce();
 			});
-
-			vi.restoreAllMocks();
 		});
 
 		it("ファイル名にローカル日付が使用される", async () => {
@@ -90,8 +100,8 @@ describe("RouteTransfer", () => {
 
 			mockExportRoutes.mockResolvedValue({ version: 1, routes: [] });
 
-			globalThis.URL.createObjectURL = vi.fn(() => "blob:mock-url");
-			globalThis.URL.revokeObjectURL = vi.fn();
+			vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
+			vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 
 			let capturedAnchor: HTMLAnchorElement | null = null;
 			const origCreateElement = document.createElement.bind(document);
@@ -112,9 +122,6 @@ describe("RouteTransfer", () => {
 			});
 
 			expect(capturedAnchor?.download).toBe("routes-2026-04-08.json");
-
-			vi.useRealTimers();
-			vi.restoreAllMocks();
 		});
 
 		it("エクスポートに失敗した場合エラーメッセージを表示する", async () => {
@@ -139,8 +146,8 @@ describe("RouteTransfer", () => {
 					}),
 			);
 
-			globalThis.URL.createObjectURL = vi.fn(() => "blob:mock-url");
-			globalThis.URL.revokeObjectURL = vi.fn();
+			vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
+			vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 			const origCreateElement = document.createElement.bind(document);
 			vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
 				const el = origCreateElement(tag);
@@ -168,8 +175,6 @@ describe("RouteTransfer", () => {
 				expect(exportBtn).not.toBeDisabled();
 				expect(importBtn).not.toBeDisabled();
 			});
-
-			vi.restoreAllMocks();
 		});
 
 		it("インポート処理中はボタンが無効化される", async () => {
@@ -290,8 +295,6 @@ describe("RouteTransfer", () => {
 			await waitFor(() => {
 				expect(screen.queryByRole("alert")).toBeNull();
 			});
-
-			vi.useRealTimers();
 		});
 
 		it("インポートに失敗した場合エラーメッセージを表示する", async () => {

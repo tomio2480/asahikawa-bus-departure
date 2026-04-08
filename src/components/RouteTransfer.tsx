@@ -3,7 +3,7 @@ import { exportRoutes, importRoutes } from "../lib/route-store";
 
 type RouteTransferProps = {
 	/** インポート完了時のコールバック */
-	onImportComplete: () => void;
+	onImportComplete: () => void | Promise<void>;
 };
 
 /** File の内容をテキストとして読み取る */
@@ -41,7 +41,9 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 				document.body.appendChild(a);
 				a.click();
 				setTimeout(() => {
-					document.body.removeChild(a);
+					if (a.parentNode) {
+						a.parentNode.removeChild(a);
+					}
 					URL.revokeObjectURL(url);
 				}, 100);
 			} catch (err) {
@@ -72,7 +74,7 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 					type: "success",
 					text: `${count} 件の経路をインポートしました`,
 				});
-				onImportComplete();
+				await onImportComplete();
 			} catch (err) {
 				setMessage({
 					type: "error",
