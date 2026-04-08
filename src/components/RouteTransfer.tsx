@@ -22,10 +22,12 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 		type: "success" | "error";
 		text: string;
 	} | null>(null);
+	const [processing, setProcessing] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const handleExport = useCallback(async () => {
 		setMessage(null);
+		setProcessing(true);
 		try {
 			const data = await exportRoutes();
 			const json = JSON.stringify(data, null, 2);
@@ -34,16 +36,25 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 			try {
 				const a = document.createElement("a");
 				a.href = url;
-				a.download = `routes-${new Date().toISOString().slice(0, 10)}.json`;
+				a.download = `routes-${new Date().toLocaleDateString("sv-SE")}.json`;
+				a.style.display = "none";
+				document.body.appendChild(a);
 				a.click();
-			} finally {
+				setTimeout(() => {
+					document.body.removeChild(a);
+					URL.revokeObjectURL(url);
+				}, 100);
+			} catch (err) {
 				URL.revokeObjectURL(url);
+				throw err;
 			}
 		} catch (err) {
 			setMessage({
 				type: "error",
 				text: err instanceof Error ? err.message : "エクスポートに失敗しました",
 			});
+		} finally {
+			setProcessing(false);
 		}
 	}, []);
 
@@ -53,6 +64,7 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 			if (!file) return;
 
 			setMessage(null);
+			setProcessing(true);
 			try {
 				const text = await readFileAsText(file);
 				const count = await importRoutes(text);
@@ -67,6 +79,7 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 					text: err instanceof Error ? err.message : "インポートに失敗しました",
 				});
 			} finally {
+				setProcessing(false);
 				if (fileInputRef.current) {
 					fileInputRef.current.value = "";
 				}
@@ -80,31 +93,35 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 	}, []);
 
 	return (
-		<div className="flex items-center gap-2">
-			<button
-				type="button"
-				className="btn btn-outline btn-sm"
-				onClick={handleExport}
-			>
-				エクスポート
-			</button>
-			<button
-				type="button"
-				className="btn btn-outline btn-sm"
-				onClick={handleImportClick}
-			>
-				インポート
-			</button>
-			<input
-				ref={fileInputRef}
-				type="file"
-				accept=".json"
-				className="hidden"
-				onChange={handleFileChange}
-			/>
+		<div className="relative">
+			<div className="flex items-center gap-2">
+				<button
+					type="button"
+					className="btn btn-outline btn-sm"
+					onClick={handleExport}
+					disabled={processing}
+				>
+					エクスポート
+				</button>
+				<button
+					type="button"
+					className="btn btn-outline btn-sm"
+					onClick={handleImportClick}
+					disabled={processing}
+				>
+					インポート
+				</button>
+				<input
+					ref={fileInputRef}
+					type="file"
+					accept=".json"
+					className="hidden"
+					onChange={handleFileChange}
+				/>
+			</div>
 			{message && (
 				<div
-					className={`text-sm ${message.type === "error" ? "text-error" : "text-success"}`}
+					className={`absolute right-0 mt-1 whitespace-nowrap text-sm ${message.type === "error" ? "text-error" : "text-success"}`}
 					role="alert"
 				>
 					{message.text}

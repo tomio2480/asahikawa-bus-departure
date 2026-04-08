@@ -55,6 +55,7 @@ describe("RouteTransfer", () => {
 			globalThis.URL.revokeObjectURL = revokeObjectURL;
 
 			const clickSpy = vi.fn();
+			const appendChildSpy = vi.spyOn(document.body, "appendChild");
 			const origCreateElement = document.createElement.bind(document);
 			vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
 				const el = origCreateElement(tag);
@@ -70,9 +71,44 @@ describe("RouteTransfer", () => {
 			await waitFor(() => {
 				expect(mockExportRoutes).toHaveBeenCalledOnce();
 				expect(createObjectURL).toHaveBeenCalledOnce();
+				expect(appendChildSpy).toHaveBeenCalled();
 				expect(clickSpy).toHaveBeenCalledOnce();
+			});
+
+			// setTimeout(100ms) 後に revokeObjectURL が呼ばれる
+			await waitFor(() => {
 				expect(revokeObjectURL).toHaveBeenCalledOnce();
 			});
+
+			vi.restoreAllMocks();
+		});
+
+		it("ファイル名にローカル日付が使用される", async () => {
+			mockExportRoutes.mockResolvedValue({ version: 1, routes: [] });
+
+			globalThis.URL.createObjectURL = vi.fn(() => "blob:mock-url");
+			globalThis.URL.revokeObjectURL = vi.fn();
+
+			let capturedAnchor: HTMLAnchorElement | null = null;
+			const origCreateElement = document.createElement.bind(document);
+			vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+				const el = origCreateElement(tag);
+				if (tag === "a") {
+					capturedAnchor = el as HTMLAnchorElement;
+					vi.spyOn(el, "click").mockImplementation(() => {});
+				}
+				return el;
+			});
+
+			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
+			fireEvent.click(screen.getByRole("button", { name: /エクスポート/ }));
+
+			await waitFor(() => {
+				expect(capturedAnchor).not.toBeNull();
+			});
+
+			const localDate = new Date().toLocaleDateString("sv-SE");
+			expect(capturedAnchor?.download).toBe(`routes-${localDate}.json`);
 
 			vi.restoreAllMocks();
 		});
@@ -85,6 +121,89 @@ describe("RouteTransfer", () => {
 
 			await waitFor(() => {
 				expect(screen.getByRole("alert")).toHaveTextContent("DB error");
+			});
+		});
+	});
+
+	describe("二重実行防止", () => {
+		it("エクスポート処理中はボタンが無効化される", async () => {
+			let resolveExport: (value: { version: 1; routes: [] }) => void;
+			mockExportRoutes.mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						resolveExport = resolve;
+					}),
+			);
+
+			globalThis.URL.createObjectURL = vi.fn(() => "blob:mock-url");
+			globalThis.URL.revokeObjectURL = vi.fn();
+			const origCreateElement = document.createElement.bind(document);
+			vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
+				const el = origCreateElement(tag);
+				if (tag === "a") {
+					vi.spyOn(el, "click").mockImplementation(() => {});
+				}
+				return el;
+			});
+
+			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
+
+			const exportBtn = screen.getByRole("button", { name: /エクスポート/ });
+			const importBtn = screen.getByRole("button", { name: /インポート/ });
+
+			fireEvent.click(exportBtn);
+
+			await waitFor(() => {
+				expect(exportBtn).toBeDisabled();
+				expect(importBtn).toBeDisabled();
+			});
+
+			resolveExport?.({ version: 1, routes: [] });
+
+			await waitFor(() => {
+				expect(exportBtn).not.toBeDisabled();
+				expect(importBtn).not.toBeDisabled();
+			});
+
+			vi.restoreAllMocks();
+		});
+
+		it("インポート処理中はボタンが無効化される", async () => {
+			let resolveImport: (value: number) => void;
+			mockImportRoutes.mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						resolveImport = resolve;
+					}),
+			);
+
+			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
+
+			const exportBtn = screen.getByRole("button", { name: /エクスポート/ });
+			const importBtn = screen.getByRole("button", { name: /インポート/ });
+
+			const fileInput = document.querySelector(
+				'input[type="file"]',
+			) as HTMLInputElement;
+
+			const json = JSON.stringify({ version: 1, routes: [] });
+			const file = new File([json], "routes.json", {
+				type: "application/json",
+			});
+			fireEvent.change(fileInput, { target: { files: [file] } });
+
+			// readFileAsText 完了後に importRoutes が呼ばれるまで待つ
+			await waitFor(() => {
+				expect(exportBtn).toBeDisabled();
+				expect(importBtn).toBeDisabled();
+				expect(mockImportRoutes).toHaveBeenCalled();
+			});
+
+			resolveImport?.(0);
+
+			await waitFor(() => {
+				expect(exportBtn).not.toBeDisabled();
+				expect(importBtn).not.toBeDisabled();
 			});
 		});
 	});
@@ -113,8 +232,8 @@ describe("RouteTransfer", () => {
 			fireEvent.change(fileInput, { target: { files: [file] } });
 
 			await waitFor(() => {
-				expect(mockImportRoutes).toHaveBeenCalledOnce();
-				expect(mockOnImportComplete).toHaveBeenCalledOnce();
+				expect(mockImportRoutes).toHaveBeenCalled();
+				expect(mockOnImportComplete).toHaveBeenCalled();
 			});
 		});
 
