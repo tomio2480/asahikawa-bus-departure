@@ -84,6 +84,10 @@ describe("RouteTransfer", () => {
 		});
 
 		it("ファイル名にローカル日付が使用される", async () => {
+			// 日付を固定してテストの安定性を確保
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			vi.setSystemTime(new Date("2026-04-08T12:00:00"));
+
 			mockExportRoutes.mockResolvedValue({ version: 1, routes: [] });
 
 			globalThis.URL.createObjectURL = vi.fn(() => "blob:mock-url");
@@ -107,9 +111,9 @@ describe("RouteTransfer", () => {
 				expect(capturedAnchor).not.toBeNull();
 			});
 
-			const localDate = new Date().toLocaleDateString("sv-SE");
-			expect(capturedAnchor?.download).toBe(`routes-${localDate}.json`);
+			expect(capturedAnchor?.download).toBe("routes-2026-04-08.json");
 
+			vi.useRealTimers();
 			vi.restoreAllMocks();
 		});
 
@@ -257,6 +261,37 @@ describe("RouteTransfer", () => {
 					"3 件の経路をインポートしました",
 				);
 			});
+		});
+
+		it("成功メッセージは 3 秒後に自動消去される", async () => {
+			vi.useFakeTimers({ shouldAdvanceTime: true });
+			mockImportRoutes.mockResolvedValue(2);
+
+			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
+
+			const fileInput = document.querySelector(
+				'input[type="file"]',
+			) as HTMLInputElement;
+
+			const json = JSON.stringify({ version: 1, routes: [] });
+			const file = new File([json], "routes.json", {
+				type: "application/json",
+			});
+			fireEvent.change(fileInput, { target: { files: [file] } });
+
+			await waitFor(() => {
+				expect(screen.getByRole("alert")).toHaveTextContent(
+					"2 件の経路をインポートしました",
+				);
+			});
+
+			// 3 秒経過で成功メッセージが消える
+			vi.advanceTimersByTime(3000);
+			await waitFor(() => {
+				expect(screen.queryByRole("alert")).toBeNull();
+			});
+
+			vi.useRealTimers();
 		});
 
 		it("インポートに失敗した場合エラーメッセージを表示する", async () => {

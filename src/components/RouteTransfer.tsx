@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { exportRoutes, importRoutes } from "../lib/route-store";
 
 type RouteTransferProps = {
@@ -87,6 +87,14 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 		},
 		[onImportComplete],
 	);
+
+	// 成功メッセージは 3 秒後に自動消去する
+	useEffect(() => {
+		if (message?.type === "success") {
+			const timer = setTimeout(() => setMessage(null), 3000);
+			return () => clearTimeout(timer);
+		}
+	}, [message]);
 
 	const handleImportClick = useCallback(() => {
 		fileInputRef.current?.click();
