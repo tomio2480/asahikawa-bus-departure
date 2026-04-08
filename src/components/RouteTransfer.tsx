@@ -33,22 +33,20 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 			const json = JSON.stringify(data, null, 2);
 			const blob = new Blob([json], { type: "application/json" });
 			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+			a.href = url;
+			a.download = `routes-${new Date().toLocaleDateString("sv-SE")}.json`;
+			a.style.display = "none";
+			document.body.appendChild(a);
 			try {
-				const a = document.createElement("a");
-				a.href = url;
-				a.download = `routes-${new Date().toLocaleDateString("sv-SE")}.json`;
-				a.style.display = "none";
-				document.body.appendChild(a);
 				a.click();
+			} finally {
 				setTimeout(() => {
 					if (a.parentNode) {
 						a.parentNode.removeChild(a);
 					}
 					URL.revokeObjectURL(url);
 				}, 100);
-			} catch (err) {
-				URL.revokeObjectURL(url);
-				throw err;
 			}
 		} catch (err) {
 			setMessage({

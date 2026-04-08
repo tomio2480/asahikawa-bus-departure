@@ -19,6 +19,15 @@ import { exportRoutes, importRoutes } from "../src/lib/route-store";
 const mockExportRoutes = vi.mocked(exportRoutes);
 const mockImportRoutes = vi.mocked(importRoutes);
 
+/** レンダー済み DOM から file input を取得するヘルパー */
+function getFileInput(): HTMLInputElement {
+	const el = document.querySelector('input[type="file"]');
+	if (!(el instanceof HTMLInputElement)) {
+		throw new Error("file input not found");
+	}
+	return el;
+}
+
 describe("RouteTransfer", () => {
 	const mockOnImportComplete = vi.fn();
 
@@ -191,9 +200,7 @@ describe("RouteTransfer", () => {
 			const exportBtn = screen.getByRole("button", { name: /エクスポート/ });
 			const importBtn = screen.getByRole("button", { name: /インポート/ });
 
-			const fileInput = document.querySelector(
-				'input[type="file"]',
-			) as HTMLInputElement;
+			const fileInput = getFileInput();
 
 			const json = JSON.stringify({ version: 1, routes: [] });
 			const file = new File([json], "routes.json", {
@@ -223,9 +230,7 @@ describe("RouteTransfer", () => {
 
 			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
 
-			const fileInput = document.querySelector(
-				'input[type="file"]',
-			) as HTMLInputElement;
+			const fileInput = getFileInput();
 			expect(fileInput).not.toBeNull();
 
 			const json = JSON.stringify({
@@ -251,9 +256,7 @@ describe("RouteTransfer", () => {
 
 			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
 
-			const fileInput = document.querySelector(
-				'input[type="file"]',
-			) as HTMLInputElement;
+			const fileInput = getFileInput();
 
 			const json = JSON.stringify({ version: 1, routes: [] });
 			const file = new File([json], "routes.json", {
@@ -274,9 +277,7 @@ describe("RouteTransfer", () => {
 
 			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
 
-			const fileInput = document.querySelector(
-				'input[type="file"]',
-			) as HTMLInputElement;
+			const fileInput = getFileInput();
 
 			const json = JSON.stringify({ version: 1, routes: [] });
 			const file = new File([json], "routes.json", {
@@ -302,9 +303,7 @@ describe("RouteTransfer", () => {
 
 			render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
 
-			const fileInput = document.querySelector(
-				'input[type="file"]',
-			) as HTMLInputElement;
+			const fileInput = getFileInput();
 
 			const json = "invalid json";
 			const file = new File([json], "routes.json", {
