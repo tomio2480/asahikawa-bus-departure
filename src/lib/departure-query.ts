@@ -22,16 +22,16 @@ export type Departure = {
  *
  * @param db - sql.js データベース
  * @param serviceIds - 有効な service_id の配列
- * @param fromStopId - 乗車バス停 ID
- * @param toStopId - 降車バス停 ID
+ * @param fromStopIds - 乗車バス停 ID（文字列または配列）
+ * @param toStopIds - 降車バス停 ID（文字列または配列）
  * @param afterTime - この時刻以降の便を取得（HH:MM:SS 形式）
  * @param limit - 取得件数の上限（デフォルト: 10）
  */
 export function getDepartures(
 	db: Database,
 	serviceIds: string[],
-	fromStopId: string,
-	toStopId: string,
+	fromStopIds: string | string[],
+	toStopIds: string | string[],
 	afterTime: string,
 	limit = 10,
 ): Departure[] {
@@ -44,7 +44,16 @@ export function getDepartures(
 		return [];
 	}
 
-	const placeholders = serviceIds.map(() => "?").join(", ");
+	const fromIds = Array.isArray(fromStopIds) ? fromStopIds : [fromStopIds];
+	const toIds = Array.isArray(toStopIds) ? toStopIds : [toStopIds];
+
+	if (fromIds.length === 0 || toIds.length === 0) {
+		return [];
+	}
+
+	const fromPlaceholders = fromIds.map(() => "?").join(", ");
+	const toPlaceholders = toIds.map(() => "?").join(", ");
+	const servicePlaceholders = serviceIds.map(() => "?").join(", ");
 
 	const result = db.exec(
 		`SELECT
@@ -62,13 +71,13 @@ export function getDepartures(
 			AND st_from.stop_sequence < st_to.stop_sequence
 		JOIN trips t ON st_from.trip_id = t.trip_id
 		JOIN routes r ON t.route_id = r.route_id
-		WHERE st_from.stop_id = ?
-			AND st_to.stop_id = ?
-			AND t.service_id IN (${placeholders})
+		WHERE st_from.stop_id IN (${fromPlaceholders})
+			AND st_to.stop_id IN (${toPlaceholders})
+			AND t.service_id IN (${servicePlaceholders})
 			AND st_from.departure_time >= ?
 		ORDER BY st_from.departure_time ASC
 		LIMIT ?`,
-		[fromStopId, toStopId, ...serviceIds, afterTime, sanitizedLimit],
+		[...fromIds, ...toIds, ...serviceIds, afterTime, sanitizedLimit],
 	);
 
 	if (result.length === 0) {

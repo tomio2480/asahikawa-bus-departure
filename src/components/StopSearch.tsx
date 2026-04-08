@@ -154,6 +154,11 @@ export function StopSearch({
 							onMouseEnter={() => setActiveIndex(index)}
 						>
 							{stop.stop_name}
+							{stop.disambiguationLabel && (
+								<span className="text-xs text-base-content/60 ml-1">
+									({stop.disambiguationLabel})
+								</span>
+							)}
 						</div>
 					))}
 				</div>

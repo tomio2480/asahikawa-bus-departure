@@ -7,7 +7,7 @@ import {
 	getDepartures,
 } from "../lib/departure-query";
 import { type Fare, getFare } from "../lib/fare-query";
-import { getStopName } from "../lib/stop-search";
+import { getSiblingStopIds, getStopName } from "../lib/stop-search";
 import type { RegisteredRouteEntry } from "../types/route-entry";
 
 /** 1 分間隔で自動更新する */
@@ -71,11 +71,13 @@ export function useDepartures(
 
 			for (const route of currentRoutes) {
 				const boardingTime = calculateBoardingTime(now, route.walkMinutes);
+				const fromStopIds = getSiblingStopIds(currentDb, route.fromStopId);
+				const toStopIds = getSiblingStopIds(currentDb, route.toStopId);
 				const departures = getDepartures(
 					currentDb,
 					serviceIds,
-					route.fromStopId,
-					route.toStopId,
+					fromStopIds,
+					toStopIds,
 					boardingTime,
 				);
 
@@ -83,13 +85,14 @@ export function useDepartures(
 
 				const fareCache = new Map<string, Fare | null>();
 				for (const dep of departures) {
-					if (!fareCache.has(dep.routeId)) {
+					const fareKey = `${dep.routeId}:${dep.fromStopId}:${dep.toStopId}`;
+					if (!fareCache.has(fareKey)) {
 						fareCache.set(
-							dep.routeId,
-							getFare(currentDb, route.fromStopId, route.toStopId, dep.routeId),
+							fareKey,
+							getFare(currentDb, dep.fromStopId, dep.toStopId, dep.routeId),
 						);
 					}
-					dep.fare = fareCache.get(dep.routeId) ?? null;
+					dep.fare = fareCache.get(fareKey) ?? null;
 				}
 
 				const existing = groupMap.get(route.toStopId);
