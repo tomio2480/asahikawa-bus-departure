@@ -42,8 +42,8 @@ function formatUpdatedTime(date: Date): string {
 	return updatedTimeFormatter.format(date);
 }
 
-/** 表示する行数の上限 */
-const VISIBLE_ROWS = 5;
+/** スクロール領域の最大高さ（Tailwind の max-h-60 = 15rem 相当） */
+const SCROLL_MAX_HEIGHT_CLASS = "max-h-60";
 
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */
 export function DepartureBoard({
@@ -112,10 +112,6 @@ export function DepartureBoard({
 
 	const allNextDay = groups.length > 0 && groups.every((g) => g.isNextDay);
 
-	// テーブル1行あたりの推定高さ（px）
-	const rowHeight = 40;
-	const maxHeight = rowHeight * VISIBLE_ROWS;
-
 	return (
 		<div className="space-y-4">
 			{lastUpdated && (
@@ -163,9 +159,11 @@ export function DepartureBoard({
 								</select>
 							)}
 						</div>
-						<div className="overflow-x-auto">
+						<div
+							className={`overflow-x-auto overflow-y-auto ${SCROLL_MAX_HEIGHT_CLASS}`}
+						>
 							<table className="table table-sm">
-								<thead>
+								<thead className="sticky top-0 z-10 bg-base-100">
 									<tr>
 										<th>出発目安</th>
 										<th>乗車</th>
@@ -176,70 +174,63 @@ export function DepartureBoard({
 										<th>行き先</th>
 									</tr>
 								</thead>
-							</table>
-							<div
-								className="overflow-y-auto"
-								style={{ maxHeight: `${maxHeight}px` }}
-							>
-								<table className="table table-sm">
-									<tbody>
-										{filteredDepartures.map((dep) => {
-											const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
-											const isHovered = hoveredRouteKey === routeKey;
-											const agencyColor = getAgencyColor(dep.routeId);
-											return (
-												<tr
-													key={`${dep.tripId}-${dep.departureTime}`}
-													className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
-													tabIndex={0}
-													onMouseEnter={() => onRouteHover?.(routeKey)}
-													onMouseLeave={() => onRouteHover?.(null)}
-													onFocus={() => onRouteHover?.(routeKey)}
-													onBlur={() => onRouteHover?.(null)}
-												>
-													<td className="font-mono">
-														{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
-														{dep.isDeparted && (
-															<span className="ml-1 badge badge-sm badge-ghost">
-																出発済
-															</span>
-														)}
-													</td>
-													<td>{dep.fromStopName ?? "-"}</td>
-													<td className="font-mono">
-														{formatTime(dep.departureTime)}
-													</td>
-													<td className="font-mono">
-														{formatTime(dep.arrivalTime)}
-													</td>
-													<td>
-														{dep.fare
-															? formatFare(dep.fare.price, dep.fare.currencyType)
-															: "-"}
-													</td>
-													<td>
-														<span className="inline-flex items-center gap-1">
-															{agencyColor && (
-																<span
-																	className="inline-block w-3 h-3 rounded-full flex-shrink-0"
-																	style={{
-																		backgroundColor: agencyColor.color,
-																	}}
-																	title={agencyColor.agencyName}
-																	aria-label={agencyColor.agencyName}
-																	role="img"
-																/>
-															)}
-															{dep.routeName}
+								<tbody>
+									{filteredDepartures.map((dep) => {
+										const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
+										const isHovered = hoveredRouteKey === routeKey;
+										const agencyColor = getAgencyColor(dep.routeId);
+										return (
+											<tr
+												key={`${dep.tripId}-${dep.departureTime}`}
+												className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
+												tabIndex={0}
+												onMouseEnter={() => onRouteHover?.(routeKey)}
+												onMouseLeave={() => onRouteHover?.(null)}
+												onFocus={() => onRouteHover?.(routeKey)}
+												onBlur={() => onRouteHover?.(null)}
+											>
+												<td className="font-mono">
+													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
+													{dep.isDeparted && (
+														<span className="ml-1 badge badge-sm badge-ghost">
+															出発済
 														</span>
-													</td>
-													<td>{dep.headsign}</td>
-												</tr>
-											);
-										})}
-									</tbody>
-								</table>
-							</div>
+													)}
+												</td>
+												<td>{dep.fromStopName ?? "-"}</td>
+												<td className="font-mono">
+													{formatTime(dep.departureTime)}
+												</td>
+												<td className="font-mono">
+													{formatTime(dep.arrivalTime)}
+												</td>
+												<td>
+													{dep.fare
+														? formatFare(dep.fare.price, dep.fare.currencyType)
+														: "-"}
+												</td>
+												<td>
+													<span className="inline-flex items-center gap-1">
+														{agencyColor && (
+															<span
+																className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+																style={{
+																	backgroundColor: agencyColor.color,
+																}}
+																title={agencyColor.agencyName}
+																aria-label={agencyColor.agencyName}
+																role="img"
+															/>
+														)}
+														{dep.routeName}
+													</span>
+												</td>
+												<td>{dep.headsign}</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
 						</div>
 					</div>
 				</div>
