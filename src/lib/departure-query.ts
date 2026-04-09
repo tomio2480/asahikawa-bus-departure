@@ -104,6 +104,40 @@ export function getDepartures(
 	}));
 }
 
+/** JST 時刻フォーマッター（モジュール内で再利用） */
+const jstTimeFormatter = new Intl.DateTimeFormat("en-US", {
+	timeZone: "Asia/Tokyo",
+	hourCycle: "h23",
+	hour: "2-digit",
+	minute: "2-digit",
+	second: "2-digit",
+});
+
+/** Date から JST の時・分・秒を数値で抽出する */
+function extractJstTimeParts(date: Date): {
+	hours: number;
+	minutes: number;
+	seconds: number;
+} {
+	const parts = jstTimeFormatter.formatToParts(date);
+	const hourStr = parts.find((p) => p.type === "hour")?.value;
+	const minuteStr = parts.find((p) => p.type === "minute")?.value;
+	const secondStr = parts.find((p) => p.type === "second")?.value;
+	if (!hourStr || !minuteStr || !secondStr) {
+		throw new Error("Failed to extract time parts from Intl.DateTimeFormat");
+	}
+	return {
+		hours: Number(hourStr),
+		minutes: Number(minuteStr),
+		seconds: Number(secondStr),
+	};
+}
+
+/** 時・分・秒を HH:MM:SS 形式の文字列にフォーマットする */
+function formatTimeStr(h: number, m: number, s: number): string {
+	return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 /**
  * 現在時刻に徒歩所要時間を加算して乗車可能時刻を算出する。
  *
@@ -113,30 +147,13 @@ export function getDepartures(
  */
 export function calculateBoardingTime(now: Date, walkMinutes: number): string {
 	const sanitizedWalkMinutes = Math.max(0, Math.floor(walkMinutes));
-
-	const fmt = new Intl.DateTimeFormat("en-US", {
-		timeZone: "Asia/Tokyo",
-		hourCycle: "h23",
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-	});
-	const parts = fmt.formatToParts(now);
-	const hourStr = parts.find((p) => p.type === "hour")?.value;
-	const minuteStr = parts.find((p) => p.type === "minute")?.value;
-	const secondStr = parts.find((p) => p.type === "second")?.value;
-	if (!hourStr || !minuteStr || !secondStr) {
-		throw new Error("Failed to extract time parts from Intl.DateTimeFormat");
-	}
-	const hours = Number(hourStr);
-	const minutes = Number(minuteStr);
-	const seconds = Number(secondStr);
-
+	const { hours, minutes, seconds } = extractJstTimeParts(now);
 	const totalMinutes = hours * 60 + minutes + sanitizedWalkMinutes;
-	const h = Math.floor(totalMinutes / 60);
-	const m = totalMinutes % 60;
-
-	return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+	return formatTimeStr(
+		Math.floor(totalMinutes / 60),
+		totalMinutes % 60,
+		seconds,
+	);
 }
 
 /**
@@ -151,31 +168,14 @@ export function calculateLookbackTime(
 	minutesBefore: number,
 ): string {
 	const sanitizedMinutes = Math.max(0, Math.floor(minutesBefore));
-
-	const fmt = new Intl.DateTimeFormat("en-US", {
-		timeZone: "Asia/Tokyo",
-		hourCycle: "h23",
-		hour: "2-digit",
-		minute: "2-digit",
-		second: "2-digit",
-	});
-	const parts = fmt.formatToParts(now);
-	const hourStr = parts.find((p) => p.type === "hour")?.value;
-	const minuteStr = parts.find((p) => p.type === "minute")?.value;
-	const secondStr = parts.find((p) => p.type === "second")?.value;
-	if (!hourStr || !minuteStr || !secondStr) {
-		throw new Error("Failed to extract time parts from Intl.DateTimeFormat");
-	}
-	const hours = Number(hourStr);
-	const minutes = Number(minuteStr);
-	const seconds = Number(secondStr);
-
+	const { hours, minutes, seconds } = extractJstTimeParts(now);
 	const totalMinutes = hours * 60 + minutes - sanitizedMinutes;
 	if (totalMinutes < 0) {
 		return "00:00:00";
 	}
-	const h = Math.floor(totalMinutes / 60);
-	const m = totalMinutes % 60;
-
-	return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+	return formatTimeStr(
+		Math.floor(totalMinutes / 60),
+		totalMinutes % 60,
+		seconds,
+	);
 }

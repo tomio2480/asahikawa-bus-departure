@@ -39,6 +39,20 @@ describe("getAgencyColor", () => {
 		});
 	});
 
+	it("中央バスの色情報を返す", () => {
+		expect(getAgencyColor("chuo_bus:R001")).toEqual({
+			agencyName: "中央バス",
+			color: "#D60000",
+		});
+	});
+
+	it("沿岸バスの色情報を返す", () => {
+		expect(getAgencyColor("engan_bus:R001")).toEqual({
+			agencyName: "沿岸バス",
+			color: "#02FFFF",
+		});
+	});
+
 	it("未登録のオペレーターには null を返す", () => {
 		expect(getAgencyColor("unknown_bus:999")).toBeNull();
 	});

@@ -149,6 +149,8 @@ export function DepartureBoard({
 																	backgroundColor: agencyColor.color,
 																}}
 																title={agencyColor.agencyName}
+																aria-label={agencyColor.agencyName}
+																role="img"
 															/>
 														)}
 														{dep.routeName}

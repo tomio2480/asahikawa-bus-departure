@@ -69,6 +69,11 @@ describe("calculateLookbackTime", () => {
 		const now = new Date("2026-04-06T12:30:00+09:00");
 		expect(calculateLookbackTime(now, 0)).toBe("12:30:00");
 	});
+
+	it("負の分数は0として扱う", () => {
+		const now = new Date("2026-04-06T12:30:00+09:00");
+		expect(calculateLookbackTime(now, -10)).toBe("12:30:00");
+	});
 });
 
 describe("getDepartures", () => {

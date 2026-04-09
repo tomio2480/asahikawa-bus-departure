@@ -117,8 +117,8 @@ export function useDepartures(
 				const toStopIds = getSiblingStopIds(currentDb, route.toStopId);
 
 				// ルックバック時刻（出発済み便も含めるため）を afterTime に使う
-				const afterTime =
-					lookbackTime < boardingTime ? lookbackTime : boardingTime;
+				// walkMinutes >= 0 のため lookbackTime は常に boardingTime 以前
+				const afterTime = lookbackTime;
 				const departures = getDepartures(
 					currentDb,
 					serviceIds,
