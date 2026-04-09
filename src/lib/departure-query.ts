@@ -11,6 +11,10 @@ export type Departure = {
 	fromStopId: string;
 	toStopId: string;
 	shapeId: string | null;
+	/** 出発済みかどうか（useDepartures で設定） */
+	isDeparted?: boolean;
+	/** 乗車バス停名（useDepartures で設定） */
+	fromStopName?: string;
 	fare: Fare | null;
 };
 
@@ -129,6 +133,47 @@ export function calculateBoardingTime(now: Date, walkMinutes: number): string {
 	const seconds = Number(secondStr);
 
 	const totalMinutes = hours * 60 + minutes + sanitizedWalkMinutes;
+	const h = Math.floor(totalMinutes / 60);
+	const m = totalMinutes % 60;
+
+	return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+/**
+ * 現在時刻からルックバック時間を減算して表示開始時刻を算出する。
+ *
+ * @param now - 現在時刻
+ * @param minutesBefore - 遡る分数
+ * @returns 表示開始時刻（HH:MM:SS 形式）。0 未満は "00:00:00" にクランプ
+ */
+export function calculateLookbackTime(
+	now: Date,
+	minutesBefore: number,
+): string {
+	const sanitizedMinutes = Math.max(0, Math.floor(minutesBefore));
+
+	const fmt = new Intl.DateTimeFormat("en-US", {
+		timeZone: "Asia/Tokyo",
+		hourCycle: "h23",
+		hour: "2-digit",
+		minute: "2-digit",
+		second: "2-digit",
+	});
+	const parts = fmt.formatToParts(now);
+	const hourStr = parts.find((p) => p.type === "hour")?.value;
+	const minuteStr = parts.find((p) => p.type === "minute")?.value;
+	const secondStr = parts.find((p) => p.type === "second")?.value;
+	if (!hourStr || !minuteStr || !secondStr) {
+		throw new Error("Failed to extract time parts from Intl.DateTimeFormat");
+	}
+	const hours = Number(hourStr);
+	const minutes = Number(minuteStr);
+	const seconds = Number(secondStr);
+
+	const totalMinutes = hours * 60 + minutes - sanitizedMinutes;
+	if (totalMinutes < 0) {
+		return "00:00:00";
+	}
 	const h = Math.floor(totalMinutes / 60);
 	const m = totalMinutes % 60;
 

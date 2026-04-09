@@ -163,6 +163,7 @@ describe("DepartureBoard コンポーネント", () => {
 		);
 		expect(screen.getByText("発車")).toBeInTheDocument();
 		expect(screen.getByText("到着")).toBeInTheDocument();
+		expect(screen.getByText("乗車")).toBeInTheDocument();
 		expect(screen.getByText("路線")).toBeInTheDocument();
 		expect(screen.getByText("行き先")).toBeInTheDocument();
 		expect(screen.getByText("運賃")).toBeInTheDocument();
@@ -220,7 +221,122 @@ describe("DepartureBoard コンポーネント", () => {
 				hasRoutes={true}
 			/>,
 		);
-		expect(screen.getByText("-")).toBeInTheDocument();
+		const dashes = screen.getAllByText("-");
+		expect(dashes.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("出発済みの便に「出発済」バッジが表示される", () => {
+		const group = makeGroup({
+			departures: [
+				{
+					tripId: "T001",
+					routeId: "R001",
+					routeName: "1番",
+					headsign: "市役所方面",
+					departureTime: "08:00:00",
+					arrivalTime: "08:30:00",
+					fromStopId: "test:S001",
+					toStopId: "test:S002",
+					shapeId: null,
+					isDeparted: true,
+					fare: null,
+				},
+			],
+		});
+		render(
+			<DepartureBoard
+				groups={[group]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		expect(screen.getByText("出発済")).toBeInTheDocument();
+	});
+
+	it("事業者カラーインジケーターが表示される", () => {
+		const group = makeGroup({
+			departures: [
+				{
+					tripId: "T001",
+					routeId: "dohoku_bus:R001",
+					routeName: "1番",
+					headsign: "市役所方面",
+					departureTime: "08:00:00",
+					arrivalTime: "08:30:00",
+					fromStopId: "test:S001",
+					toStopId: "test:S002",
+					shapeId: null,
+					fare: null,
+				},
+			],
+		});
+		render(
+			<DepartureBoard
+				groups={[group]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		const indicator = screen.getByTitle("道北バス");
+		expect(indicator).toBeInTheDocument();
+	});
+
+	it("翌日の便に「始発以降の便」ラベルが表示される", () => {
+		const group = makeGroup({ isNextDay: true });
+		render(
+			<DepartureBoard
+				groups={[group]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		expect(screen.getByText("始発以降の便")).toBeInTheDocument();
+	});
+
+	it("全グループが翌日便の場合「現在の発車予定はありません」も表示される", () => {
+		const group = makeGroup({ isNextDay: true });
+		render(
+			<DepartureBoard
+				groups={[group]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		expect(screen.getByText("現在の発車予定はありません")).toBeInTheDocument();
+		expect(screen.getByText("始発以降の便")).toBeInTheDocument();
+	});
+
+	it("fromStopName が表示される", () => {
+		const group = makeGroup({
+			departures: [
+				{
+					tripId: "T001",
+					routeId: "R001",
+					routeName: "1番",
+					headsign: "市役所方面",
+					departureTime: "08:00:00",
+					arrivalTime: "08:30:00",
+					fromStopId: "test:S001",
+					toStopId: "test:S002",
+					shapeId: null,
+					fromStopName: "旭川駅前",
+					fare: null,
+				},
+			],
+		});
+		render(
+			<DepartureBoard
+				groups={[group]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		expect(screen.getByText("旭川駅前")).toBeInTheDocument();
 	});
 
 	it("Asaca 乗り継ぎ割引の注釈が表示される", () => {

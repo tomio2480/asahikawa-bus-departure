@@ -1,4 +1,5 @@
 import type { DepartureGroup } from "../hooks/useDepartures";
+import { getAgencyColor } from "../lib/agency-colors";
 
 type DepartureBoardProps = {
 	/** 降車バス停ごとの発車案内グループ */
@@ -70,6 +71,8 @@ export function DepartureBoard({
 		);
 	}
 
+	const allNextDay = groups.length > 0 && groups.every((g) => g.isNextDay);
+
 	return (
 		<div className="space-y-4">
 			{lastUpdated && (
@@ -84,63 +87,88 @@ export function DepartureBoard({
 				}
 			</div>
 
-			{groups.length === 0 ? (
+			{(groups.length === 0 || allNextDay) && (
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
 						<p className="text-base-content/60">現在の発車予定はありません</p>
 					</div>
 				</div>
-			) : (
-				groups.map((group) => (
-					<div key={group.toStopId} className="card bg-base-100 shadow-sm">
-						<div className="card-body">
-							<h3 className="card-title text-lg">{group.toStopName}</h3>
-							<div className="overflow-x-auto">
-								<table className="table table-sm">
-									<thead>
-										<tr>
-											<th>発車</th>
-											<th>到着</th>
-											<th>路線</th>
-											<th>行き先</th>
-											<th>運賃</th>
-										</tr>
-									</thead>
-									<tbody>
-										{group.departures.map((dep) => {
-											const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
-											const isHovered = hoveredRouteKey === routeKey;
-											return (
-												<tr
-													key={`${dep.tripId}-${dep.departureTime}`}
-													className={isHovered ? "bg-info/10" : ""}
-												>
-													<td className="font-mono">
-														{formatTime(dep.departureTime)}
-													</td>
-													<td className="font-mono">
-														{formatTime(dep.arrivalTime)}
-													</td>
-													<td>{dep.routeName}</td>
-													<td>{dep.headsign}</td>
-													<td>
-														{dep.fare
-															? formatFare(
-																	dep.fare.price,
-																	dep.fare.currencyType,
-																)
-															: "-"}
-													</td>
-												</tr>
-											);
-										})}
-									</tbody>
-								</table>
-							</div>
+			)}
+
+			{groups.map((group) => (
+				<div key={group.toStopId} className="card bg-base-100 shadow-sm">
+					<div className="card-body">
+						<h3 className="card-title text-lg">
+							{group.toStopName}
+							{group.isNextDay && (
+								<span className="badge badge-outline badge-sm ml-2">
+									始発以降の便
+								</span>
+							)}
+						</h3>
+						<div className="overflow-x-auto">
+							<table className="table table-sm">
+								<thead>
+									<tr>
+										<th>発車</th>
+										<th>到着</th>
+										<th>乗車</th>
+										<th>路線</th>
+										<th>行き先</th>
+										<th>運賃</th>
+									</tr>
+								</thead>
+								<tbody>
+									{group.departures.map((dep) => {
+										const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
+										const isHovered = hoveredRouteKey === routeKey;
+										const agencyColor = getAgencyColor(dep.routeId);
+										return (
+											<tr
+												key={`${dep.tripId}-${dep.departureTime}`}
+												className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
+											>
+												<td className="font-mono">
+													{formatTime(dep.departureTime)}
+													{dep.isDeparted && (
+														<span className="ml-1 badge badge-sm badge-ghost">
+															出発済
+														</span>
+													)}
+												</td>
+												<td className="font-mono">
+													{formatTime(dep.arrivalTime)}
+												</td>
+												<td>{dep.fromStopName ?? "-"}</td>
+												<td>
+													<span className="inline-flex items-center gap-1">
+														{agencyColor && (
+															<span
+																className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+																style={{
+																	backgroundColor: agencyColor.color,
+																}}
+																title={agencyColor.agencyName}
+															/>
+														)}
+														{dep.routeName}
+													</span>
+												</td>
+												<td>{dep.headsign}</td>
+												<td>
+													{dep.fare
+														? formatFare(dep.fare.price, dep.fare.currencyType)
+														: "-"}
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
 						</div>
 					</div>
-				))
-			)}
+				</div>
+			))}
 		</div>
 	);
 }

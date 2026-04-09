@@ -3,6 +3,7 @@ import type { Database } from "sql.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	calculateBoardingTime,
+	calculateLookbackTime,
 	getDepartures,
 } from "../src/lib/departure-query";
 import { createSchema } from "../src/lib/gtfs-loader";
@@ -45,6 +46,28 @@ describe("calculateBoardingTime", () => {
 		// 2026-04-06 00:00:00 JST
 		const now = new Date("2026-04-06T00:00:00+09:00");
 		expect(calculateBoardingTime(now, 0)).toBe("00:00:00");
+	});
+});
+
+describe("calculateLookbackTime", () => {
+	it("通常の減算", () => {
+		const now = new Date("2026-04-06T08:10:00+09:00");
+		expect(calculateLookbackTime(now, 10)).toBe("08:00:00");
+	});
+
+	it("時をまたぐ減算", () => {
+		const now = new Date("2026-04-06T09:05:00+09:00");
+		expect(calculateLookbackTime(now, 10)).toBe("08:55:00");
+	});
+
+	it("0未満はクランプされる", () => {
+		const now = new Date("2026-04-06T00:05:00+09:00");
+		expect(calculateLookbackTime(now, 10)).toBe("00:00:00");
+	});
+
+	it("減算0分は現在時刻", () => {
+		const now = new Date("2026-04-06T12:30:00+09:00");
+		expect(calculateLookbackTime(now, 0)).toBe("12:30:00");
 	});
 });
 
