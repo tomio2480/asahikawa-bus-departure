@@ -54,7 +54,7 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(screen.getByText(/経路が登録されていません/)).toBeInTheDocument();
 	});
 
-	it("降車バス停名がグループ見出しとして表示される", () => {
+	it("行き先が表示される", () => {
 		render(
 			<DepartureBoard
 				groups={[makeGroup()]}
@@ -63,7 +63,8 @@ describe("DepartureBoard コンポーネント", () => {
 				hasRoutes={true}
 			/>,
 		);
-		expect(screen.getByText("市役所前")).toBeInTheDocument();
+		const headsigns = screen.getAllByText("市役所方面");
+		expect(headsigns.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("発車時刻と到着時刻が HH:MM 形式で表示される", () => {
@@ -94,7 +95,7 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(headsigns.length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("複数の降車バス停がそれぞれグルーピングされる", () => {
+	it("複数の行先がプルダウンの選択肢に表示される", () => {
 		const groups = [
 			makeGroup(),
 			makeGroup({
@@ -124,8 +125,10 @@ describe("DepartureBoard コンポーネント", () => {
 				hasRoutes={true}
 			/>,
 		);
-		expect(screen.getByText("市役所前")).toBeInTheDocument();
-		expect(screen.getByText("旭川四条駅")).toBeInTheDocument();
+		const select = screen.getByRole("combobox");
+		expect(select).toBeInTheDocument();
+		const options = screen.getAllByRole("option");
+		expect(options.length).toBe(3); // 全ての行先 + 市役所前 + 旭川四条駅
 	});
 
 	it("発車予定がない場合はメッセージを表示する", () => {

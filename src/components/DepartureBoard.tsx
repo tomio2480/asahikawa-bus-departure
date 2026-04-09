@@ -1,5 +1,7 @@
+import { useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
+import type { Departure } from "../lib/departure-query";
 
 type DepartureBoardProps = {
 	/** 降車バス停ごとの発車案内グループ */
@@ -41,6 +43,9 @@ function formatUpdatedTime(date: Date): string {
 	return updatedTimeFormatter.format(date);
 }
 
+/** 表示する行数の上限 */
+const VISIBLE_ROWS = 5;
+
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */
 export function DepartureBoard({
 	groups,
@@ -50,6 +55,42 @@ export function DepartureBoard({
 	hoveredRouteKey,
 	onRouteHover,
 }: DepartureBoardProps) {
+	const [selectedDestination, setSelectedDestination] = useState<string>("all");
+
+	// 全グループの便を統合し、発車時刻順にソート
+	const allDepartures = useMemo(() => {
+		const deps: (Departure & { toStopName: string; isNextDay?: boolean })[] =
+			[];
+		for (const group of groups) {
+			for (const dep of group.departures) {
+				deps.push({
+					...dep,
+					toStopName: group.toStopName,
+					isNextDay: group.isNextDay,
+				});
+			}
+		}
+		deps.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+		return deps;
+	}, [groups]);
+
+	// 行先の選択肢
+	const destinations = useMemo(() => {
+		const seen = new Map<string, string>();
+		for (const group of groups) {
+			if (!seen.has(group.toStopId)) {
+				seen.set(group.toStopId, group.toStopName);
+			}
+		}
+		return seen;
+	}, [groups]);
+
+	// フィルタ適用
+	const filteredDepartures = useMemo(() => {
+		if (selectedDestination === "all") return allDepartures;
+		return allDepartures.filter((dep) => dep.toStopId === selectedDestination);
+	}, [allDepartures, selectedDestination]);
+
 	if (!hasRoutes) {
 		return (
 			<div className="card bg-base-100 shadow-sm">
@@ -76,6 +117,10 @@ export function DepartureBoard({
 
 	const allNextDay = groups.length > 0 && groups.every((g) => g.isNextDay);
 
+	// テーブル1行あたりの推定高さ（px）
+	const rowHeight = 40;
+	const maxHeight = rowHeight * VISIBLE_ROWS;
+
 	return (
 		<div className="space-y-4">
 			{lastUpdated && (
@@ -98,17 +143,31 @@ export function DepartureBoard({
 				</div>
 			)}
 
-			{groups.map((group) => (
-				<div key={group.toStopId} className="card bg-base-100 shadow-sm">
+			{groups.length > 0 && (
+				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
-						<h3 className="card-title text-lg">
-							{group.toStopName}
-							{group.isNextDay && (
-								<span className="badge badge-outline badge-sm ml-2">
+						<div className="flex items-center gap-3">
+							<h3 className="card-title text-lg">発車案内</h3>
+							{allNextDay && (
+								<span className="badge badge-outline badge-sm">
 									始発以降の便
 								</span>
 							)}
-						</h3>
+							{destinations.size > 1 && (
+								<select
+									className="select select-sm select-bordered"
+									value={selectedDestination}
+									onChange={(e) => setSelectedDestination(e.target.value)}
+								>
+									<option value="all">全ての行先</option>
+									{[...destinations.entries()].map(([stopId, name]) => (
+										<option key={stopId} value={stopId}>
+											{name}
+										</option>
+									))}
+								</select>
+							)}
+						</div>
 						<div className="overflow-x-auto">
 							<table className="table table-sm">
 								<thead>
@@ -122,67 +181,74 @@ export function DepartureBoard({
 										<th>行き先</th>
 									</tr>
 								</thead>
-								<tbody>
-									{group.departures.map((dep) => {
-										const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
-										const isHovered = hoveredRouteKey === routeKey;
-										const agencyColor = getAgencyColor(dep.routeId);
-										return (
-											<tr
-												key={`${dep.tripId}-${dep.departureTime}`}
-												className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
-												tabIndex={0}
-												onMouseEnter={() => onRouteHover?.(routeKey)}
-												onMouseLeave={() => onRouteHover?.(null)}
-												onFocus={() => onRouteHover?.(routeKey)}
-												onBlur={() => onRouteHover?.(null)}
-											>
-												<td className="font-mono">
-													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
-													{dep.isDeparted && (
-														<span className="ml-1 badge badge-sm badge-ghost">
-															出発済
-														</span>
-													)}
-												</td>
-												<td>{dep.fromStopName ?? "-"}</td>
-												<td className="font-mono">
-													{formatTime(dep.departureTime)}
-												</td>
-												<td className="font-mono">
-													{formatTime(dep.arrivalTime)}
-												</td>
-												<td>
-													{dep.fare
-														? formatFare(dep.fare.price, dep.fare.currencyType)
-														: "-"}
-												</td>
-												<td>
-													<span className="inline-flex items-center gap-1">
-														{agencyColor && (
-															<span
-																className="inline-block w-3 h-3 rounded-full flex-shrink-0"
-																style={{
-																	backgroundColor: agencyColor.color,
-																}}
-																title={agencyColor.agencyName}
-																aria-label={agencyColor.agencyName}
-																role="img"
-															/>
-														)}
-														{dep.routeName}
-													</span>
-												</td>
-												<td>{dep.headsign}</td>
-											</tr>
-										);
-									})}
-								</tbody>
 							</table>
+							<div
+								className="overflow-y-auto"
+								style={{ maxHeight: `${maxHeight}px` }}
+							>
+								<table className="table table-sm">
+									<tbody>
+										{filteredDepartures.map((dep) => {
+											const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
+											const isHovered = hoveredRouteKey === routeKey;
+											const agencyColor = getAgencyColor(dep.routeId);
+											return (
+												<tr
+													key={`${dep.tripId}-${dep.departureTime}`}
+													className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
+													tabIndex={0}
+													onMouseEnter={() => onRouteHover?.(routeKey)}
+													onMouseLeave={() => onRouteHover?.(null)}
+													onFocus={() => onRouteHover?.(routeKey)}
+													onBlur={() => onRouteHover?.(null)}
+												>
+													<td className="font-mono">
+														{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
+														{dep.isDeparted && (
+															<span className="ml-1 badge badge-sm badge-ghost">
+																出発済
+															</span>
+														)}
+													</td>
+													<td>{dep.fromStopName ?? "-"}</td>
+													<td className="font-mono">
+														{formatTime(dep.departureTime)}
+													</td>
+													<td className="font-mono">
+														{formatTime(dep.arrivalTime)}
+													</td>
+													<td>
+														{dep.fare
+															? formatFare(dep.fare.price, dep.fare.currencyType)
+															: "-"}
+													</td>
+													<td>
+														<span className="inline-flex items-center gap-1">
+															{agencyColor && (
+																<span
+																	className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+																	style={{
+																		backgroundColor: agencyColor.color,
+																	}}
+																	title={agencyColor.agencyName}
+																	aria-label={agencyColor.agencyName}
+																	role="img"
+																/>
+															)}
+															{dep.routeName}
+														</span>
+													</td>
+													<td>{dep.headsign}</td>
+												</tr>
+											);
+										})}
+									</tbody>
+								</table>
+							</div>
 						</div>
 					</div>
 				</div>
-			))}
+			)}
 		</div>
 	);
 }
