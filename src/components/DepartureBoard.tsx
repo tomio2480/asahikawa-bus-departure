@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
-import type { Departure } from "../lib/departure-query";
 
 type DepartureBoardProps = {
 	/** 降車バス停ごとの発車案内グループ */
@@ -59,19 +58,15 @@ export function DepartureBoard({
 
 	// 全グループの便を統合し、発車時刻順にソート
 	const allDepartures = useMemo(() => {
-		const deps: (Departure & { toStopName: string; isNextDay?: boolean })[] =
-			[];
-		for (const group of groups) {
-			for (const dep of group.departures) {
-				deps.push({
+		return groups
+			.flatMap((group) =>
+				group.departures.map((dep) => ({
 					...dep,
 					toStopName: group.toStopName,
 					isNextDay: group.isNextDay,
-				});
-			}
-		}
-		deps.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-		return deps;
+				})),
+			)
+			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 	}, [groups]);
 
 	// 行先の選択肢
