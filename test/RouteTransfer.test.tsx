@@ -130,7 +130,8 @@ describe("RouteTransfer", () => {
 				expect(capturedAnchor).not.toBeNull();
 			});
 
-			expect(capturedAnchor?.download).toBe("routes-2026-04-08.json");
+			// waitFor で null でないことを検証済み
+			expect(capturedAnchor!.download).toBe("routes-2026-04-08.json");
 		});
 
 		it("エクスポートに失敗した場合エラーメッセージを表示する", async () => {
@@ -147,7 +148,7 @@ describe("RouteTransfer", () => {
 
 	describe("二重実行防止", () => {
 		it("エクスポート処理中はボタンが無効化される", async () => {
-			let resolveExport: (value: { version: 1; routes: [] }) => void;
+			let resolveExport!: (value: { version: 1; routes: [] }) => void;
 			mockExportRoutes.mockImplementation(
 				() =>
 					new Promise((resolve) => {
@@ -178,7 +179,7 @@ describe("RouteTransfer", () => {
 				expect(importBtn).toBeDisabled();
 			});
 
-			resolveExport?.({ version: 1, routes: [] });
+			resolveExport({ version: 1, routes: [] });
 
 			await waitFor(() => {
 				expect(exportBtn).not.toBeDisabled();
@@ -187,7 +188,7 @@ describe("RouteTransfer", () => {
 		});
 
 		it("インポート処理中はボタンが無効化される", async () => {
-			let resolveImport: (value: number) => void;
+			let resolveImport!: (value: number) => void;
 			mockImportRoutes.mockImplementation(
 				() =>
 					new Promise((resolve) => {
@@ -215,7 +216,7 @@ describe("RouteTransfer", () => {
 				expect(mockImportRoutes).toHaveBeenCalled();
 			});
 
-			resolveImport?.(0);
+			resolveImport(0);
 
 			await waitFor(() => {
 				expect(exportBtn).not.toBeDisabled();
