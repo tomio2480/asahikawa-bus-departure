@@ -2,7 +2,7 @@ import L from "leaflet";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	MapContainer,
 	Marker,
@@ -213,6 +213,14 @@ function MapView({ db, routes, onRouteHover }: MapViewProps) {
 		setHoveredKey(null);
 		onRouteHoverRef.current?.(null);
 	}, []);
+
+	// データ更新でホバー中のポリラインが消えた場合に hover 状態を自動解除する
+	useEffect(() => {
+		if (hoveredKey && !routeKeyMap.has(hoveredKey)) {
+			setHoveredKey(null);
+			onRouteHoverRef.current?.(null);
+		}
+	}, [hoveredKey, routeKeyMap]);
 
 	return (
 		<MapContainer
