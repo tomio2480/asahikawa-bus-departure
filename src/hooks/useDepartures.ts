@@ -87,12 +87,12 @@ export function useDepartures(
 			function enrichDeparture(
 				db: Database,
 				dep: Departure,
-				boardingTime: string | null,
+				currentTimeStr: string | null,
 				walkMinutes: number,
 			): void {
-				// 出発済みフラグ
-				if (boardingTime) {
-					dep.isDeparted = dep.departureTime < boardingTime;
+				// 出発済みフラグ（実際にバスが出発したかどうかを現在時刻と比較）
+				if (currentTimeStr) {
+					dep.isDeparted = dep.departureTime < currentTimeStr;
 				}
 
 				// 徒歩時間を考慮した自宅出発目安時刻
@@ -126,8 +126,9 @@ export function useDepartures(
 				dep.fare = fareCache.get(fareKey) ?? null;
 			}
 
+			const currentTimeStr = calculateBoardingTime(now, 0);
+
 			for (const route of currentRoutes) {
-				const boardingTime = calculateBoardingTime(now, route.walkMinutes);
 				const fromStopIds = getSiblingStopIds(currentDb, route.fromStopId);
 				const toStopIds = getSiblingStopIds(currentDb, route.toStopId);
 
@@ -146,7 +147,7 @@ export function useDepartures(
 				if (departures.length === 0) continue;
 
 				for (const dep of departures) {
-					enrichDeparture(currentDb, dep, boardingTime, route.walkMinutes);
+					enrichDeparture(currentDb, dep, currentTimeStr, route.walkMinutes);
 				}
 
 				const existing = groupMap.get(route.toStopId);
