@@ -229,8 +229,8 @@ describe("useDepartures", () => {
 		expect(dep.headsign).toBe("市役所方面");
 	});
 
-	it("徒歩時間を考慮して乗車可能時刻以降の便のみ取得する", () => {
-		// 07:50 + 徒歩15分 = 08:05 → 08:00の便は乗れない
+	it("徒歩時間を考慮して乗れない便は出発済みとして表示される", () => {
+		// 07:50 + 徒歩15分 = 08:05 → 08:00の便は乗れない（出発済み）
 		const routes: RegisteredRouteEntry[] = [
 			{
 				id: 1,
@@ -243,13 +243,32 @@ describe("useDepartures", () => {
 
 		expect(result.current.groups).toHaveLength(1);
 		const deps = result.current.groups[0].departures;
-		expect(deps).toHaveLength(1);
-		expect(deps[0].departureTime).toBe("09:00:00");
+		expect(deps).toHaveLength(2);
+		// 08:00の便は出発済み
+		expect(deps[0].departureTime).toBe("08:00:00");
+		expect(deps[0].isDeparted).toBe(true);
+		// 09:00の便は乗車可能
+		expect(deps[1].departureTime).toBe("09:00:00");
+		expect(deps[1].isDeparted).toBe(false);
 	});
 
-	it("該当する便がない場合はグループが空になる", () => {
-		// 23:00 に設定 → 全便終了済み
+	it("全便終了後は翌日の始発便を isNextDay で返す", () => {
+		// 23:00 に設定 → 本日の全便終了済み、翌日（水曜）のサービスあり
 		vi.setSystemTime(new Date("2026-04-07T23:00:00+09:00"));
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 0 },
+		];
+		const { result } = renderHook(() => useDepartures(db, routes));
+		expect(result.current.groups).toHaveLength(1);
+		expect(result.current.groups[0].isNextDay).toBe(true);
+		expect(result.current.groups[0].departures[0].departureTime).toBe(
+			"08:00:00",
+		);
+	});
+
+	it("翌日のサービスがない場合はグループが空になる", () => {
+		// 金曜 23:00 → 翌日（土曜）のサービスなし
+		vi.setSystemTime(new Date("2026-04-10T23:00:00+09:00"));
 		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 0 },
 		];
