@@ -12,6 +12,25 @@ import {
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
 
+vi.mock("leaflet", () => {
+	const Icon = {
+		Default: {
+			mergeOptions: vi.fn(),
+		},
+	};
+	return { default: { Icon } };
+});
+
+vi.mock("leaflet/dist/images/marker-icon-2x.png", () => ({
+	default: "marker-icon-2x.png",
+}));
+vi.mock("leaflet/dist/images/marker-icon.png", () => ({
+	default: "marker-icon.png",
+}));
+vi.mock("leaflet/dist/images/marker-shadow.png", () => ({
+	default: "marker-shadow.png",
+}));
+
 vi.mock("react-leaflet", () => ({
 	MapContainer: ({
 		children,
@@ -39,12 +58,14 @@ vi.mock("react-leaflet", () => ({
 		pathOptions,
 	}: {
 		positions: [number, number][];
-		pathOptions: { color: string };
+		pathOptions: { color: string; weight?: number; opacity?: number };
 	}) => (
 		<div
 			data-testid="polyline"
 			data-positions={JSON.stringify(positions)}
 			data-color={pathOptions.color}
+			data-weight={pathOptions.weight}
+			data-opacity={pathOptions.opacity}
 		/>
 	),
 }));
@@ -193,7 +214,7 @@ describe("MapView", () => {
 		expect(markers.length).toBeGreaterThanOrEqual(2);
 	});
 
-	it("shapes がある場合はポリラインが描画される", () => {
+	it("shapes がある場合は全経路とハイライト区間の 2 本のポリラインが描画される", () => {
 		render(
 			<MapView
 				db={db}
@@ -208,12 +229,18 @@ describe("MapView", () => {
 			/>,
 		);
 		const polylines = screen.getAllByTestId("polyline");
-		expect(polylines.length).toBeGreaterThanOrEqual(1);
-		const positions = JSON.parse(polylines[0].dataset.positions ?? "[]");
-		expect(positions.length).toBe(3);
+		expect(polylines).toHaveLength(2);
+
+		// 全経路ポリライン: shape の全 3 点
+		const basePositions = JSON.parse(polylines[0].dataset.positions ?? "[]");
+		expect(basePositions).toHaveLength(3);
+
+		// ハイライト区間: S1(43.77)～S3(43.79) に最も近い shape 点
+		const hlPositions = JSON.parse(polylines[1].dataset.positions ?? "[]");
+		expect(hlPositions.length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("shapes がない場合はバス停間の直線フォールバックが描画される", () => {
+	it("shapes がない場合はバス停座標で 2 本のポリラインが描画される", () => {
 		render(
 			<MapView
 				db={db}
@@ -227,12 +254,10 @@ describe("MapView", () => {
 			/>,
 		);
 		const polylines = screen.getAllByTestId("polyline");
-		expect(polylines.length).toBeGreaterThanOrEqual(1);
-		const positions = JSON.parse(polylines[0].dataset.positions ?? "[]");
-		expect(positions.length).toBe(2);
+		expect(polylines).toHaveLength(2);
 	});
 
-	it("ポリラインのデフォルト色が灰色である", () => {
+	it("全経路は薄い灰色、ハイライト区間は青色である", () => {
 		render(
 			<MapView
 				db={db}
@@ -248,6 +273,7 @@ describe("MapView", () => {
 		);
 		const polylines = screen.getAllByTestId("polyline");
 		expect(polylines[0].dataset.color).toBe("#CCCCCC");
+		expect(polylines[1].dataset.color).toBe("#3B82F6");
 	});
 
 	it("ルートが空の場合でも地図は表示される", () => {

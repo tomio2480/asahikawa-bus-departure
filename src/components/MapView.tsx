@@ -1,3 +1,7 @@
+import L from "leaflet";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { useCallback, useMemo, useState } from "react";
 import {
 	MapContainer,
@@ -7,13 +11,31 @@ import {
 	TileLayer,
 } from "react-leaflet";
 import type { Database } from "sql.js";
+import { findClosestPointIndex } from "../lib/geo-utils";
 import { getShapePoints, getStopsForTrip } from "../lib/shape-query";
 import "leaflet/dist/leaflet.css";
 
+// Vite 環境では Leaflet デフォルトアイコンのパスが解決できないため明示的に設定する
+L.Icon.Default.mergeOptions({
+	iconUrl: markerIcon,
+	iconRetinaUrl: markerIcon2x,
+	shadowUrl: markerShadow,
+});
+
 const ASAHIKAWA_CENTER: [number, number] = [43.7706, 142.3649];
 const DEFAULT_ZOOM = 13;
-const ROUTE_COLOR_DEFAULT = "#CCCCCC";
-const ROUTE_COLOR_HIGHLIGHT = "#3B82F6";
+
+/** 全経路の色 */
+const ROUTE_COLOR_BASE = "#CCCCCC";
+/** ハイライト区間の色 */
+const ROUTE_COLOR_SECTION = "#3B82F6";
+/** ハイライト区間のホバー色 */
+const ROUTE_COLOR_SECTION_HOVER = "#1D4ED8";
+
+/** 全経路の線幅 */
+const BASE_WEIGHT = 6;
+/** ハイライト区間の線幅 */
+const SECTION_WEIGHT = 10;
 
 type MapRoute = {
 	tripId: string;
@@ -25,6 +47,11 @@ type MapRoute = {
 type MapViewProps = {
 	db: Database;
 	routes: MapRoute[];
+};
+
+type PolylineData = {
+	key: string;
+	positions: [number, number][];
 };
 
 function getStopInfo(
@@ -51,55 +78,85 @@ function getStopInfo(
 }
 
 function MapView({ db, routes }: MapViewProps) {
-	const { markers, polylines } = useMemo(() => {
+	const { markers, basePolylines, highlightPolylines } = useMemo(() => {
 		const markersMap = new Map<
 			string,
 			{ name: string; lat: number; lon: number }
 		>();
-		const polylinesArr: {
-			key: string;
-			positions: [number, number][];
-		}[] = [];
-		const seenPolylineKeys = new Set<string>();
+		const baseArr: PolylineData[] = [];
+		const highlightArr: PolylineData[] = [];
+		const seenBaseKeys = new Set<string>();
+		const seenHighlightKeys = new Set<string>();
 
 		for (const route of routes) {
-			if (!markersMap.has(route.fromStopId)) {
-				const fromStop = getStopInfo(db, route.fromStopId);
-				if (fromStop) {
-					markersMap.set(route.fromStopId, fromStop);
+			// マーカー情報の収集
+			let fromStop = markersMap.get(route.fromStopId);
+			if (!fromStop) {
+				const info = getStopInfo(db, route.fromStopId);
+				if (info) {
+					fromStop = info;
+					markersMap.set(route.fromStopId, info);
 				}
 			}
-			if (!markersMap.has(route.toStopId)) {
-				const toStop = getStopInfo(db, route.toStopId);
-				if (toStop) {
-					markersMap.set(route.toStopId, toStop);
+			let toStop = markersMap.get(route.toStopId);
+			if (!toStop) {
+				const info = getStopInfo(db, route.toStopId);
+				if (info) {
+					toStop = info;
+					markersMap.set(route.toStopId, info);
 				}
 			}
 
-			let positions: [number, number][];
-
+			// 全経路の座標を取得
+			let fullPoints: { lat: number; lon: number }[];
 			if (route.shapeId) {
-				const shapePoints = getShapePoints(db, route.shapeId);
-				positions = shapePoints.map((p) => [p.lat, p.lon] as [number, number]);
+				fullPoints = getShapePoints(db, route.shapeId);
 			} else {
-				const stopPoints = getStopsForTrip(db, route.tripId);
-				positions = stopPoints.map((p) => [p.lat, p.lon] as [number, number]);
+				fullPoints = getStopsForTrip(db, route.tripId);
 			}
 
-			const polylineKey = route.shapeId
+			const positions = fullPoints.map(
+				(p) => [p.lat, p.lon] as [number, number],
+			);
+
+			if (positions.length === 0) continue;
+
+			// 全経路ポリライン（shape/trip 単位で重複排除）
+			const baseKey = route.shapeId
 				? `shape:${route.shapeId}`
 				: `trip:${route.tripId}`;
 
-			if (positions.length > 0 && !seenPolylineKeys.has(polylineKey)) {
-				seenPolylineKeys.add(polylineKey);
-				polylinesArr.push({
-					key: polylineKey,
-					positions,
-				});
+			if (!seenBaseKeys.has(baseKey)) {
+				seenBaseKeys.add(baseKey);
+				baseArr.push({ key: baseKey, positions });
+			}
+
+			// ハイライト区間（trip+from+to 単位で重複排除）
+			const highlightKey = `${route.tripId}-${route.fromStopId}-${route.toStopId}`;
+			if (!seenHighlightKeys.has(highlightKey) && fromStop && toStop) {
+				seenHighlightKeys.add(highlightKey);
+
+				const fromIdx = findClosestPointIndex(
+					fullPoints,
+					fromStop.lat,
+					fromStop.lon,
+				);
+				const toIdx = findClosestPointIndex(fullPoints, toStop.lat, toStop.lon);
+				const startIdx = Math.min(fromIdx, toIdx);
+				const endIdx = Math.max(fromIdx, toIdx);
+				const segment = positions.slice(startIdx, endIdx + 1);
+
+				if (segment.length > 0) {
+					highlightArr.push({ key: highlightKey, positions: segment });
+				}
 			}
 		}
 
-		return { markers: markersMap, polylines: polylinesArr };
+		return {
+			markers: markersMap,
+			basePolylines: baseArr,
+			highlightPolylines: highlightArr,
+		};
 	}, [db, routes]);
 
 	const [hoveredKey, setHoveredKey] = useState<string | null>(null);
@@ -127,15 +184,28 @@ function MapView({ db, routes }: MapViewProps) {
 					<Popup>{stop.name}</Popup>
 				</Marker>
 			))}
-			{polylines.map((pl) => (
+			{basePolylines.map((pl) => (
 				<Polyline
-					key={pl.key}
+					key={`base-${pl.key}`}
+					positions={pl.positions}
+					pathOptions={{
+						color: ROUTE_COLOR_BASE,
+						weight: BASE_WEIGHT,
+						opacity: 0.4,
+					}}
+				/>
+			))}
+			{highlightPolylines.map((pl) => (
+				<Polyline
+					key={`hl-${pl.key}`}
 					positions={pl.positions}
 					pathOptions={{
 						color:
 							hoveredKey === pl.key
-								? ROUTE_COLOR_HIGHLIGHT
-								: ROUTE_COLOR_DEFAULT,
+								? ROUTE_COLOR_SECTION_HOVER
+								: ROUTE_COLOR_SECTION,
+						weight: SECTION_WEIGHT,
+						opacity: 0.9,
 					}}
 					eventHandlers={{
 						mouseover: () => handleMouseOver(pl.key),

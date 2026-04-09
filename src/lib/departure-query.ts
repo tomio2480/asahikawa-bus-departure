@@ -10,6 +10,7 @@ export type Departure = {
 	arrivalTime: string;
 	fromStopId: string;
 	toStopId: string;
+	shapeId: string | null;
 	fare: Fare | null;
 };
 
@@ -64,7 +65,8 @@ export function getDepartures(
 			st_from.departure_time,
 			st_to.arrival_time,
 			st_from.stop_id AS from_stop_id,
-			st_to.stop_id AS to_stop_id
+			st_to.stop_id AS to_stop_id,
+			t.shape_id
 		FROM stop_times st_from
 		JOIN stop_times st_to
 			ON st_from.trip_id = st_to.trip_id
@@ -93,6 +95,7 @@ export function getDepartures(
 		arrivalTime: row[5] as string,
 		fromStopId: row[6] as string,
 		toStopId: row[7] as string,
+		shapeId: (row[8] as string | null) ?? null,
 		fare: null,
 	}));
 }

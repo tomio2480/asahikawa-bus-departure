@@ -49,6 +49,7 @@ function App() {
 					seen.add(key);
 					result.push({
 						tripId: dep.tripId,
+						shapeId: dep.shapeId ?? undefined,
 						fromStopId: dep.fromStopId,
 						toStopId: dep.toStopId,
 					});

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { NEARBY_THRESHOLD_METERS, distanceMeters } from "../src/lib/geo-utils";
+import {
+	NEARBY_THRESHOLD_METERS,
+	distanceMeters,
+	findClosestPointIndex,
+} from "../src/lib/geo-utils";
 
 describe("distanceMeters", () => {
 	it("同一地点の距離は 0", () => {
@@ -34,5 +38,34 @@ describe("distanceMeters", () => {
 
 	it("NEARBY_THRESHOLD_METERS は 500 である", () => {
 		expect(NEARBY_THRESHOLD_METERS).toBe(500);
+	});
+});
+
+describe("findClosestPointIndex", () => {
+	const points = [
+		{ lat: 43.77, lon: 142.36 },
+		{ lat: 43.775, lon: 142.365 },
+		{ lat: 43.78, lon: 142.37 },
+	];
+
+	it("完全一致する座標のインデックスを返す", () => {
+		expect(findClosestPointIndex(points, 43.775, 142.365)).toBe(1);
+	});
+
+	it("先頭に最も近い場合は 0 を返す", () => {
+		expect(findClosestPointIndex(points, 43.77, 142.36)).toBe(0);
+	});
+
+	it("末尾に最も近い場合は最後のインデックスを返す", () => {
+		expect(findClosestPointIndex(points, 43.78, 142.37)).toBe(2);
+	});
+
+	it("中間点に最も近いインデックスを返す", () => {
+		// 43.776 は points[1](43.775) に最も近い
+		expect(findClosestPointIndex(points, 43.776, 142.365)).toBe(1);
+	});
+
+	it("空配列の場合は -1 を返す", () => {
+		expect(findClosestPointIndex([], 43.77, 142.36)).toBe(-1);
 	});
 });
