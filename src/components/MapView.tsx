@@ -16,15 +16,16 @@ import { findClosestPointIndex } from "../lib/geo-utils";
 import { getShapePoints, getStopsForTrip } from "../lib/shape-query";
 import "leaflet/dist/leaflet.css";
 
-// Vite 環境では Leaflet の _getIconUrl が CSS からベースパスを自動検出し、
-// バンドラーが解決した URL と二重パスになるため削除して明示的に設定する
-// biome-ignore lint/performance/noDelete: Leaflet 内部メソッドの除去が必要
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)
-	._getIconUrl;
-L.Icon.Default.mergeOptions({
+// Vite 環境では Leaflet デフォルトアイコンのパス解決が壊れるため、
+// カスタムアイコンインスタンスを作成して Marker に明示的に渡す
+const defaultIcon = new L.Icon({
 	iconUrl: markerIcon,
 	iconRetinaUrl: markerIcon2x,
 	shadowUrl: markerShadow,
+	iconSize: [25, 41],
+	iconAnchor: [12, 41],
+	popupAnchor: [1, -34],
+	shadowSize: [41, 41],
 });
 
 const ASAHIKAWA_CENTER: [number, number] = [43.7706, 142.3649];
@@ -216,7 +217,7 @@ function MapView({ db, routes, onRouteHover }: MapViewProps) {
 				attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 			/>
 			{[...markers.entries()].map(([stopId, stop]) => (
-				<Marker key={stopId} position={[stop.lat, stop.lon]}>
+				<Marker key={stopId} position={[stop.lat, stop.lon]} icon={defaultIcon}>
 					<Popup>{stop.name}</Popup>
 				</Marker>
 			))}

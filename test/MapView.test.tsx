@@ -12,15 +12,11 @@ import {
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
 
-vi.mock("leaflet", () => {
-	const Icon = {
-		Default: {
-			prototype: { _getIconUrl: () => "" },
-			mergeOptions: vi.fn(),
-		},
-	};
-	return { default: { Icon } };
-});
+vi.mock("leaflet", () => ({
+	default: {
+		Icon: vi.fn(),
+	},
+}));
 
 vi.mock("leaflet/dist/images/marker-icon-2x.png", () => ({
 	default: "marker-icon-2x.png",
@@ -48,7 +44,7 @@ vi.mock("react-leaflet", () => ({
 	TileLayer: ({ url }: { url: string }) => (
 		<div data-testid="tile-layer" data-url={url} />
 	),
-	Marker: ({ position }: { position: [number, number] }) => (
+	Marker: ({ position }: { position: [number, number]; icon?: unknown }) => (
 		<div data-testid="marker" data-position={JSON.stringify(position)} />
 	),
 	Popup: ({ children }: { children: React.ReactNode }) => (
