@@ -62,6 +62,8 @@ type PolylineData = {
 };
 
 type HighlightPolylineData = PolylineData & {
+	/** 経路単位のキー（fromStopId-toStopId） */
+	routeKey: string;
 	fromStopName: string;
 	toStopName: string;
 };
@@ -161,6 +163,7 @@ function MapView({ db, routes, onRouteHover }: MapViewProps) {
 				if (segment.length > 0) {
 					highlightArr.push({
 						key: highlightKey,
+						routeKey: `${route.fromStopId}-${route.toStopId}`,
 						positions: segment,
 						fromStopName: fromStop.name,
 						toStopName: toStop.name,
@@ -178,13 +181,24 @@ function MapView({ db, routes, onRouteHover }: MapViewProps) {
 
 	const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
+	const routeKeyMap = useMemo(() => {
+		const map = new Map<string, string>();
+		for (const pl of highlightPolylines) {
+			map.set(pl.key, pl.routeKey);
+		}
+		return map;
+	}, [highlightPolylines]);
+
 	const onRouteHoverRef = useRef(onRouteHover);
 	onRouteHoverRef.current = onRouteHover;
 
-	const handleMouseOver = useCallback((key: string) => {
-		setHoveredKey(key);
-		onRouteHoverRef.current?.(key);
-	}, []);
+	const handleMouseOver = useCallback(
+		(key: string) => {
+			setHoveredKey(key);
+			onRouteHoverRef.current?.(routeKeyMap.get(key) ?? null);
+		},
+		[routeKeyMap],
+	);
 
 	const handleMouseOut = useCallback(() => {
 		setHoveredKey(null);

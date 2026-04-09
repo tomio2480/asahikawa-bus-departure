@@ -108,7 +108,7 @@ export function DepartureBoard({
 									</thead>
 									<tbody>
 										{group.departures.map((dep) => {
-											const routeKey = `${dep.tripId}-${dep.fromStopId}-${dep.toStopId}`;
+											const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
 											const isHovered = hoveredRouteKey === routeKey;
 											return (
 												<tr
