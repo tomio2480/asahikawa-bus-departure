@@ -269,6 +269,24 @@ describe("useDepartures", () => {
 		// 08:00の便はまだ出発していない（現在 07:50 < 08:00）
 		expect(deps[0].departureTime).toBe("08:00:00");
 		expect(deps[0].isDeparted).toBe(false);
+		// 08:00 - 15分 = 07:45
+		expect(deps[0].leaveByTime).toBe("07:45:00");
+	});
+
+	it("leaveByTime が負値の場合は 00:00:00 にクランプされる", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 600,
+			},
+		];
+		const { result } = renderHook(() => useDepartures(db, routes));
+
+		expect(result.current.groups).toHaveLength(1);
+		const deps = result.current.groups[0].departures;
+		expect(deps[0].leaveByTime).toBe("00:00:00");
 	});
 
 	it("全便終了後は翌日の始発便を isNextDay で返す", () => {
