@@ -37,7 +37,7 @@ function App() {
 	const error = dbError || routesError;
 
 	const expiry = useMemo(() => (db ? getDataExpiry(db) : null), [db]);
-	const currentDate = getCurrentDateStr();
+	const currentDate = useMemo(() => getCurrentDateStr(), []);
 
 	const mapRoutes = useMemo<MapRoute[]>(() => {
 		const seen = new Set<string>();
