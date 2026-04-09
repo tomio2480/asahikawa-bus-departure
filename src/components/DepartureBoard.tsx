@@ -130,8 +130,11 @@ export function DepartureBoard({
 											<tr
 												key={`${dep.tripId}-${dep.departureTime}`}
 												className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
+												tabIndex={0}
 												onMouseEnter={() => onRouteHover?.(routeKey)}
 												onMouseLeave={() => onRouteHover?.(null)}
+												onFocus={() => onRouteHover?.(routeKey)}
+												onBlur={() => onRouteHover?.(null)}
 											>
 												<td className="font-mono">
 													{formatTime(dep.departureTime)}
