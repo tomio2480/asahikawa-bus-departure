@@ -54,6 +54,9 @@ vi.mock("react-leaflet", () => ({
 	Popup: ({ children }: { children: React.ReactNode }) => (
 		<div data-testid="popup">{children}</div>
 	),
+	Tooltip: ({ children }: { children: React.ReactNode }) => (
+		<div data-testid="tooltip">{children}</div>
+	),
 	Polyline: ({
 		positions,
 		pathOptions,

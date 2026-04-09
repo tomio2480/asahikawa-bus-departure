@@ -2,13 +2,14 @@ import L from "leaflet";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
 	MapContainer,
 	Marker,
 	Polyline,
 	Popup,
 	TileLayer,
+	Tooltip,
 } from "react-leaflet";
 import type { Database } from "sql.js";
 import { findClosestPointIndex } from "../lib/geo-utils";
@@ -18,7 +19,8 @@ import "leaflet/dist/leaflet.css";
 // Vite 環境では Leaflet の _getIconUrl が CSS からベースパスを自動検出し、
 // バンドラーが解決した URL と二重パスになるため削除して明示的に設定する
 // biome-ignore lint/performance/noDelete: Leaflet 内部メソッドの除去が必要
-delete (L.Icon.Default.prototype as Record<string, unknown>)._getIconUrl;
+delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)
+	._getIconUrl;
 L.Icon.Default.mergeOptions({
 	iconUrl: markerIcon,
 	iconRetinaUrl: markerIcon2x,
@@ -50,11 +52,18 @@ type MapRoute = {
 type MapViewProps = {
 	db: Database;
 	routes: MapRoute[];
+	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
+	onRouteHover?: (key: string | null) => void;
 };
 
 type PolylineData = {
 	key: string;
 	positions: [number, number][];
+};
+
+type HighlightPolylineData = PolylineData & {
+	fromStopName: string;
+	toStopName: string;
 };
 
 function getStopInfo(
@@ -80,14 +89,14 @@ function getStopInfo(
 	}
 }
 
-function MapView({ db, routes }: MapViewProps) {
+function MapView({ db, routes, onRouteHover }: MapViewProps) {
 	const { markers, basePolylines, highlightPolylines } = useMemo(() => {
 		const markersMap = new Map<
 			string,
 			{ name: string; lat: number; lon: number }
 		>();
 		const baseArr: PolylineData[] = [];
-		const highlightArr: PolylineData[] = [];
+		const highlightArr: HighlightPolylineData[] = [];
 		const seenBaseKeys = new Set<string>();
 		const seenHighlightKeys = new Set<string>();
 
@@ -150,7 +159,12 @@ function MapView({ db, routes }: MapViewProps) {
 				const segment = positions.slice(startIdx, endIdx + 1);
 
 				if (segment.length > 0) {
-					highlightArr.push({ key: highlightKey, positions: segment });
+					highlightArr.push({
+						key: highlightKey,
+						positions: segment,
+						fromStopName: fromStop.name,
+						toStopName: toStop.name,
+					});
 				}
 			}
 		}
@@ -164,12 +178,17 @@ function MapView({ db, routes }: MapViewProps) {
 
 	const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
+	const onRouteHoverRef = useRef(onRouteHover);
+	onRouteHoverRef.current = onRouteHover;
+
 	const handleMouseOver = useCallback((key: string) => {
 		setHoveredKey(key);
+		onRouteHoverRef.current?.(key);
 	}, []);
 
 	const handleMouseOut = useCallback(() => {
 		setHoveredKey(null);
+		onRouteHoverRef.current?.(null);
 	}, []);
 
 	return (
@@ -214,7 +233,11 @@ function MapView({ db, routes }: MapViewProps) {
 						mouseover: () => handleMouseOver(pl.key),
 						mouseout: handleMouseOut,
 					}}
-				/>
+				>
+					<Tooltip sticky>
+						{pl.fromStopName} → {pl.toStopName}
+					</Tooltip>
+				</Polyline>
 			))}
 		</MapContainer>
 	);
