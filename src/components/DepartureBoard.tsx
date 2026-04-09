@@ -9,6 +9,8 @@ type DepartureBoardProps = {
 	error: Error | null;
 	/** 経路が登録されているかどうか */
 	hasRoutes: boolean;
+	/** 地図上でホバー中の経路キー（fromStopId-toStopId） */
+	hoveredRouteKey?: string | null;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -42,6 +44,7 @@ export function DepartureBoard({
 	lastUpdated,
 	error,
 	hasRoutes,
+	hoveredRouteKey,
 }: DepartureBoardProps) {
 	if (!hasRoutes) {
 		return (
@@ -104,23 +107,33 @@ export function DepartureBoard({
 										</tr>
 									</thead>
 									<tbody>
-										{group.departures.map((dep) => (
-											<tr key={`${dep.tripId}-${dep.departureTime}`}>
-												<td className="font-mono">
-													{formatTime(dep.departureTime)}
-												</td>
-												<td className="font-mono">
-													{formatTime(dep.arrivalTime)}
-												</td>
-												<td>{dep.routeName}</td>
-												<td>{dep.headsign}</td>
-												<td>
-													{dep.fare
-														? formatFare(dep.fare.price, dep.fare.currencyType)
-														: "-"}
-												</td>
-											</tr>
-										))}
+										{group.departures.map((dep) => {
+											const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
+											const isHovered = hoveredRouteKey === routeKey;
+											return (
+												<tr
+													key={`${dep.tripId}-${dep.departureTime}`}
+													className={isHovered ? "bg-info/10" : ""}
+												>
+													<td className="font-mono">
+														{formatTime(dep.departureTime)}
+													</td>
+													<td className="font-mono">
+														{formatTime(dep.arrivalTime)}
+													</td>
+													<td>{dep.routeName}</td>
+													<td>{dep.headsign}</td>
+													<td>
+														{dep.fare
+															? formatFare(
+																	dep.fare.price,
+																	dep.fare.currencyType,
+																)
+															: "-"}
+													</td>
+												</tr>
+											);
+										})}
 									</tbody>
 								</table>
 							</div>

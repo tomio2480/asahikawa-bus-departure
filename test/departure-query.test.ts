@@ -73,10 +73,11 @@ describe("getDepartures", () => {
 		routeId: string,
 		serviceId: string,
 		headsign?: string,
+		shapeId?: string,
 	) {
 		db.run(
-			"INSERT INTO trips (trip_id, route_id, service_id, trip_headsign) VALUES (?, ?, ?, ?)",
-			[tripId, routeId, serviceId, headsign ?? null],
+			"INSERT INTO trips (trip_id, route_id, service_id, trip_headsign, shape_id) VALUES (?, ?, ?, ?, ?)",
+			[tripId, routeId, serviceId, headsign ?? null, shapeId ?? null],
 		);
 	}
 
@@ -113,6 +114,7 @@ describe("getDepartures", () => {
 				arrivalTime: "08:15:00",
 				fromStopId: "S001",
 				toStopId: "S002",
+				shapeId: null,
 				fare: null,
 			});
 		});
@@ -130,6 +132,16 @@ describe("getDepartures", () => {
 		it("afterTime ちょうどの便は含む", () => {
 			const result = getDepartures(db, ["weekday"], "S001", "S002", "08:00:00");
 			expect(result).toHaveLength(1);
+		});
+
+		it("shape_id がある便は shapeId を返す", () => {
+			// beforeEach の R001/S001/S002 を再利用し、shape_id 付き trip を追加
+			insertTrip("T002", "R001", "weekday", "市役所前", "SH001");
+			insertStopTime("T002", "S001", 1, "10:00:00", "10:00:00");
+			insertStopTime("T002", "S002", 2, "10:15:00", "10:15:00");
+
+			const result = getDepartures(db, ["weekday"], "S001", "S002", "09:00:00");
+			expect(result[0].shapeId).toBe("SH001");
 		});
 	});
 

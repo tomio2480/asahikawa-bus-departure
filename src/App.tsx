@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { DepartureBoard } from "./components/DepartureBoard";
 import { ExpiryWarning } from "./components/ExpiryWarning";
 import { LoadingSpinner } from "./components/LoadingSpinner";
@@ -39,6 +39,11 @@ function App() {
 	const expiry = useMemo(() => (db ? getDataExpiry(db) : null), [db]);
 	const currentDate = useMemo(() => getCurrentDateStr(), []);
 
+	const [hoveredRouteKey, setHoveredRouteKey] = useState<string | null>(null);
+	const handleRouteHover = useCallback((key: string | null) => {
+		setHoveredRouteKey(key);
+	}, []);
+
 	const mapRoutes = useMemo<MapRoute[]>(() => {
 		const seen = new Set<string>();
 		const result: MapRoute[] = [];
@@ -49,6 +54,7 @@ function App() {
 					seen.add(key);
 					result.push({
 						tripId: dep.tripId,
+						shapeId: dep.shapeId ?? undefined,
 						fromStopId: dep.fromStopId,
 						toStopId: dep.toStopId,
 					});
@@ -85,12 +91,17 @@ function App() {
 							lastUpdated={lastUpdated}
 							error={departuresError}
 							hasRoutes={routes.length > 0}
+							hoveredRouteKey={hoveredRouteKey}
 						/>
 						{mapRoutes.length > 0 && (
 							<div className="card bg-base-100 shadow-sm">
 								<div className="card-body">
 									<h2 className="card-title text-lg">経路マップ</h2>
-									<MapView db={db} routes={mapRoutes} />
+									<MapView
+										db={db}
+										routes={mapRoutes}
+										onRouteHover={handleRouteHover}
+									/>
 								</div>
 							</div>
 						)}
