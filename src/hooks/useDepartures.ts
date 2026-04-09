@@ -96,11 +96,12 @@ export function useDepartures(
 				}
 
 				// 徒歩時間を考慮した自宅出発目安時刻
-				const [hStr, mStr, sStr] = dep.departureTime.split(":");
-				const totalMin =
-					Number(hStr) * 60 +
-					Number(mStr) -
-					Math.max(0, Math.floor(walkMinutes));
+				const [hStr, mStr, sStr = "00"] = dep.departureTime.split(":");
+				const h = Number(hStr);
+				const m = Number(mStr);
+				const safeH = Number.isNaN(h) ? 0 : h;
+				const safeM = Number.isNaN(m) ? 0 : m;
+				const totalMin = safeH * 60 + safeM - walkMinutes;
 				if (totalMin >= 0) {
 					const lh = Math.floor(totalMin / 60);
 					const lm = totalMin % 60;
@@ -129,6 +130,7 @@ export function useDepartures(
 			const currentTimeStr = calculateBoardingTime(now, 0);
 
 			for (const route of currentRoutes) {
+				const sanitizedWalkMinutes = Math.max(0, Math.floor(route.walkMinutes));
 				const fromStopIds = getSiblingStopIds(currentDb, route.fromStopId);
 				const toStopIds = getSiblingStopIds(currentDb, route.toStopId);
 
@@ -147,7 +149,7 @@ export function useDepartures(
 				if (departures.length === 0) continue;
 
 				for (const dep of departures) {
-					enrichDeparture(currentDb, dep, currentTimeStr, route.walkMinutes);
+					enrichDeparture(currentDb, dep, currentTimeStr, sanitizedWalkMinutes);
 				}
 
 				const existing = groupMap.get(route.toStopId);
@@ -166,6 +168,7 @@ export function useDepartures(
 
 				if (tomorrowServiceIds.length > 0) {
 					for (const route of currentRoutes) {
+						const sanitizedWalk = Math.max(0, Math.floor(route.walkMinutes));
 						const fromStopIds = getSiblingStopIds(currentDb, route.fromStopId);
 						const toStopIds = getSiblingStopIds(currentDb, route.toStopId);
 						const departures = getDepartures(
@@ -180,7 +183,7 @@ export function useDepartures(
 						if (departures.length === 0) continue;
 
 						for (const dep of departures) {
-							enrichDeparture(currentDb, dep, null, route.walkMinutes);
+							enrichDeparture(currentDb, dep, null, sanitizedWalk);
 						}
 
 						const existing = groupMap.get(route.toStopId);
