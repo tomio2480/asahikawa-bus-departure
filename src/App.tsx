@@ -92,6 +92,7 @@ function App() {
 							error={departuresError}
 							hasRoutes={routes.length > 0}
 							hoveredRouteKey={hoveredRouteKey}
+							onRouteHover={handleRouteHover}
 						/>
 						{mapRoutes.length > 0 && (
 							<div className="card bg-base-100 shadow-sm">
@@ -101,6 +102,7 @@ function App() {
 										db={db}
 										routes={mapRoutes}
 										onRouteHover={handleRouteHover}
+										hoveredRouteKey={hoveredRouteKey}
 									/>
 								</div>
 							</div>

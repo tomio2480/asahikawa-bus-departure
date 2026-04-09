@@ -12,6 +12,8 @@ type DepartureBoardProps = {
 	hasRoutes: boolean;
 	/** 地図上でホバー中の経路キー（fromStopId-toStopId） */
 	hoveredRouteKey?: string | null;
+	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
+	onRouteHover?: (key: string | null) => void;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -46,6 +48,7 @@ export function DepartureBoard({
 	error,
 	hasRoutes,
 	hoveredRouteKey,
+	onRouteHover,
 }: DepartureBoardProps) {
 	if (!hasRoutes) {
 		return (
@@ -127,6 +130,8 @@ export function DepartureBoard({
 											<tr
 												key={`${dep.tripId}-${dep.departureTime}`}
 												className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
+												onMouseEnter={() => onRouteHover?.(routeKey)}
+												onMouseLeave={() => onRouteHover?.(null)}
 											>
 												<td className="font-mono">
 													{formatTime(dep.departureTime)}

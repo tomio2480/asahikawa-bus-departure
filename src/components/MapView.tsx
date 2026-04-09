@@ -32,7 +32,7 @@ const ASAHIKAWA_CENTER: [number, number] = [43.7706, 142.3649];
 const DEFAULT_ZOOM = 13;
 
 /** 全経路の色 */
-const ROUTE_COLOR_BASE = "#E8E8E8";
+const ROUTE_COLOR_BASE = "#b0c4de";
 /** ハイライト区間の色 */
 const ROUTE_COLOR_SECTION = "#3B82F6";
 /** ハイライト区間のホバー色 */
@@ -55,6 +55,8 @@ type MapViewProps = {
 	routes: MapRoute[];
 	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
 	onRouteHover?: (key: string | null) => void;
+	/** 外部からのホバー中経路キー（fromStopId-toStopId） */
+	hoveredRouteKey?: string | null;
 };
 
 type PolylineData = {
@@ -92,7 +94,7 @@ function getStopInfo(
 	}
 }
 
-function MapView({ db, routes, onRouteHover }: MapViewProps) {
+function MapView({ db, routes, onRouteHover, hoveredRouteKey }: MapViewProps) {
 	const { markers, basePolylines, highlightPolylines } = useMemo(() => {
 		const markersMap = new Map<
 			string,
@@ -248,28 +250,29 @@ function MapView({ db, routes, onRouteHover }: MapViewProps) {
 					}}
 				/>
 			))}
-			{highlightPolylines.map((pl) => (
-				<Polyline
-					key={`hl-${pl.key}`}
-					positions={pl.positions}
-					pathOptions={{
-						color:
-							hoveredKey === pl.key
-								? ROUTE_COLOR_SECTION_HOVER
-								: ROUTE_COLOR_SECTION,
-						weight: SECTION_WEIGHT,
-						opacity: 0.9,
-					}}
-					eventHandlers={{
-						mouseover: () => handleMouseOver(pl.key),
-						mouseout: handleMouseOut,
-					}}
-				>
-					<Tooltip sticky>
-						{pl.fromStopName} → {pl.toStopName}
-					</Tooltip>
-				</Polyline>
-			))}
+			{highlightPolylines.map((pl) => {
+				const isActive =
+					hoveredKey === pl.key || hoveredRouteKey === pl.routeKey;
+				return (
+					<Polyline
+						key={`hl-${pl.key}`}
+						positions={pl.positions}
+						pathOptions={{
+							color: isActive ? ROUTE_COLOR_SECTION_HOVER : ROUTE_COLOR_SECTION,
+							weight: SECTION_WEIGHT,
+							opacity: 0.9,
+						}}
+						eventHandlers={{
+							mouseover: () => handleMouseOver(pl.key),
+							mouseout: handleMouseOut,
+						}}
+					>
+						<Tooltip sticky>
+							{pl.fromStopName} → {pl.toStopName}
+						</Tooltip>
+					</Polyline>
+				);
+			})}
 		</MapContainer>
 	);
 }
