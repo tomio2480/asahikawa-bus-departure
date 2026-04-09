@@ -31,7 +31,7 @@ const ASAHIKAWA_CENTER: [number, number] = [43.7706, 142.3649];
 const DEFAULT_ZOOM = 13;
 
 /** 全経路の色 */
-const ROUTE_COLOR_BASE = "#CCCCCC";
+const ROUTE_COLOR_BASE = "#E8E8E8";
 /** ハイライト区間の色 */
 const ROUTE_COLOR_SECTION = "#3B82F6";
 /** ハイライト区間のホバー色 */
