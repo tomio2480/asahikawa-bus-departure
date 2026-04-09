@@ -1,12 +1,14 @@
-import type { Database } from "sql.js";
-import { useDepartures } from "../hooks/useDepartures";
-import type { RegisteredRouteEntry } from "../types/route-entry";
+import type { DepartureGroup } from "../hooks/useDepartures";
 
 type DepartureBoardProps = {
-	/** sql.js データベースインスタンス */
-	db: Database;
-	/** 登録済み経路一覧 */
-	routes: RegisteredRouteEntry[];
+	/** 降車バス停ごとの発車案内グループ */
+	groups: DepartureGroup[];
+	/** 最終更新時刻 */
+	lastUpdated: Date | null;
+	/** データ取得時のエラー */
+	error: Error | null;
+	/** 経路が登録されているかどうか */
+	hasRoutes: boolean;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -35,10 +37,13 @@ function formatUpdatedTime(date: Date): string {
 }
 
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */
-export function DepartureBoard({ db, routes }: DepartureBoardProps) {
-	const { groups, lastUpdated, error } = useDepartures(db, routes);
-
-	if (routes.length === 0) {
+export function DepartureBoard({
+	groups,
+	lastUpdated,
+	error,
+	hasRoutes,
+}: DepartureBoardProps) {
+	if (!hasRoutes) {
 		return (
 			<div className="card bg-base-100 shadow-sm">
 				<div className="card-body">
