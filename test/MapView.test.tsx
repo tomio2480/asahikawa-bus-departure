@@ -15,6 +15,7 @@ import type { GtfsData } from "../src/types/gtfs";
 vi.mock("leaflet", () => {
 	const Icon = {
 		Default: {
+			prototype: { _getIconUrl: () => "" },
 			mergeOptions: vi.fn(),
 		},
 	};

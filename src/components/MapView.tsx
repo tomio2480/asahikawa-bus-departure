@@ -15,7 +15,10 @@ import { findClosestPointIndex } from "../lib/geo-utils";
 import { getShapePoints, getStopsForTrip } from "../lib/shape-query";
 import "leaflet/dist/leaflet.css";
 
-// Vite 環境では Leaflet デフォルトアイコンのパスが解決できないため明示的に設定する
+// Vite 環境では Leaflet の _getIconUrl が CSS からベースパスを自動検出し、
+// バンドラーが解決した URL と二重パスになるため削除して明示的に設定する
+// biome-ignore lint/performance/noDelete: Leaflet 内部メソッドの除去が必要
+delete (L.Icon.Default.prototype as Record<string, unknown>)._getIconUrl;
 L.Icon.Default.mergeOptions({
 	iconUrl: markerIcon,
 	iconRetinaUrl: markerIcon2x,
