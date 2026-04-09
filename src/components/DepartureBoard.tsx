@@ -113,12 +113,13 @@ export function DepartureBoard({
 							<table className="table table-sm">
 								<thead>
 									<tr>
+										<th>出発目安</th>
+										<th>乗車</th>
 										<th>発車</th>
 										<th>到着</th>
-										<th>乗車</th>
+										<th>運賃</th>
 										<th>路線</th>
 										<th>行き先</th>
-										<th>運賃</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -137,17 +138,25 @@ export function DepartureBoard({
 												onBlur={() => onRouteHover?.(null)}
 											>
 												<td className="font-mono">
-													{formatTime(dep.departureTime)}
+													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
 													{dep.isDeparted && (
 														<span className="ml-1 badge badge-sm badge-ghost">
 															出発済
 														</span>
 													)}
 												</td>
+												<td>{dep.fromStopName ?? "-"}</td>
+												<td className="font-mono">
+													{formatTime(dep.departureTime)}
+												</td>
 												<td className="font-mono">
 													{formatTime(dep.arrivalTime)}
 												</td>
-												<td>{dep.fromStopName ?? "-"}</td>
+												<td>
+													{dep.fare
+														? formatFare(dep.fare.price, dep.fare.currencyType)
+														: "-"}
+												</td>
 												<td>
 													<span className="inline-flex items-center gap-1">
 														{agencyColor && (
@@ -165,11 +174,6 @@ export function DepartureBoard({
 													</span>
 												</td>
 												<td>{dep.headsign}</td>
-												<td>
-													{dep.fare
-														? formatFare(dep.fare.price, dep.fare.currencyType)
-														: "-"}
-												</td>
 											</tr>
 										);
 									})}

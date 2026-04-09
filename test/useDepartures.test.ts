@@ -229,8 +229,31 @@ describe("useDepartures", () => {
 		expect(dep.headsign).toBe("市役所方面");
 	});
 
-	it("徒歩時間を考慮して乗れない便は出発済みとして表示される", () => {
-		// 07:50 + 徒歩15分 = 08:05 → 08:00の便は乗れない（出発済み）
+	it("出発済みの便は isDeparted=true になる", () => {
+		// 08:10 に設定 → 08:00の便は実際に出発済み
+		vi.setSystemTime(new Date("2026-04-07T08:10:00+09:00"));
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 0,
+			},
+		];
+		const { result } = renderHook(() => useDepartures(db, routes));
+
+		expect(result.current.groups).toHaveLength(1);
+		const deps = result.current.groups[0].departures;
+		// 08:00の便は出発済み（現在 08:10 > 08:00）
+		expect(deps[0].departureTime).toBe("08:00:00");
+		expect(deps[0].isDeparted).toBe(true);
+		// 09:00の便は未出発（現在 08:10 < 09:00）
+		expect(deps[1].departureTime).toBe("09:00:00");
+		expect(deps[1].isDeparted).toBe(false);
+	});
+
+	it("まだ出発していない便は徒歩時間に関係なく isDeparted=false", () => {
+		// 07:50 + 徒歩15分 = 08:05 → バス停には間に合わないが、バスはまだ出発していない
 		const routes: RegisteredRouteEntry[] = [
 			{
 				id: 1,
@@ -243,13 +266,27 @@ describe("useDepartures", () => {
 
 		expect(result.current.groups).toHaveLength(1);
 		const deps = result.current.groups[0].departures;
-		expect(deps).toHaveLength(2);
-		// 08:00の便は出発済み
+		// 08:00の便はまだ出発していない（現在 07:50 < 08:00）
 		expect(deps[0].departureTime).toBe("08:00:00");
-		expect(deps[0].isDeparted).toBe(true);
-		// 09:00の便は乗車可能
-		expect(deps[1].departureTime).toBe("09:00:00");
-		expect(deps[1].isDeparted).toBe(false);
+		expect(deps[0].isDeparted).toBe(false);
+		// 08:00 - 15分 = 07:45
+		expect(deps[0].leaveByTime).toBe("07:45:00");
+	});
+
+	it("leaveByTime が負値の場合は 00:00:00 にクランプされる", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 600,
+			},
+		];
+		const { result } = renderHook(() => useDepartures(db, routes));
+
+		expect(result.current.groups).toHaveLength(1);
+		const deps = result.current.groups[0].departures;
+		expect(deps[0].leaveByTime).toBe("00:00:00");
 	});
 
 	it("全便終了後は翌日の始発便を isNextDay で返す", () => {

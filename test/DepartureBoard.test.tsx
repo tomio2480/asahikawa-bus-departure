@@ -161,12 +161,13 @@ describe("DepartureBoard コンポーネント", () => {
 				hasRoutes={true}
 			/>,
 		);
+		expect(screen.getByText("出発目安")).toBeInTheDocument();
+		expect(screen.getByText("乗車")).toBeInTheDocument();
 		expect(screen.getByText("発車")).toBeInTheDocument();
 		expect(screen.getByText("到着")).toBeInTheDocument();
-		expect(screen.getByText("乗車")).toBeInTheDocument();
+		expect(screen.getByText("運賃")).toBeInTheDocument();
 		expect(screen.getByText("路線")).toBeInTheDocument();
 		expect(screen.getByText("行き先")).toBeInTheDocument();
-		expect(screen.getByText("運賃")).toBeInTheDocument();
 	});
 
 	it("エラー発生時はエラーメッセージを表示する", () => {
