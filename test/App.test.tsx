@@ -30,8 +30,12 @@ vi.mock("../src/components/RouteRegistration", () => ({
 	RouteRegistration: () => <div data-testid="route-registration" />,
 }));
 
+let capturedMapRoutes: unknown[] = [];
 vi.mock("../src/components/MapView", () => ({
-	MapView: () => <div data-testid="map-view" />,
+	MapView: (props: { routes: unknown[] }) => {
+		capturedMapRoutes = props.routes;
+		return <div data-testid="map-view" />;
+	},
 }));
 
 vi.mock("../src/components/ExpiryWarning", () => ({
@@ -47,6 +51,7 @@ import App from "../src/App";
 afterEach(() => {
 	cleanup();
 	vi.restoreAllMocks();
+	capturedMapRoutes = [];
 });
 
 function setupDefaultMocks(
@@ -222,6 +227,67 @@ describe("App", () => {
 		render(<App />);
 		expect(screen.getByText("経路マップ")).toBeInTheDocument();
 		expect(screen.getByTestId("map-view")).toBeInTheDocument();
+	});
+
+	it("同一 tripId でも異なるバス停の経路は両方マップに渡される", () => {
+		setupDefaultMocks({
+			db: {
+				db: {} as ReturnType<typeof useDatabase>["db"],
+				error: null,
+				loading: false,
+			},
+			routes: {
+				routes: [],
+				loading: false,
+				error: null,
+				add: vi.fn(),
+				update: vi.fn(),
+				remove: vi.fn(),
+				reload: vi.fn(),
+			},
+			departures: {
+				groups: [
+					{
+						toStopId: "stop1",
+						toStopName: "停留所A",
+						departures: [
+							{
+								tripId: "trip1",
+								routeId: "route1",
+								routeName: "路線1",
+								headsign: "行き先A",
+								departureTime: "08:00:00",
+								arrivalTime: "08:30:00",
+								fromStopId: "from1",
+								toStopId: "stop1",
+								fare: null,
+							},
+						],
+					},
+					{
+						toStopId: "stop2",
+						toStopName: "停留所B",
+						departures: [
+							{
+								tripId: "trip1",
+								routeId: "route1",
+								routeName: "路線1",
+								headsign: "行き先B",
+								departureTime: "08:00:00",
+								arrivalTime: "08:45:00",
+								fromStopId: "from1",
+								toStopId: "stop2",
+								fare: null,
+							},
+						],
+					},
+				],
+				lastUpdated: new Date(),
+				error: null,
+			},
+		});
+		render(<App />);
+		expect(capturedMapRoutes).toHaveLength(2);
 	});
 
 	it("発車データがない場合は地図が表示されない", () => {

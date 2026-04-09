@@ -10,16 +10,9 @@ import { useDepartures } from "./hooks/useDepartures";
 import { useRoutes } from "./hooks/useRoutes";
 import { getDataExpiry } from "./lib/data-expiry";
 
-/** 現在日付を YYYYMMDD 形式で返す（JST） */
+/** 現在日付を YYYYMMDD 形式で返す（ローカル） */
 function getCurrentDateStr(): string {
-	const now = new Date();
-	const fmt = new Intl.DateTimeFormat("en-CA", {
-		timeZone: "Asia/Tokyo",
-		year: "numeric",
-		month: "2-digit",
-		day: "2-digit",
-	});
-	return fmt.format(now).replace(/-/g, "");
+	return new Date().toLocaleDateString("sv-SE").replace(/-/g, "");
 }
 
 function App() {
@@ -51,8 +44,9 @@ function App() {
 		const result: MapRoute[] = [];
 		for (const group of groups) {
 			for (const dep of group.departures) {
-				if (!seen.has(dep.tripId)) {
-					seen.add(dep.tripId);
+				const key = `${dep.tripId}-${dep.fromStopId}-${dep.toStopId}`;
+				if (!seen.has(key)) {
+					seen.add(key);
 					result.push({
 						tripId: dep.tripId,
 						fromStopId: dep.fromStopId,
