@@ -15,6 +15,8 @@ export type Departure = {
 	isDeparted?: boolean;
 	/** 乗車バス停名（useDepartures で設定） */
 	fromStopName?: string;
+	/** 徒歩時間を考慮した自宅出発目安時刻 HH:MM:SS（useDepartures で設定） */
+	leaveByTime?: string;
 	fare: Fare | null;
 };
 

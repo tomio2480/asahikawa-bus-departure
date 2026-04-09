@@ -83,15 +83,30 @@ export function useDepartures(
 			const fareCache = new Map<string, Fare | null>();
 			const stopNameCache = new Map<string, string>();
 
-			/** departure に付帯情報（isDeparted, fromStopName, fare）を設定する */
+			/** departure に付帯情報を設定する */
 			function enrichDeparture(
 				db: Database,
 				dep: Departure,
 				boardingTime: string | null,
+				walkMinutes: number,
 			): void {
 				// 出発済みフラグ
 				if (boardingTime) {
 					dep.isDeparted = dep.departureTime < boardingTime;
+				}
+
+				// 徒歩時間を考慮した自宅出発目安時刻
+				const [hStr, mStr, sStr] = dep.departureTime.split(":");
+				const totalMin =
+					Number(hStr) * 60 +
+					Number(mStr) -
+					Math.max(0, Math.floor(walkMinutes));
+				if (totalMin >= 0) {
+					const lh = Math.floor(totalMin / 60);
+					const lm = totalMin % 60;
+					dep.leaveByTime = `${String(lh).padStart(2, "0")}:${String(lm).padStart(2, "0")}:${sStr}`;
+				} else {
+					dep.leaveByTime = "00:00:00";
 				}
 
 				// 乗車バス停名
@@ -131,7 +146,7 @@ export function useDepartures(
 				if (departures.length === 0) continue;
 
 				for (const dep of departures) {
-					enrichDeparture(currentDb, dep, boardingTime);
+					enrichDeparture(currentDb, dep, boardingTime, route.walkMinutes);
 				}
 
 				const existing = groupMap.get(route.toStopId);
@@ -164,7 +179,7 @@ export function useDepartures(
 						if (departures.length === 0) continue;
 
 						for (const dep of departures) {
-							enrichDeparture(currentDb, dep, null);
+							enrichDeparture(currentDb, dep, null, route.walkMinutes);
 						}
 
 						const existing = groupMap.get(route.toStopId);
