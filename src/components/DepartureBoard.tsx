@@ -9,7 +9,7 @@ type DepartureBoardProps = {
 	error: Error | null;
 	/** 経路が登録されているかどうか */
 	hasRoutes: boolean;
-	/** 地図上でホバー中の経路キー（tripId-fromStopId-toStopId） */
+	/** 地図上でホバー中の経路キー（fromStopId-toStopId） */
 	hoveredRouteKey?: string | null;
 };
 

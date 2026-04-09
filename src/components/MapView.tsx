@@ -102,8 +102,19 @@ function MapView({ db, routes, onRouteHover }: MapViewProps) {
 		const highlightArr: HighlightPolylineData[] = [];
 		const seenBaseKeys = new Set<string>();
 		const seenHighlightKeys = new Set<string>();
+		const geometryCache = new Map<
+			string,
+			{
+				fullPoints: { lat: number; lon: number }[];
+				positions: [number, number][];
+			}
+		>();
 
 		for (const route of routes) {
+			const baseKey = route.shapeId
+				? `shape:${route.shapeId}`
+				: `trip:${route.tripId}`;
+
 			// マーカー情報の収集
 			let fromStop = markersMap.get(route.fromStopId);
 			if (!fromStop) {
@@ -122,25 +133,22 @@ function MapView({ db, routes, onRouteHover }: MapViewProps) {
 				}
 			}
 
-			// 全経路の座標を取得
-			let fullPoints: { lat: number; lon: number }[];
-			if (route.shapeId) {
-				fullPoints = getShapePoints(db, route.shapeId);
-			} else {
-				fullPoints = getStopsForTrip(db, route.tripId);
+			// 全経路の座標を取得（baseKey 単位でキャッシュ）
+			let geometry = geometryCache.get(baseKey);
+			if (!geometry) {
+				const fullPoints = route.shapeId
+					? getShapePoints(db, route.shapeId)
+					: getStopsForTrip(db, route.tripId);
+				const positions = fullPoints.map(
+					(p) => [p.lat, p.lon] as [number, number],
+				);
+				if (positions.length === 0) continue;
+				geometry = { fullPoints, positions };
+				geometryCache.set(baseKey, geometry);
 			}
-
-			const positions = fullPoints.map(
-				(p) => [p.lat, p.lon] as [number, number],
-			);
-
-			if (positions.length === 0) continue;
+			const { fullPoints, positions } = geometry;
 
 			// 全経路ポリライン（shape/trip 単位で重複排除）
-			const baseKey = route.shapeId
-				? `shape:${route.shapeId}`
-				: `trip:${route.tripId}`;
-
 			if (!seenBaseKeys.has(baseKey)) {
 				seenBaseKeys.add(baseKey);
 				baseArr.push({ key: baseKey, positions });
