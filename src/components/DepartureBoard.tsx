@@ -70,15 +70,15 @@ export function DepartureBoard({
 	}, [groups]);
 
 	// 行先の選択肢
-	const destinations = useMemo(() => {
-		const seen = new Map<string, string>();
-		for (const group of groups) {
-			if (!seen.has(group.toStopId)) {
-				seen.set(group.toStopId, group.toStopName);
-			}
-		}
-		return seen;
-	}, [groups]);
+	const destinations = useMemo(
+		() =>
+			new Map(
+				groups.map(
+					(group) => [group.toStopId, group.toStopName] as const,
+				),
+			),
+		[groups],
+	);
 
 	// groups 更新後に選択中の行先が消えた場合は "all" にフォールバック
 	const effectiveSelectedDestination =
