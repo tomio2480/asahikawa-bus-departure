@@ -80,11 +80,19 @@ export function DepartureBoard({
 		return seen;
 	}, [groups]);
 
+	// groups 更新後に選択中の行先が消えた場合は "all" にフォールバック
+	const effectiveSelectedDestination =
+		selectedDestination === "all" || destinations.has(selectedDestination)
+			? selectedDestination
+			: "all";
+
 	// フィルタ適用
 	const filteredDepartures = useMemo(() => {
-		if (selectedDestination === "all") return allDepartures;
-		return allDepartures.filter((dep) => dep.toStopId === selectedDestination);
-	}, [allDepartures, selectedDestination]);
+		if (effectiveSelectedDestination === "all") return allDepartures;
+		return allDepartures.filter(
+			(dep) => dep.toStopId === effectiveSelectedDestination,
+		);
+	}, [allDepartures, effectiveSelectedDestination]);
 
 	if (!hasRoutes) {
 		return (
@@ -146,8 +154,9 @@ export function DepartureBoard({
 							)}
 							{destinations.size > 1 && (
 								<select
+									aria-label="行き先で絞り込む"
 									className="select select-sm select-bordered"
-									value={selectedDestination}
+									value={effectiveSelectedDestination}
 									onChange={(e) => setSelectedDestination(e.target.value)}
 								>
 									<option value="all">全ての行先</option>
