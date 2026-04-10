@@ -141,7 +141,7 @@ describe("DepartureBoard コンポーネント", () => {
 		]);
 	});
 
-	it("プルダウン選択で行先がフィルタされる", () => {
+	it("selectedDestination で行先がフィルタされる", () => {
 		const groups = [
 			makeGroup(),
 			makeGroup({
@@ -169,11 +169,9 @@ describe("DepartureBoard コンポーネント", () => {
 				lastUpdated={new Date()}
 				error={null}
 				hasRoutes={true}
+				selectedDestination="test:S003"
 			/>,
 		);
-
-		const select = screen.getByRole("combobox");
-		fireEvent.change(select, { target: { value: "test:S003" } });
 
 		expect(screen.getByText("四条方面")).toBeInTheDocument();
 		expect(screen.queryByText("市役所方面")).not.toBeInTheDocument();
@@ -476,18 +474,16 @@ describe("DepartureBoard コンポーネント", () => {
 				lastUpdated={new Date()}
 				error={null}
 				hasRoutes={true}
+				selectedDestination="registered:S003"
 			/>,
 		);
-
-		const select = screen.getByRole("combobox");
-		fireEvent.change(select, { target: { value: "registered:S003" } });
 
 		expect(screen.getByText("四条方面")).toBeInTheDocument();
 		expect(screen.queryByText("市役所方面")).not.toBeInTheDocument();
 	});
 
-	it("onDestinationFilter がフィルタ変更時に呼ばれる", () => {
-		const onFilter = vi.fn();
+	it("onDestinationChange がプルダウン操作で呼ばれる", () => {
+		const onChange = vi.fn();
 		const groups = [
 			makeGroup(),
 			makeGroup({
@@ -515,17 +511,14 @@ describe("DepartureBoard コンポーネント", () => {
 				lastUpdated={new Date()}
 				error={null}
 				hasRoutes={true}
-				onDestinationFilter={onFilter}
+				onDestinationChange={onChange}
 			/>,
 		);
-
-		// 初回レンダーで "all" が通知される
-		expect(onFilter).toHaveBeenCalledWith("all");
 
 		const select = screen.getByRole("combobox");
 		fireEvent.change(select, { target: { value: "test:S003" } });
 
-		expect(onFilter).toHaveBeenCalledWith("test:S003");
+		expect(onChange).toHaveBeenCalledWith("test:S003");
 	});
 
 	it("Asaca 乗り継ぎ割引の注釈が表示される", () => {

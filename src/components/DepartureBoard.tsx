@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -15,8 +15,10 @@ type DepartureBoardProps = {
 	hoveredRouteKey?: string | null;
 	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
 	onRouteHover?: (key: string | null) => void;
-	/** 行先フィルタ変更時に呼ばれるコールバック（"all" で全行先） */
-	onDestinationFilter?: (destinationId: string) => void;
+	/** 現在選択中の行先フィルタ値（"all" で全行先） */
+	selectedDestination?: string;
+	/** 行先フィルタ変更時に呼ばれるコールバック */
+	onDestinationChange?: (destinationId: string) => void;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -55,9 +57,9 @@ export function DepartureBoard({
 	hasRoutes,
 	hoveredRouteKey,
 	onRouteHover,
-	onDestinationFilter,
+	selectedDestination = "all",
+	onDestinationChange,
 }: DepartureBoardProps) {
-	const [selectedDestination, setSelectedDestination] = useState<string>("all");
 
 	// 全グループの便を統合し、発車時刻順にソート
 	const allDepartures = useMemo(() => {
@@ -84,24 +86,13 @@ export function DepartureBoard({
 		[groups],
 	);
 
-	// groups 更新後に選択中の行先が消えた場合は "all" にフォールバック
-	const effectiveSelectedDestination =
-		selectedDestination === "all" || destinations.has(selectedDestination)
-			? selectedDestination
-			: "all";
-
 	// フィルタ適用（グループの toStopId で比較し、兄弟停留所 ID の不一致を回避）
 	const filteredDepartures = useMemo(() => {
-		if (effectiveSelectedDestination === "all") return allDepartures;
+		if (selectedDestination === "all") return allDepartures;
 		return allDepartures.filter(
-			(dep) => dep.groupToStopId === effectiveSelectedDestination,
+			(dep) => dep.groupToStopId === selectedDestination,
 		);
-	}, [allDepartures, effectiveSelectedDestination]);
-
-	// フィルタ変更を親に通知
-	useEffect(() => {
-		onDestinationFilter?.(effectiveSelectedDestination);
-	}, [effectiveSelectedDestination, onDestinationFilter]);
+	}, [allDepartures, selectedDestination]);
 
 	if (!hasRoutes) {
 		return (
@@ -165,8 +156,8 @@ export function DepartureBoard({
 								<select
 									aria-label="行き先で絞り込む"
 									className="select select-sm select-bordered"
-									value={effectiveSelectedDestination}
-									onChange={(e) => setSelectedDestination(e.target.value)}
+									value={selectedDestination}
+									onChange={(e) => onDestinationChange?.(e.target.value)}
 								>
 									<option value="all">全ての行先</option>
 									{[...destinations.entries()].map(([stopId, name]) => (

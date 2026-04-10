@@ -45,17 +45,20 @@ function App() {
 	}, []);
 
 	const [selectedDestination, setSelectedDestination] = useState("all");
-	const handleDestinationFilter = useCallback((destinationId: string) => {
-		setSelectedDestination(destinationId);
-	}, []);
+	const effectiveDestination = useMemo(() => {
+		if (selectedDestination === "all") return "all";
+		return groups.some((g) => g.toStopId === selectedDestination)
+			? selectedDestination
+			: "all";
+	}, [selectedDestination, groups]);
 
 	const mapRoutes = useMemo<MapRoute[]>(() => {
 		const seen = new Set<string>();
 		const result: MapRoute[] = [];
 		const filteredGroups =
-			selectedDestination === "all"
+			effectiveDestination === "all"
 				? groups
-				: groups.filter((g) => g.toStopId === selectedDestination);
+				: groups.filter((g) => g.toStopId === effectiveDestination);
 		for (const group of filteredGroups) {
 			for (const dep of group.departures) {
 				const key = `${dep.tripId}-${dep.fromStopId}-${dep.toStopId}`;
@@ -71,7 +74,7 @@ function App() {
 			}
 		}
 		return result;
-	}, [groups, selectedDestination]);
+	}, [groups, effectiveDestination]);
 
 	return (
 		<div className="min-h-screen bg-base-200">
@@ -102,7 +105,8 @@ function App() {
 							hasRoutes={routes.length > 0}
 							hoveredRouteKey={hoveredRouteKey}
 							onRouteHover={handleRouteHover}
-							onDestinationFilter={handleDestinationFilter}
+							selectedDestination={effectiveDestination}
+							onDestinationChange={setSelectedDestination}
 						/>
 						{mapRoutes.length > 0 && (
 							<div className="card bg-base-100 shadow-sm">
