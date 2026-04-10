@@ -128,7 +128,17 @@ describe("DepartureBoard コンポーネント", () => {
 		const select = screen.getByRole("combobox");
 		expect(select).toBeInTheDocument();
 		const options = screen.getAllByRole("option");
-		expect(options.length).toBe(3); // 全ての行先 + 市役所前 + 旭川四条駅
+		expect(options).toHaveLength(3);
+		expect(options.map((o) => o.textContent)).toEqual([
+			"全ての行先",
+			"市役所前",
+			"旭川四条駅",
+		]);
+		expect(options.map((o) => (o as HTMLOptionElement).value)).toEqual([
+			"all",
+			"test:S002",
+			"test:S003",
+		]);
 	});
 
 	it("プルダウン選択で行先がフィルタされる", () => {
