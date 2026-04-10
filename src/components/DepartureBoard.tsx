@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -41,6 +42,9 @@ function formatUpdatedTime(date: Date): string {
 	return updatedTimeFormatter.format(date);
 }
 
+/** スクロール領域の最大高さ（Tailwind の max-h-60 = 15rem 相当） */
+const SCROLL_MAX_HEIGHT_CLASS = "max-h-60";
+
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */
 export function DepartureBoard({
 	groups,
@@ -50,6 +54,46 @@ export function DepartureBoard({
 	hoveredRouteKey,
 	onRouteHover,
 }: DepartureBoardProps) {
+	const [selectedDestination, setSelectedDestination] = useState<string>("all");
+
+	// 全グループの便を統合し、発車時刻順にソート
+	const allDepartures = useMemo(() => {
+		return groups
+			.flatMap((group) =>
+				group.departures.map((dep) => ({
+					...dep,
+					toStopName: group.toStopName,
+					isNextDay: group.isNextDay,
+				})),
+			)
+			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+	}, [groups]);
+
+	// 行先の選択肢
+	const destinations = useMemo(
+		() =>
+			new Map(
+				groups.map(
+					(group) => [group.toStopId, group.toStopName] as const,
+				),
+			),
+		[groups],
+	);
+
+	// groups 更新後に選択中の行先が消えた場合は "all" にフォールバック
+	const effectiveSelectedDestination =
+		selectedDestination === "all" || destinations.has(selectedDestination)
+			? selectedDestination
+			: "all";
+
+	// フィルタ適用
+	const filteredDepartures = useMemo(() => {
+		if (effectiveSelectedDestination === "all") return allDepartures;
+		return allDepartures.filter(
+			(dep) => dep.toStopId === effectiveSelectedDestination,
+		);
+	}, [allDepartures, effectiveSelectedDestination]);
+
 	if (!hasRoutes) {
 		return (
 			<div className="card bg-base-100 shadow-sm">
@@ -98,20 +142,37 @@ export function DepartureBoard({
 				</div>
 			)}
 
-			{groups.map((group) => (
-				<div key={group.toStopId} className="card bg-base-100 shadow-sm">
+			{groups.length > 0 && (
+				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
-						<h3 className="card-title text-lg">
-							{group.toStopName}
-							{group.isNextDay && (
-								<span className="badge badge-outline badge-sm ml-2">
+						<div className="flex items-center gap-3">
+							<h3 className="card-title text-lg">発車案内</h3>
+							{allNextDay && (
+								<span className="badge badge-outline badge-sm">
 									始発以降の便
 								</span>
 							)}
-						</h3>
-						<div className="overflow-x-auto">
+							{destinations.size > 1 && (
+								<select
+									aria-label="行き先で絞り込む"
+									className="select select-sm select-bordered"
+									value={effectiveSelectedDestination}
+									onChange={(e) => setSelectedDestination(e.target.value)}
+								>
+									<option value="all">全ての行先</option>
+									{[...destinations.entries()].map(([stopId, name]) => (
+										<option key={stopId} value={stopId}>
+											{name}
+										</option>
+									))}
+								</select>
+							)}
+						</div>
+						<div
+							className={`overflow-x-auto overflow-y-auto ${SCROLL_MAX_HEIGHT_CLASS}`}
+						>
 							<table className="table table-sm">
-								<thead>
+								<thead className="sticky top-0 z-10 bg-base-100">
 									<tr>
 										<th>出発目安</th>
 										<th>乗車</th>
@@ -123,7 +184,7 @@ export function DepartureBoard({
 									</tr>
 								</thead>
 								<tbody>
-									{group.departures.map((dep) => {
+									{filteredDepartures.map((dep) => {
 										const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
 										const isHovered = hoveredRouteKey === routeKey;
 										const agencyColor = getAgencyColor(dep.routeId);
@@ -182,7 +243,7 @@ export function DepartureBoard({
 						</div>
 					</div>
 				</div>
-			))}
+			)}
 		</div>
 	);
 }
