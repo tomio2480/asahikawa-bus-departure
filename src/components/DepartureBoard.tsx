@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -15,6 +15,8 @@ type DepartureBoardProps = {
 	hoveredRouteKey?: string | null;
 	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
 	onRouteHover?: (key: string | null) => void;
+	/** 行先フィルタ変更時に呼ばれるコールバック（"all" で全行先） */
+	onDestinationFilter?: (destinationId: string) => void;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -53,6 +55,7 @@ export function DepartureBoard({
 	hasRoutes,
 	hoveredRouteKey,
 	onRouteHover,
+	onDestinationFilter,
 }: DepartureBoardProps) {
 	const [selectedDestination, setSelectedDestination] = useState<string>("all");
 
@@ -62,6 +65,7 @@ export function DepartureBoard({
 			.flatMap((group) =>
 				group.departures.map((dep) => ({
 					...dep,
+					groupToStopId: group.toStopId,
 					toStopName: group.toStopName,
 					isNextDay: group.isNextDay,
 				})),
@@ -86,13 +90,18 @@ export function DepartureBoard({
 			? selectedDestination
 			: "all";
 
-	// フィルタ適用
+	// フィルタ適用（グループの toStopId で比較し、兄弟停留所 ID の不一致を回避）
 	const filteredDepartures = useMemo(() => {
 		if (effectiveSelectedDestination === "all") return allDepartures;
 		return allDepartures.filter(
-			(dep) => dep.toStopId === effectiveSelectedDestination,
+			(dep) => dep.groupToStopId === effectiveSelectedDestination,
 		);
 	}, [allDepartures, effectiveSelectedDestination]);
+
+	// フィルタ変更を親に通知
+	useEffect(() => {
+		onDestinationFilter?.(effectiveSelectedDestination);
+	}, [effectiveSelectedDestination, onDestinationFilter]);
 
 	if (!hasRoutes) {
 		return (
