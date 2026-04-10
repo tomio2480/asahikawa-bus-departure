@@ -203,7 +203,7 @@ describe("DepartureBoard コンポーネント", () => {
 		const tbody = screen.getAllByRole("rowgroup")[1]; // tbody
 		const rows = within(tbody).getAllByRole("row");
 		const times = rows.map(
-			(row) => within(row).getAllByText(/^\d{2}:\d{2}$/)[0].textContent,
+			(row) => within(row).getAllByRole("cell")[2].textContent, // 発車カラム（3番目）
 		);
 		// 08:00, 08:15, 09:00 の順に並ぶことを確認
 		expect(times).toEqual(["08:00", "08:15", "09:00"]);
