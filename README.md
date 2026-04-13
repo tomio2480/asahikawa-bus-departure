@@ -174,7 +174,7 @@ scripts/
 └── validate-shapes.ts          # 経路形状のバリデーション
 
 public/data/                    # 事業者ごとの GTFS JSON
-test/                           # テストファイル（283 テスト）
+test/                           # テストファイル
 ```
 
 ---
