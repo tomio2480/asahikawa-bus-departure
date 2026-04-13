@@ -6,6 +6,7 @@ GTFS_BASE="${2:-data/gtfs}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 OPERATORS=("asahikawa_denkikido" "dohoku_bus" "furano_bus")
+PFAEDLE_IMAGE="ghcr.io/ad-freiburg/pfaedle:latest"
 
 # --- OSM ファイル取得 ---
 if [ ! -f "$OSM_FILE" ]; then
@@ -21,12 +22,36 @@ if [ ! -f "$OSM_FILE" ]; then
   echo "Download complete."
 fi
 
-# --- 前提条件チェック ---
-if ! command -v pfaedle &> /dev/null; then
-  echo "Error: pfaedle is not installed"
-  echo "See https://github.com/ad-freiburg/pfaedle for installation instructions"
+# --- pfaedle 実行方法の決定 ---
+USE_DOCKER=false
+if command -v pfaedle &> /dev/null; then
+  echo "Using native pfaedle"
+elif command -v docker &> /dev/null; then
+  echo "pfaedle not found, using Docker image: ${PFAEDLE_IMAGE}"
+  USE_DOCKER=true
+else
+  echo "Error: neither pfaedle nor docker is installed"
+  echo "Install pfaedle (https://github.com/ad-freiburg/pfaedle) or Docker"
   exit 1
 fi
+
+# pfaedle を実行するラッパー関数
+# 引数: 1: OSMファイルパス, 2: GTFSディレクトリパス
+run_pfaedle() {
+  local osm_file="$1"
+  local gtfs_dir="$2"
+  if [ "$USE_DOCKER" = true ]; then
+    docker run --rm \
+      --user "$(id -u):$(id -g)" \
+      --workdir /data/gtfs \
+      -v "$(realpath "$osm_file"):/data/osm.pbf:ro" \
+      -v "$(realpath "$gtfs_dir"):/data/gtfs" \
+      "$PFAEDLE_IMAGE" \
+      -D -x --osm-file /data/osm.pbf /data/gtfs
+  else
+    pfaedle -D -x --osm-file "$osm_file" "$gtfs_dir"
+  fi
+}
 
 # --- 各事業者の shapes.txt 生成 ---
 has_error=false
@@ -42,7 +67,7 @@ for operator in "${OPERATORS[@]}"; do
   fi
 
   echo "Generating shapes for ${operator}..."
-  if ! pfaedle -D -x --osm-file "$OSM_FILE" "$gtfs_dir"; then
+  if ! run_pfaedle "$OSM_FILE" "$gtfs_dir"; then
     echo "Error: pfaedle failed for ${operator}"
     has_error=true
     continue
