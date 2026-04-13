@@ -61,21 +61,7 @@ export function DepartureBoard({
 	onDestinationChange,
 }: DepartureBoardProps) {
 
-	// 全グループの便を統合し、発車時刻順にソート
-	const allDepartures = useMemo(() => {
-		return groups
-			.flatMap((group) =>
-				group.departures.map((dep) => ({
-					...dep,
-					groupToStopId: group.toStopId,
-					toStopName: group.toStopName,
-					isNextDay: group.isNextDay,
-				})),
-			)
-			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-	}, [groups]);
-
-	// 行先の選択肢
+	// 行先の選択肢（ドロップダウン用。フィルタ中も全選択肢を表示する）
 	const destinations = useMemo(
 		() =>
 			new Map(
@@ -86,13 +72,27 @@ export function DepartureBoard({
 		[groups],
 	);
 
-	// フィルタ適用（グループの toStopId で比較し、兄弟停留所 ID の不一致を回避）
-	const filteredDepartures = useMemo(() => {
-		if (selectedDestination === "all") return allDepartures;
-		return allDepartures.filter(
-			(dep) => dep.groupToStopId === selectedDestination,
-		);
-	}, [allDepartures, selectedDestination]);
+	// 選択中の行先でグループを絞り込む
+	const visibleGroups = useMemo(
+		() =>
+			selectedDestination === "all"
+				? groups
+				: groups.filter((g) => g.toStopId === selectedDestination),
+		[groups, selectedDestination],
+	);
+
+	// 表示対象の便を統合し、発車時刻順にソート
+	const allDepartures = useMemo(() => {
+		return visibleGroups
+			.flatMap((group) =>
+				group.departures.map((dep) => ({
+					...dep,
+					toStopName: group.toStopName,
+					isNextDay: group.isNextDay,
+				})),
+			)
+			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+	}, [visibleGroups]);
 
 	if (!hasRoutes) {
 		return (
@@ -118,7 +118,8 @@ export function DepartureBoard({
 		);
 	}
 
-	const allNextDay = groups.length > 0 && groups.every((g) => g.isNextDay);
+	const allNextDay =
+		visibleGroups.length > 0 && visibleGroups.every((g) => g.isNextDay);
 
 	return (
 		<div className="space-y-4">
@@ -134,7 +135,7 @@ export function DepartureBoard({
 				}
 			</div>
 
-			{(groups.length === 0 || allNextDay) && (
+			{(visibleGroups.length === 0 || allNextDay) && (
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
 						<p className="text-base-content/60">現在の発車予定はありません</p>
@@ -184,7 +185,7 @@ export function DepartureBoard({
 									</tr>
 								</thead>
 								<tbody>
-									{filteredDepartures.map((dep) => {
+									{allDepartures.map((dep) => {
 										const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
 										const isHovered = hoveredRouteKey === routeKey;
 										const agencyColor = getAgencyColor(dep.routeId);
