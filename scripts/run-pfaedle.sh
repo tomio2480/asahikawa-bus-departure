@@ -49,7 +49,7 @@ run_pfaedle() {
       "$PFAEDLE_IMAGE" \
       -D -x /osm/input.osm.pbf /gtfs
   else
-    pfaedle -D -x --osm-file "$osm_file" "$gtfs_dir"
+    pfaedle -D -x "$osm_file" "$gtfs_dir"
   fi
 }
 
