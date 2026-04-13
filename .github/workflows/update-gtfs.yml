@@ -62,8 +62,7 @@ jobs:
       - name: Generate shapes with pfaedle
         if: ${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') != '' }}
         run: |
-          sudo apt-get update
-          sudo apt-get install -y pfaedle
+          docker pull ghcr.io/ad-freiburg/pfaedle:latest
           bash scripts/run-pfaedle.sh data/osm/hokkaido-latest.osm.pbf data/gtfs
 
       - name: Convert GTFS to JSON
