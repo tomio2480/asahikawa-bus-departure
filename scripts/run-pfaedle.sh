@@ -47,9 +47,9 @@ run_pfaedle() {
       -v "$(realpath "$osm_file"):/osm/input.osm.pbf:ro" \
       -v "$(realpath "$gtfs_dir"):/gtfs" \
       "$PFAEDLE_IMAGE" \
-      -D -x /osm/input.osm.pbf /gtfs
+      -x /osm/input.osm.pbf -o /gtfs /gtfs
   else
-    pfaedle -D -x "$osm_file" "$gtfs_dir"
+    pfaedle -x "$osm_file" -o "$gtfs_dir" "$gtfs_dir"
   fi
 }
 
