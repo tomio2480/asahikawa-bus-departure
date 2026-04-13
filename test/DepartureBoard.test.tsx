@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DepartureBoard } from "../src/components/DepartureBoard";
 import type { DepartureGroup } from "../src/hooks/useDepartures";
 
@@ -141,7 +141,7 @@ describe("DepartureBoard コンポーネント", () => {
 		]);
 	});
 
-	it("プルダウン選択で行先がフィルタされる", () => {
+	it("selectedDestination で行先がフィルタされる", () => {
 		const groups = [
 			makeGroup(),
 			makeGroup({
@@ -169,11 +169,9 @@ describe("DepartureBoard コンポーネント", () => {
 				lastUpdated={new Date()}
 				error={null}
 				hasRoutes={true}
+				selectedDestination="test:S003"
 			/>,
 		);
-
-		const select = screen.getByRole("combobox");
-		fireEvent.change(select, { target: { value: "test:S003" } });
 
 		expect(screen.getByText("四条方面")).toBeInTheDocument();
 		expect(screen.queryByText("市役所方面")).not.toBeInTheDocument();
@@ -429,6 +427,98 @@ describe("DepartureBoard コンポーネント", () => {
 			/>,
 		);
 		expect(screen.getByText("旭川駅前")).toBeInTheDocument();
+	});
+
+	it("兄弟停留所 ID が異なってもフィルタで正しく絞り込める", () => {
+		const groups: DepartureGroup[] = [
+			{
+				toStopId: "registered:S002",
+				toStopName: "市役所前",
+				departures: [
+					{
+						tripId: "T001",
+						routeId: "R001",
+						routeName: "1番",
+						headsign: "市役所方面",
+						departureTime: "08:00:00",
+						arrivalTime: "08:30:00",
+						fromStopId: "test:S001",
+						toStopId: "sibling:S002_1",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			},
+			{
+				toStopId: "registered:S003",
+				toStopName: "旭川四条駅",
+				departures: [
+					{
+						tripId: "T002",
+						routeId: "R002",
+						routeName: "2番",
+						headsign: "四条方面",
+						departureTime: "08:15:00",
+						arrivalTime: "08:45:00",
+						fromStopId: "test:S001",
+						toStopId: "sibling:S003_1",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			},
+		];
+		render(
+			<DepartureBoard
+				groups={groups}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				selectedDestination="registered:S003"
+			/>,
+		);
+
+		expect(screen.getByText("四条方面")).toBeInTheDocument();
+		expect(screen.queryByText("市役所方面")).not.toBeInTheDocument();
+	});
+
+	it("onDestinationChange がプルダウン操作で呼ばれる", () => {
+		const onChange = vi.fn();
+		const groups = [
+			makeGroup(),
+			makeGroup({
+				toStopId: "test:S003",
+				toStopName: "旭川四条駅",
+				departures: [
+					{
+						tripId: "T003",
+						routeId: "R002",
+						routeName: "2番",
+						headsign: "四条方面",
+						departureTime: "08:15:00",
+						arrivalTime: "08:45:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S003",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			}),
+		];
+		render(
+			<DepartureBoard
+				groups={groups}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onDestinationChange={onChange}
+			/>,
+		);
+
+		const select = screen.getByRole("combobox");
+		fireEvent.change(select, { target: { value: "test:S003" } });
+
+		expect(onChange).toHaveBeenCalledWith("test:S003");
 	});
 
 	it("Asaca 乗り継ぎ割引の注釈が表示される", () => {

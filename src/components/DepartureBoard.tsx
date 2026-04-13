@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -15,6 +15,10 @@ type DepartureBoardProps = {
 	hoveredRouteKey?: string | null;
 	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
 	onRouteHover?: (key: string | null) => void;
+	/** 現在選択中の行先フィルタ値（"all" で全行先） */
+	selectedDestination?: string;
+	/** 行先フィルタ変更時に呼ばれるコールバック */
+	onDestinationChange?: (destinationId: string) => void;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -53,23 +57,11 @@ export function DepartureBoard({
 	hasRoutes,
 	hoveredRouteKey,
 	onRouteHover,
+	selectedDestination = "all",
+	onDestinationChange,
 }: DepartureBoardProps) {
-	const [selectedDestination, setSelectedDestination] = useState<string>("all");
 
-	// 全グループの便を統合し、発車時刻順にソート
-	const allDepartures = useMemo(() => {
-		return groups
-			.flatMap((group) =>
-				group.departures.map((dep) => ({
-					...dep,
-					toStopName: group.toStopName,
-					isNextDay: group.isNextDay,
-				})),
-			)
-			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-	}, [groups]);
-
-	// 行先の選択肢
+	// 行先の選択肢（ドロップダウン用。フィルタ中も全選択肢を表示する）
 	const destinations = useMemo(
 		() =>
 			new Map(
@@ -80,19 +72,27 @@ export function DepartureBoard({
 		[groups],
 	);
 
-	// groups 更新後に選択中の行先が消えた場合は "all" にフォールバック
-	const effectiveSelectedDestination =
-		selectedDestination === "all" || destinations.has(selectedDestination)
-			? selectedDestination
-			: "all";
+	// 選択中の行先でグループを絞り込む
+	const visibleGroups = useMemo(
+		() =>
+			selectedDestination === "all"
+				? groups
+				: groups.filter((g) => g.toStopId === selectedDestination),
+		[groups, selectedDestination],
+	);
 
-	// フィルタ適用
-	const filteredDepartures = useMemo(() => {
-		if (effectiveSelectedDestination === "all") return allDepartures;
-		return allDepartures.filter(
-			(dep) => dep.toStopId === effectiveSelectedDestination,
-		);
-	}, [allDepartures, effectiveSelectedDestination]);
+	// 表示対象の便を統合し、発車時刻順にソート
+	const allDepartures = useMemo(() => {
+		return visibleGroups
+			.flatMap((group) =>
+				group.departures.map((dep) => ({
+					...dep,
+					toStopName: group.toStopName,
+					isNextDay: group.isNextDay,
+				})),
+			)
+			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+	}, [visibleGroups]);
 
 	if (!hasRoutes) {
 		return (
@@ -118,7 +118,8 @@ export function DepartureBoard({
 		);
 	}
 
-	const allNextDay = groups.length > 0 && groups.every((g) => g.isNextDay);
+	const allNextDay =
+		visibleGroups.length > 0 && visibleGroups.every((g) => g.isNextDay);
 
 	return (
 		<div className="space-y-4">
@@ -134,7 +135,7 @@ export function DepartureBoard({
 				}
 			</div>
 
-			{(groups.length === 0 || allNextDay) && (
+			{(visibleGroups.length === 0 || allNextDay) && (
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
 						<p className="text-base-content/60">現在の発車予定はありません</p>
@@ -156,8 +157,8 @@ export function DepartureBoard({
 								<select
 									aria-label="行き先で絞り込む"
 									className="select select-sm select-bordered"
-									value={effectiveSelectedDestination}
-									onChange={(e) => setSelectedDestination(e.target.value)}
+									value={selectedDestination}
+									onChange={(e) => onDestinationChange?.(e.target.value)}
 								>
 									<option value="all">全ての行先</option>
 									{[...destinations.entries()].map(([stopId, name]) => (
@@ -184,7 +185,7 @@ export function DepartureBoard({
 									</tr>
 								</thead>
 								<tbody>
-									{filteredDepartures.map((dep) => {
+									{allDepartures.map((dep) => {
 										const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
 										const isHovered = hoveredRouteKey === routeKey;
 										const agencyColor = getAgencyColor(dep.routeId);
