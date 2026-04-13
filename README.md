@@ -1,1 +1,197 @@
 # asahikawa-bus-departure
+
+旭川市内のバス発車案内を表示する Web アプリケーション。GTFS データをもとに、登録した経路の発車時刻・運賃・地図を確認できる。
+
+---
+
+## 目次
+
+- [概要](#-概要)
+- [デモ](#-デモ)
+- [主な機能](#-主な機能)
+- [技術スタック](#-技術スタック)
+- [使い方](#-使い方)
+- [開発](#-開発)
+- [プロジェクト構成](#-プロジェクト構成)
+- [データ更新](#-データ更新)
+- [ライセンス](#-ライセンス)
+
+---
+
+## 📋 概要
+
+旭川電気軌道・道北バス・ふらのバスの 3 事業者に対応した発車案内ツール。乗車バス停と降車バス停を登録すると、直近の発車時刻を一覧表示する。
+
+データはすべてブラウザ内で処理される。サーバーへの送信は行わない。登録した経路は IndexedDB に保存され、ブラウザを閉じても維持される。
+
+---
+
+## 🌐 デモ
+
+<https://tomio2480.github.io/asahikawa-bus-departure/>
+
+---
+
+## 🔧 主な機能
+
+### 発車案内
+
+登録経路の発車時刻を 1 分間隔で自動更新する。出発目安時刻（徒歩時間を差し引いた自宅出発時刻）、運賃、路線名、行き先を表示する。出発済みの便には「出発済」バッジが付く。
+
+### 行先フィルタ
+
+複数の行先がある場合、プルダウンで絞り込める。一覧と地図が連動してフィルタされる。
+
+### 経路マップ
+
+Leaflet + OpenStreetMap で経路の形状を地図上に描画する。一覧の行にホバーすると対応する経路がハイライトされる。
+
+### 経路登録
+
+バス停名のインクリメンタルサーチで乗車・降車バス停を選択する。徒歩時間も設定でき、出発目安の算出に使われる。
+
+### エクスポート / インポート
+
+登録経路を JSON ファイルで書き出し・読み込みできる。端末間の移行やバックアップに利用する。
+
+---
+
+## 🛠 技術スタック
+
+| カテゴリ | 技術 |
+|---------|------|
+| フレームワーク | React 19 + TypeScript |
+| ビルド | Vite 8 |
+| UI | Tailwind CSS 4 + DaisyUI 5 |
+| データベース | sql.js（ブラウザ内 SQLite） |
+| 永続化 | IndexedDB（経路登録） |
+| 地図 | Leaflet + React-Leaflet |
+| テスト | Vitest + Testing Library |
+| リント | Biome |
+
+---
+
+## 📖 使い方
+
+### 1. 経路を登録する
+
+画面下部の「経路登録」セクションで乗車バス停と降車バス停を検索・選択する。徒歩時間（分）を入力して「追加」を押す。
+
+### 2. 発車案内を確認する
+
+登録した経路の発車時刻が一覧に表示される。複数の行先がある場合はプルダウンで絞り込める。1 分ごとに自動更新される。
+
+### 3. 地図で経路を確認する
+
+一覧の下に経路マップが表示される。行の上にカーソルを置くと、対応する経路がハイライトされる。
+
+### 4. 経路をバックアップする
+
+画面右上のメニューからエクスポート・インポートができる。JSON 形式で保存される。
+
+---
+
+## 💻 開発
+
+### 前提条件
+
+- Node.js 22 以上
+- npm
+
+### セットアップ
+
+```bash
+npm install
+```
+
+### 開発サーバー
+
+```bash
+npm run dev
+```
+
+Vite の HMR が有効な開発サーバーが起動する。
+
+### テスト
+
+```bash
+npm test          # 全テストを 1 回実行
+npm run test:watch # ファイル変更を監視して自動実行
+```
+
+### ビルド
+
+```bash
+npm run build
+```
+
+TypeScript の型チェックと Vite のプロダクションビルドを実行する。成果物は `dist/` に出力される。
+
+### リント・フォーマット
+
+```bash
+npm run check     # 問題の検出
+npm run check:fix # 自動修正
+```
+
+Biome によるリントとフォーマットを実行する。
+
+---
+
+## 📁 プロジェクト構成
+
+````text
+src/
+├── App.tsx                     # アプリケーションのルートコンポーネント
+├── components/
+│   ├── DepartureBoard.tsx      # 発車案内テーブル
+│   ├── MapView.tsx             # 経路マップ
+│   ├── RouteRegistration.tsx   # 経路登録フォーム
+│   ├── StopSearch.tsx          # バス停インクリメンタルサーチ
+│   ├── RouteTransfer.tsx       # エクスポート / インポート
+│   ├── ExpiryWarning.tsx       # データ有効期限の警告
+│   └── LoadingSpinner.tsx      # 読み込み中表示
+├── hooks/
+│   ├── useDatabase.ts          # GTFS データベースの初期化
+│   ├── useDepartures.ts        # 発車案内の取得とグルーピング
+│   └── useRoutes.ts            # 登録経路の CRUD
+├── lib/
+│   ├── gtfs-loader.ts          # GTFS JSON を sql.js に読み込む
+│   ├── departure-query.ts      # 発車時刻の検索クエリ
+│   ├── calendar-service.ts     # 運行日判定
+│   ├── fare-query.ts           # 運賃検索
+│   ├── stop-search.ts          # バス停検索・兄弟停留所展開
+│   ├── route-store.ts          # IndexedDB による経路永続化
+│   ├── agency-colors.ts        # 事業者カラー定義
+│   ├── data-expiry.ts          # データ有効期限の算出
+│   ├── shape-query.ts          # 経路形状の取得
+│   └── geo-utils.ts            # 座標計算ユーティリティ
+└── types/                      # 型定義
+
+scripts/
+├── convert-gtfs.ts             # GTFS CSV → JSON 変換
+├── run-pfaedle.sh              # pfaedle による経路形状生成
+└── validate-shapes.ts          # 経路形状のバリデーション
+
+public/data/                    # 事業者ごとの GTFS JSON
+test/                           # テストファイル
+```
+
+---
+
+## 🔄 データ更新
+
+GTFS データは GitHub Actions で自動更新される。
+
+| ワークフロー | 頻度 | 内容 |
+|-------------|------|------|
+| `update-gtfs.yml` | 毎週月曜 3:00 UTC | HODA から GTFS データをダウンロードし JSON に変換 |
+| `update-osm.yml` | 毎月 1 日 2:00 UTC | Geofabrik から北海道の OSM データを取得し pfaedle で経路形状を生成 |
+
+データソースは [HODA（北海道オープンデータポータル）](https://ckan.pf-sapporo.jp)の GTFS フィードを使用している。
+
+---
+
+## 📄 ライセンス
+
+MIT License - Copyright (c) 2026 Shota Nishihara
