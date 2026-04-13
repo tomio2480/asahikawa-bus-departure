@@ -43,11 +43,11 @@ run_pfaedle() {
   if [ "$USE_DOCKER" = true ]; then
     docker run --rm \
       --user "$(id -u):$(id -g)" \
-      --workdir /data/gtfs \
-      -v "$(realpath "$osm_file"):/data/osm.pbf:ro" \
-      -v "$(realpath "$gtfs_dir"):/data/gtfs" \
+      --workdir /gtfs \
+      -v "$(realpath "$osm_file"):/osm/input.osm.pbf:ro" \
+      -v "$(realpath "$gtfs_dir"):/gtfs" \
       "$PFAEDLE_IMAGE" \
-      -D -x --osm-file /data/osm.pbf /data/gtfs
+      -D -x /osm/input.osm.pbf /gtfs
   else
     pfaedle -D -x --osm-file "$osm_file" "$gtfs_dir"
   fi
