@@ -36,12 +36,13 @@ else
 fi
 
 # pfaedle を実行するラッパー関数
-# 引数: pfaedle に渡すオプション（最後の引数が GTFS ディレクトリ）
+# 引数: 1: OSMファイルパス, 2: GTFSディレクトリパス
 run_pfaedle() {
   local osm_file="$1"
   local gtfs_dir="$2"
   if [ "$USE_DOCKER" = true ]; then
     docker run --rm \
+      --user "$(id -u):$(id -g)" \
       -v "$(realpath "$osm_file"):/data/osm.pbf:ro" \
       -v "$(realpath "$gtfs_dir"):/data/gtfs" \
       "$PFAEDLE_IMAGE" \
