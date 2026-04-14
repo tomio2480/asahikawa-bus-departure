@@ -124,10 +124,12 @@ export function RouteRegistration({
 				fromStop: {
 					stop_id: route.fromStopId,
 					stop_name: stopNameMap.get(route.fromStopId) ?? route.fromStopId,
+					clusterStopIds: [route.fromStopId],
 				},
 				toStop: {
 					stop_id: route.toStopId,
 					stop_name: stopNameMap.get(route.toStopId) ?? route.toStopId,
+					clusterStopIds: [route.toStopId],
 				},
 				walkMinutes: String(route.walkMinutes),
 			});
