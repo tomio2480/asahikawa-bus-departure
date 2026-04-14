@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Database } from "sql.js";
+import { getAgencyColor } from "../lib/agency-colors";
 import { type StopSearchResult, searchStops } from "../lib/stop-search";
 
 type StopSearchProps = {
@@ -153,7 +154,28 @@ export function StopSearch({
 							onClick={() => handleSelect(stop)}
 							onMouseEnter={() => setActiveIndex(index)}
 						>
-							{stop.stop_name}
+							<span className="inline-flex items-center gap-1">
+								{stop.stop_name}
+								{(() => {
+									const ids = stop.clusterStopIds ?? [stop.stop_id];
+									const seen = new Set<string>();
+									return ids.flatMap((id) => {
+										const entry = getAgencyColor(id);
+										if (!entry || seen.has(entry.agencyName)) return [];
+										seen.add(entry.agencyName);
+										return (
+											<span
+												key={entry.agencyName}
+												className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+												style={{ backgroundColor: entry.color }}
+												title={entry.agencyName}
+												aria-label={entry.agencyName}
+												role="img"
+											/>
+										);
+									});
+								})()}
+							</span>
 							{stop.disambiguationLabel && (
 								<span className="text-xs text-base-content/60 ml-1">
 									({stop.disambiguationLabel})
