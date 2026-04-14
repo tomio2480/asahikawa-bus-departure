@@ -213,6 +213,14 @@ export function useDepartures(
 						]),
 					).values(),
 				);
+				// prev~ プレフィックスを除去し、ハイライト・地図で一貫した ID を使う
+				for (const dep of unique) {
+					dep.tripId = stripPrev(dep.tripId);
+					dep.routeId = stripPrev(dep.routeId);
+					dep.fromStopId = stripPrev(dep.fromStopId);
+					dep.toStopId = stripPrev(dep.toStopId);
+					if (dep.shapeId) dep.shapeId = stripPrev(dep.shapeId);
+				}
 				unique.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 				result.push({
 					toStopId,
