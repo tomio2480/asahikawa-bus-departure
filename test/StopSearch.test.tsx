@@ -128,6 +128,7 @@ describe("StopSearch コンポーネント", () => {
 		expect(onSelect).toHaveBeenCalledWith({
 			stop_id: "test:S002",
 			stop_name: "市役所前",
+			clusterStopIds: ["test:S002"],
 		});
 		expect(input).toHaveValue("市役所前");
 		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();

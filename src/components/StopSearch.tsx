@@ -154,10 +154,10 @@ export function StopSearch({
 							onClick={() => handleSelect(stop)}
 							onMouseEnter={() => setActiveIndex(index)}
 						>
-							<span className="inline-flex items-center gap-1">
+							<span className="inline-flex flex-wrap items-center gap-1">
 								{stop.stop_name}
 								{(() => {
-									const ids = stop.clusterStopIds ?? [stop.stop_id];
+									const ids = stop.clusterStopIds;
 									const seen = new Set<string>();
 									return ids.flatMap((id) => {
 										const entry = getAgencyColor(id);
