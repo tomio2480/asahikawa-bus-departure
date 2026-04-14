@@ -78,14 +78,15 @@ describe("useDatabase", () => {
 		expect(result.current.error).toBeNull();
 	});
 
-	it("3 社分の GTFS データを fetch する", async () => {
+	it("3 社分の GTFS データを fetch する（現行 + 前期間）", async () => {
 		const { result } = renderHook(() => useDatabase());
 
 		await waitFor(() => {
 			expect(result.current.loading).toBe(false);
 		});
 
-		expect(mockFetch).toHaveBeenCalledTimes(3);
+		// 現行 3 社 + 前期間 3 社 = 6 回
+		expect(mockFetch).toHaveBeenCalledTimes(6);
 		expect(mockFetch).toHaveBeenCalledWith(
 			expect.stringContaining("asahikawa_denkikido.json"),
 		);
@@ -94,6 +95,15 @@ describe("useDatabase", () => {
 		);
 		expect(mockFetch).toHaveBeenCalledWith(
 			expect.stringContaining("furano_bus.json"),
+		);
+		expect(mockFetch).toHaveBeenCalledWith(
+			expect.stringContaining("asahikawa_denkikido_prev.json"),
+		);
+		expect(mockFetch).toHaveBeenCalledWith(
+			expect.stringContaining("dohoku_bus_prev.json"),
+		);
+		expect(mockFetch).toHaveBeenCalledWith(
+			expect.stringContaining("furano_bus_prev.json"),
 		);
 	});
 

@@ -204,9 +204,13 @@ export function useDepartures(
 
 			const result: DepartureGroup[] = [];
 			for (const [toStopId, data] of groupMap) {
+				const stripPrev = (id: string) => id.replace(/:prev~/, ":");
 				const unique = Array.from(
 					new Map(
-						data.departures.map((d) => [`${d.tripId}-${d.departureTime}`, d]),
+						data.departures.map((d) => [
+							`${stripPrev(d.tripId)}-${d.departureTime}`,
+							d,
+						]),
 					).values(),
 				);
 				unique.sort((a, b) => a.departureTime.localeCompare(b.departureTime));

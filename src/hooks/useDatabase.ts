@@ -24,8 +24,10 @@ function getSqlJs(): Promise<SqlJsStatic> {
 	return sqlJsPromise;
 }
 
-async function fetchGtfsData(baseUrl: string): Promise<GtfsData[]> {
-	const results = await Promise.all(
+async function fetchGtfsData(
+	baseUrl: string,
+): Promise<{ current: GtfsData[]; prev: (GtfsData | null)[] }> {
+	const current = await Promise.all(
 		OPERATORS.map(async (op) => {
 			const res = await fetch(`${baseUrl}data/${op}.json`);
 			if (!res.ok) {
@@ -34,7 +36,20 @@ async function fetchGtfsData(baseUrl: string): Promise<GtfsData[]> {
 			return res.json() as Promise<GtfsData>;
 		}),
 	);
-	return results;
+	const prev = await Promise.all(
+		OPERATORS.map(async (op) => {
+			try {
+				const res = await fetch(`${baseUrl}data/${op}_prev.json`);
+				if (!res.ok) return null;
+				const contentType = res.headers.get("content-type") ?? "";
+				if (!contentType.includes("json")) return null;
+				return res.json() as Promise<GtfsData>;
+			} catch {
+				return null;
+			}
+		}),
+	);
+	return { current, prev };
 }
 
 export function useDatabase(): {
@@ -58,7 +73,9 @@ export function useDatabase(): {
 				database = new SQL.Database();
 				createSchema(database);
 
-				const datasets = await fetchGtfsData(import.meta.env.BASE_URL);
+				const { current, prev } = await fetchGtfsData(
+					import.meta.env.BASE_URL,
+				);
 				if (cancelled) {
 					database.close();
 					database = null;
@@ -66,7 +83,11 @@ export function useDatabase(): {
 				}
 
 				for (let i = 0; i < OPERATORS.length; i++) {
-					loadGtfsData(database, datasets[i], OPERATORS[i]);
+					loadGtfsData(database, current[i], OPERATORS[i]);
+					const prevData = prev[i];
+					if (prevData) {
+						loadGtfsData(database, prevData, OPERATORS[i], "prev~");
+					}
 				}
 
 				setDb(database);

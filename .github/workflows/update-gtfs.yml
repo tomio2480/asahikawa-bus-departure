@@ -50,7 +50,21 @@ jobs:
           unzip -o /tmp/dohoku_bus.zip -d data/gtfs/dohoku_bus
           unzip -o /tmp/furano_bus.zip -d data/gtfs/furano_bus
 
+      - name: Restore previous GTFS data from cache
+        id: gtfs-cache
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: data/gtfs-prev
+          key: gtfs-prev-
+          restore-keys: |
+            gtfs-prev-
+
+      - name: Compare calendar periods
+        id: calendar
+        run: bash scripts/compare-calendar.sh data/gtfs data/gtfs-prev
+
       - name: Restore OSM data from cache
+        if: steps.calendar.outputs.changed == 'true'
         id: osm-cache
         uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
         with:
@@ -60,13 +74,27 @@ jobs:
             osm-hokkaido-
 
       - name: Generate shapes with pfaedle
-        if: ${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') != '' }}
+        if: steps.calendar.outputs.changed == 'true' && hashFiles('data/osm/hokkaido-latest.osm.pbf') != ''
         run: |
           docker pull ghcr.io/ad-freiburg/pfaedle:latest
           bash scripts/run-pfaedle.sh data/osm/hokkaido-latest.osm.pbf data/gtfs
 
       - name: Convert GTFS to JSON
-        run: npx tsx scripts/convert-gtfs.ts data/gtfs public/data
+        if: steps.calendar.outputs.changed == 'true'
+        run: npx tsx scripts/convert-gtfs.ts data/gtfs public/data data/gtfs-prev
+
+      - name: Save current GTFS as previous for next run
+        if: steps.calendar.outputs.changed == 'true'
+        run: |
+          rm -rf data/gtfs-prev
+          cp -r data/gtfs data/gtfs-prev
+
+      - name: Cache current GTFS for next run
+        if: steps.calendar.outputs.changed == 'true'
+        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        with:
+          path: data/gtfs-prev
+          key: gtfs-prev-${{ hashFiles('data/gtfs/*/calendar.txt') }}
 
       - name: Check for changes
         id: diff
