@@ -180,6 +180,7 @@ describe("StopSearch コンポーネント", () => {
 		const selected: StopSearchResult = {
 			stop_id: "test:S001",
 			stop_name: "旭川駅前",
+			clusterStopIds: ["test:S001"],
 		};
 		render(
 			<StopSearch
