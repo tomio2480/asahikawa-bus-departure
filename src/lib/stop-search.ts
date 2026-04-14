@@ -7,6 +7,8 @@ export type StopSearchResult = {
 	stop_name: string;
 	/** 同名バス停が遠距離に存在する場合の区別ラベル（事業者名など） */
 	disambiguationLabel?: string;
+	/** クラスタに含まれる全バス停の stop_id（事業者バッジ表示用） */
+	clusterStopIds: string[];
 };
 
 /** 検索結果の最大件数 */
@@ -74,6 +76,7 @@ export function searchStops(
 			const result: StopSearchResult = {
 				stop_id: cluster.representativeId,
 				stop_name: cluster.stopName,
+				clusterStopIds: cluster.stopIds,
 			};
 
 			if (needsDisambiguation.has(cluster.stopName)) {
