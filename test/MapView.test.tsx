@@ -12,9 +12,35 @@ import {
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
 
+const mockFitBounds = vi.fn();
+const mockScrollWheelZoomEnable = vi.fn();
+const mockScrollWheelZoomDisable = vi.fn();
+const mockZoomIn = vi.fn();
+const mockZoomOut = vi.fn();
+const mockGetContainer = vi.fn(() => {
+	const div = document.createElement("div");
+	return div;
+});
+const mockMapInstance = {
+	fitBounds: mockFitBounds,
+	scrollWheelZoom: {
+		enable: mockScrollWheelZoomEnable,
+		disable: mockScrollWheelZoomDisable,
+	},
+	zoomIn: mockZoomIn,
+	zoomOut: mockZoomOut,
+	getContainer: mockGetContainer,
+};
+
 vi.mock("leaflet", () => ({
 	default: {
 		Icon: vi.fn(),
+		latLngBounds: vi.fn(
+			(positions: [number, number][]) => ({
+				_positions: positions,
+				isValid: () => positions.length > 0,
+			}),
+		),
 	},
 }));
 
@@ -33,11 +59,17 @@ vi.mock("react-leaflet", () => ({
 	MapContainer: ({
 		children,
 		...props
-	}: { children: React.ReactNode; center: [number, number]; zoom: number }) => (
+	}: {
+		children: React.ReactNode;
+		center: [number, number];
+		zoom: number;
+		scrollWheelZoom?: boolean | string;
+	}) => (
 		<div
 			data-testid="map-container"
 			data-center={JSON.stringify(props.center)}
 			data-zoom={props.zoom}
+			data-scroll-wheel-zoom={String(props.scrollWheelZoom ?? true)}
 		>
 			{children}
 		</div>
@@ -69,6 +101,7 @@ vi.mock("react-leaflet", () => ({
 			data-opacity={pathOptions.opacity}
 		/>
 	),
+	useMap: () => mockMapInstance,
 }));
 
 import { MapView } from "../src/components/MapView";
@@ -177,6 +210,7 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup();
 	db.close();
+	document.documentElement.removeAttribute("data-theme");
 });
 
 describe("MapView", () => {
@@ -278,7 +312,7 @@ describe("MapView", () => {
 			/>,
 		);
 		const polylines = screen.getAllByTestId("polyline");
-		expect(polylines[0].dataset.color).toBe("#b0c4de");
+		expect(polylines[0].dataset.color).toBe("#D8DDE6");
 		expect(polylines[1].dataset.color).toBe("#B0C1E2");
 	});
 
@@ -286,5 +320,107 @@ describe("MapView", () => {
 		render(<MapView db={db} routes={[]} />);
 		expect(screen.getByTestId("map-container")).toBeInTheDocument();
 		expect(screen.queryByTestId("polyline")).toBeNull();
+	});
+
+	describe("auto-fit bounds", () => {
+		it("ルートがある場合は fitBounds が呼ばれる", () => {
+			mockFitBounds.mockClear();
+			render(
+				<MapView
+					db={db}
+					routes={[
+						{
+							tripId: "TEST:T1",
+							routeId: "TEST:R1",
+							shapeId: "TEST:SH1",
+							fromStopId: "TEST:S1",
+							toStopId: "TEST:S3",
+						},
+					]}
+				/>,
+			);
+			expect(mockFitBounds).toHaveBeenCalledWith(
+				expect.anything(),
+				expect.objectContaining({ padding: [30, 30] }),
+			);
+		});
+
+		it("ルートが空の場合は fitBounds が呼ばれない", () => {
+			mockFitBounds.mockClear();
+			render(<MapView db={db} routes={[]} />);
+			expect(mockFitBounds).not.toHaveBeenCalled();
+		});
+	});
+
+	describe("sepia tile filter", () => {
+		it("ライトテーマでは暖色セピアフィルタが適用される", () => {
+			document.documentElement.setAttribute("data-theme", "light");
+			render(
+				<MapView
+					db={db}
+					routes={[
+						{
+							tripId: "TEST:T1",
+							routeId: "TEST:R1",
+							shapeId: "TEST:SH1",
+							fromStopId: "TEST:S1",
+							toStopId: "TEST:S3",
+						},
+					]}
+				/>,
+			);
+			const style = document.querySelector(
+				"[data-testid='map-tile-filter']",
+			);
+			expect(style).toBeInTheDocument();
+			expect(style?.textContent).toContain("sepia(1)");
+			expect(style?.textContent).toContain("saturate(0.4)");
+			expect(style?.textContent).toContain("brightness(1");
+		});
+
+		it("ダークテーマではダークセピアフィルタが適用される", () => {
+			document.documentElement.setAttribute("data-theme", "dark");
+			render(
+				<MapView
+					db={db}
+					routes={[
+						{
+							tripId: "TEST:T1",
+							routeId: "TEST:R1",
+							shapeId: "TEST:SH1",
+							fromStopId: "TEST:S1",
+							toStopId: "TEST:S3",
+						},
+					]}
+				/>,
+			);
+			const style = document.querySelector(
+				"[data-testid='map-tile-filter']",
+			);
+			expect(style).toBeInTheDocument();
+			expect(style?.textContent).toContain("sepia(1)");
+			expect(style?.textContent).toContain("brightness(0.55)");
+		});
+	});
+
+	describe("scroll behavior", () => {
+		it("scrollWheelZoom が false に設定される", () => {
+			render(
+				<MapView
+					db={db}
+					routes={[
+						{
+							tripId: "TEST:T1",
+							routeId: "TEST:R1",
+							shapeId: "TEST:SH1",
+							fromStopId: "TEST:S1",
+							toStopId: "TEST:S3",
+						},
+					]}
+				/>,
+			);
+			const container = screen.getByTestId("map-container");
+			expect(container.dataset.scrollWheelZoom).toBe("false");
+		});
 	});
 });

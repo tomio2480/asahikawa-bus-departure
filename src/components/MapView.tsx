@@ -11,6 +11,7 @@ import {
 	Popup,
 	TileLayer,
 	Tooltip,
+	useMap,
 } from "react-leaflet";
 import type { Database } from "sql.js";
 import { findClosestPointIndex } from "../lib/geo-utils";
@@ -32,18 +33,20 @@ const defaultIcon = new L.Icon({
 const ASAHIKAWA_CENTER: [number, number] = [43.7706, 142.3649];
 const DEFAULT_ZOOM = 13;
 
-/** 全経路の色 */
-const ROUTE_COLOR_BASE = "#b0c4de";
-/** ハイライト区間の色 */
+/** 全経路（乗車しない区間）の色 */
+const ROUTE_COLOR_BASE = "#D8DDE6";
+/** 全経路のホバー色（一段階濃く） */
+const ROUTE_COLOR_BASE_HOVER = "#B0B8C8";
+/** 乗車区間の色 */
 const ROUTE_COLOR_SECTION = "#B0C1E2";
-/** ハイライト区間の固定色 */
+/** 乗車区間の固定色 */
 const ROUTE_COLOR_SECTION_PINNED = "#6D8CC6";
-/** ハイライト区間のホバー色 */
+/** 乗車区間のホバー色 */
 const ROUTE_COLOR_SECTION_HOVER = "#375FA9";
 
 /** 全経路の線幅 */
-const BASE_WEIGHT = 6;
-/** ハイライト区間の線幅 */
+const BASE_WEIGHT = 4;
+/** 乗車区間の線幅 */
 const SECTION_WEIGHT = 10;
 
 type MapRoute = {
@@ -70,6 +73,8 @@ type MapViewProps = {
 type PolylineData = {
 	key: string;
 	positions: [number, number][];
+	/** 関連するルートキーの集合（ベースポリラインは複数ルートに共有される場合がある） */
+	routeKeys: Set<string>;
 };
 
 type HighlightPolylineData = PolylineData & {
@@ -102,6 +107,75 @@ function getStopInfo(
 	}
 }
 
+/** タイルペインにセピアフィルタを適用するための CSS フィルタ */
+const TILE_FILTER_LIGHT = "sepia(1) saturate(0.4) brightness(1.0)";
+const TILE_FILTER_DARK =
+	"sepia(1) saturate(0.4) brightness(0.55)";
+
+/**
+ * 全マーカー・ポリラインの座標から地図の表示範囲を自動調整する。
+ * ルートやマーカーが存在しない場合はデフォルトの中心・ズームを維持する。
+ */
+function FitBounds({
+	positions,
+}: { positions: [number, number][] }) {
+	const map = useMap();
+
+	useEffect(() => {
+		if (positions.length === 0) return;
+
+		const bounds = L.latLngBounds(positions);
+		if (bounds.isValid()) {
+			map.fitBounds(bounds, { padding: [30, 30] });
+		}
+	}, [map, positions]);
+
+	return null;
+}
+
+/**
+ * テーマに応じたセピアフィルタを .leaflet-tile-pane に適用する。
+ * data-theme 属性に応じた CSS セレクタにより、テーマ変更に追従する。
+ */
+function TileFilter() {
+	return (
+		<style data-testid="map-tile-filter">{`
+			[data-theme="light"] .leaflet-tile-pane { filter: ${TILE_FILTER_LIGHT}; }
+			[data-theme="dark"] .leaflet-tile-pane { filter: ${TILE_FILTER_DARK}; }
+		`}</style>
+	);
+}
+
+/**
+ * 通常スクロールでは地図をズームせず、Ctrl/Cmd+スクロール時のみズームする。
+ * モバイルでは二本指操作でのみズームを許可する。
+ */
+function ScrollZoomHandler() {
+	const map = useMap();
+
+	useEffect(() => {
+		const container = map.getContainer();
+
+		const handleWheel = (e: WheelEvent) => {
+			if (e.ctrlKey || e.metaKey) {
+				e.preventDefault();
+				if (e.deltaY < 0) {
+					map.zoomIn();
+				} else if (e.deltaY > 0) {
+					map.zoomOut();
+				}
+			}
+		};
+
+		container.addEventListener("wheel", handleWheel, { passive: false });
+		return () => {
+			container.removeEventListener("wheel", handleWheel);
+		};
+	}, [map]);
+
+	return null;
+}
+
 function MapView({
 	db,
 	routes,
@@ -116,8 +190,8 @@ function MapView({
 			{ name: string; lat: number; lon: number }
 		>();
 		const baseArr: PolylineData[] = [];
+		const baseMap = new Map<string, PolylineData>();
 		const highlightArr: HighlightPolylineData[] = [];
-		const seenBaseKeys = new Set<string>();
 		const seenHighlightKeys = new Set<string>();
 		const geometryCache = new Map<
 			string,
@@ -165,10 +239,16 @@ function MapView({
 			}
 			const { fullPoints, positions } = geometry;
 
-			// 全経路ポリライン（shape/trip 単位で重複排除）
-			if (!seenBaseKeys.has(baseKey)) {
-				seenBaseKeys.add(baseKey);
-				baseArr.push({ key: baseKey, positions });
+			const routeKey = `${route.routeId}-${route.fromStopId}-${route.toStopId}`;
+
+			// 全経路ポリライン（shape/trip 単位で重複排除、routeKeys を集約）
+			const existingBase = baseMap.get(baseKey);
+			if (existingBase) {
+				existingBase.routeKeys.add(routeKey);
+			} else {
+				const pl: PolylineData = { key: baseKey, positions, routeKeys: new Set([routeKey]) };
+				baseArr.push(pl);
+				baseMap.set(baseKey, pl);
 			}
 
 			// ハイライト区間（trip+from+to 単位で重複排除）
@@ -189,7 +269,8 @@ function MapView({
 				if (segment.length > 0) {
 					highlightArr.push({
 						key: highlightKey,
-						routeKey: `${route.routeId}-${route.fromStopId}-${route.toStopId}`,
+						routeKeys: new Set([routeKey]),
+						routeKey,
 						positions: segment,
 						fromStopName: fromStop.name,
 						toStopName: toStop.name,
@@ -252,12 +333,28 @@ function MapView({
 		}
 	}, [hoveredKey, routeKeyMap]);
 
+	// FitBounds 用: マーカー座標と乗車区間ポリラインの座標を結合する
+	// ベースポリライン（乗車しない区間）は初期表示範囲に含めない
+	const allPositions = useMemo(
+		() => [
+			...Array.from(markers.values()).map(
+				(stop) => [stop.lat, stop.lon] as [number, number],
+			),
+			...highlightPolylines.flatMap((pl) => pl.positions),
+		],
+		[markers, highlightPolylines],
+	);
+
 	return (
 		<MapContainer
 			center={ASAHIKAWA_CENTER}
 			zoom={DEFAULT_ZOOM}
+			scrollWheelZoom={false}
 			style={{ height: "400px", width: "100%" }}
 		>
+			<FitBounds positions={allPositions} />
+			<TileFilter />
+			<ScrollZoomHandler />
 			<TileLayer
 				url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 				attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -267,17 +364,30 @@ function MapView({
 					<Popup>{stop.name}</Popup>
 				</Marker>
 			))}
-			{basePolylines.map((pl) => (
-				<Polyline
-					key={`base-${pl.key}`}
-					positions={pl.positions}
-					pathOptions={{
-						color: ROUTE_COLOR_BASE,
-						weight: BASE_WEIGHT,
-						opacity: 0.4,
-					}}
-				/>
-			))}
+			{(() => {
+				const hoveredRouteFromKey = hoveredKey
+					? routeKeyMap.get(hoveredKey) ?? null
+					: null;
+				return basePolylines.map((pl) => {
+				const isBaseActive =
+					(hoveredRouteKey && pl.routeKeys.has(hoveredRouteKey)) ||
+					(pinnedRouteKey && pl.routeKeys.has(pinnedRouteKey)) ||
+					(hoveredRouteFromKey && pl.routeKeys.has(hoveredRouteFromKey));
+				return (
+					<Polyline
+						key={`base-${pl.key}`}
+						positions={pl.positions}
+						pathOptions={{
+							color: isBaseActive
+								? ROUTE_COLOR_BASE_HOVER
+								: ROUTE_COLOR_BASE,
+							weight: BASE_WEIGHT,
+							opacity: 0.25,
+						}}
+					/>
+				);
+			});
+			})()}
 			{/* 非アクティブなハイライト区間 */}
 			<Pane name="highlight-inactive" style={{ zIndex: 450 }}>
 				{highlightPolylines
