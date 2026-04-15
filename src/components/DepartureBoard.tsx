@@ -157,7 +157,7 @@ export function DepartureBoard({
 
 	const sortableHeader = (key: SortKey, label: string) => (
 		<th
-			className="cursor-pointer select-none"
+			className={`cursor-pointer select-none ${sortKey === key ? "bg-base-300" : ""}`}
 			tabIndex={0}
 			aria-sort={
 				sortKey === key
@@ -265,7 +265,7 @@ export function DepartureBoard({
 													}
 												}}
 											>
-												<td className="font-mono">
+												<td className={`font-mono ${sortKey === "leaveByTime" ? "bg-base-300/50" : ""}`}>
 													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
 													{dep.isDeparted && (
 														<span className="ml-1 badge badge-sm badge-ghost">
@@ -274,10 +274,10 @@ export function DepartureBoard({
 													)}
 												</td>
 												<td>{dep.fromStopName ?? "-"}</td>
-												<td className="font-mono">
+												<td className={`font-mono ${sortKey === "departureTime" ? "bg-base-300/50" : ""}`}>
 													{formatTime(dep.departureTime)}
 												</td>
-												<td className="font-mono">
+												<td className={`font-mono ${sortKey === "arrivalTime" ? "bg-base-300/50" : ""}`}>
 													{formatTime(dep.arrivalTime)}
 												</td>
 												<td>
