@@ -115,3 +115,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: update GTFS data $(date -u +%Y-%m-%d)"
           git push
+
+      - name: Trigger deploy
+        if: steps.diff.outputs.changed == 'true'
+        run: gh workflow run deploy.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
