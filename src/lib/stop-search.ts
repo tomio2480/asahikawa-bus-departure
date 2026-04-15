@@ -1,6 +1,30 @@
 import type { Database } from "sql.js";
 import { NEARBY_THRESHOLD_METERS, distanceMeters } from "./geo-utils";
 
+/** 名前統合の距離閾値（メートル） */
+const MERGE_THRESHOLD_METERS = 200;
+
+/** バス停名を正規化する（全角数字/英字→半角、全角スペース→半角） */
+function normalizeName(name: string): string {
+	return name
+		.replace(/[０-９]/g, (c) =>
+			String.fromCharCode(c.charCodeAt(0) - 0xfee0),
+		)
+		.replace(/[Ａ-Ｚａ-ｚ]/g, (c) =>
+			String.fromCharCode(c.charCodeAt(0) - 0xfee0),
+		)
+		.replace(/\u3000/g, " ")
+		.trim();
+}
+
+/** 正規化後に一方が他方を含む（前方/後方/部分一致）か判定する */
+function namesContain(a: string, b: string): boolean {
+	const na = normalizeName(a);
+	const nb = normalizeName(b);
+	if (na === nb) return false;
+	return na.includes(nb) || nb.includes(na);
+}
+
 /** バス停検索結果の型 */
 export type StopSearchResult = {
 	stop_id: string;
@@ -96,12 +120,15 @@ export function searchStops(
 }
 
 /**
- * 同名バス停を距離ベースでクラスタリングする。
+ * バス停を距離ベースでクラスタリングする。
  *
  * 同じ名前のバス停を近距離（500m 以内）でグループ化する。
+ * さらに、名前に包含関係があり 200m 以内のクラスタを統合する。
+ * 統合されたクラスタの表示名は「短い名前/長い名前」形式になる。
  * 入力は stop_id 昇順であるため、最初にクラスタを形成した stop_id が代表となる。
  */
 function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
+	// 同名バス停を距離でクラスタリング
 	const byName = new Map<string, RawStopRow[]>();
 	for (const row of rows) {
 		const existing = byName.get(row.stop_name);
@@ -145,6 +172,31 @@ function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 		}
 
 		clusters.push(...nameClusters);
+	}
+
+	// 名前に包含関係があり 200m 以内のクラスタを統合
+	for (let i = 0; i < clusters.length; i++) {
+		for (let j = i + 1; j < clusters.length; j++) {
+			if (
+				namesContain(clusters[i].stopName, clusters[j].stopName) &&
+				distanceMeters(
+					clusters[i].lat,
+					clusters[i].lon,
+					clusters[j].lat,
+					clusters[j].lon,
+				) <= MERGE_THRESHOLD_METERS
+			) {
+				// 短い名前/長い名前 の形式で統合
+				const nameA = clusters[i].stopName;
+				const nameB = clusters[j].stopName;
+				const shorter = nameA.length <= nameB.length ? nameA : nameB;
+				const longer = nameA.length <= nameB.length ? nameB : nameA;
+				clusters[i].stopName = `${shorter}/${longer}`;
+				clusters[i].stopIds.push(...clusters[j].stopIds);
+				clusters.splice(j, 1);
+				j--;
+			}
+		}
 	}
 
 	clusters.sort((a, b) => {
@@ -211,6 +263,7 @@ export function getStopName(db: Database, stopId: string): string {
 
 /**
  * 指定した stop_id と同名かつ近距離（500m 以内）のバス停の全 stop_id を返す。
+ * さらに、名前に包含関係があり 200m 以内のバス停も兄弟として返す。
  * 同じ物理的な場所にある上り・下りや別事業者のバス停を網羅する。
  * 遠距離の同名バス停は含めない。
  */
@@ -231,6 +284,7 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 
 	const { stop_name: refName, stop_lat: refLat, stop_lon: refLon } = refStop;
 
+	// 同名バス停（500m 以内）
 	const siblingsStmt = db.prepare(
 		"SELECT stop_id, stop_lat, stop_lon FROM stops WHERE stop_name = ?",
 	);
@@ -252,6 +306,33 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 		}
 	} finally {
 		siblingsStmt.free();
+	}
+
+	// 名前に包含関係があるバス停（200m 以内）
+	const siblingIds = new Set(siblings);
+	const allStopsStmt = db.prepare(
+		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops",
+	);
+	try {
+		while (allStopsStmt.step()) {
+			const row = allStopsStmt.getAsObject() as {
+				stop_id: string;
+				stop_name: string;
+				stop_lat: number;
+				stop_lon: number;
+			};
+			if (siblingIds.has(row.stop_id)) continue;
+			if (
+				namesContain(refName, row.stop_name) &&
+				distanceMeters(refLat, refLon, row.stop_lat, row.stop_lon) <=
+					MERGE_THRESHOLD_METERS
+			) {
+				siblings.push(row.stop_id);
+				siblingIds.add(row.stop_id);
+			}
+		}
+	} finally {
+		allStopsStmt.free();
 	}
 
 	return siblings.length > 0 ? siblings : [stopId];
