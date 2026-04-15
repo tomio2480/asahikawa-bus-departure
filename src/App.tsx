@@ -8,6 +8,7 @@ import { RouteTransfer } from "./components/RouteTransfer";
 import { useDatabase } from "./hooks/useDatabase";
 import { useDepartures } from "./hooks/useDepartures";
 import { useRoutes } from "./hooks/useRoutes";
+import { type ThemePreference, useTheme } from "./hooks/useTheme";
 import { getDataExpiry } from "./lib/data-expiry";
 
 /** 現在日付を YYYYMMDD 形式で返す（ローカル） */
@@ -83,13 +84,27 @@ function App() {
 		return result;
 	}, [groups, effectiveDestination]);
 
+	const { preference, changeTheme } = useTheme();
+
 	return (
 		<div className="min-h-screen bg-base-200">
 			<header className="navbar bg-base-100">
 				<div className="flex-1">
 					<h1 className="text-xl font-bold">旭川バス発車案内</h1>
 				</div>
-				<div className="flex-none">
+				<div className="flex-none gap-2">
+					<select
+						aria-label="テーマ切り替え"
+						className="select select-sm select-bordered"
+						value={preference}
+						onChange={(e) =>
+							changeTheme(e.target.value as ThemePreference)
+						}
+					>
+						<option value="system">デバイス設定</option>
+						<option value="light">ライト</option>
+						<option value="dark">ダーク</option>
+					</select>
 					<RouteTransfer onImportComplete={reload} />
 				</div>
 			</header>
