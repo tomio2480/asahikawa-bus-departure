@@ -135,7 +135,7 @@ function FitBounds({
 
 /**
  * テーマに応じたセピアフィルタを .leaflet-tile-pane に適用する。
- * data-theme 属性を MutationObserver で監視し、テーマ変更に追従する。
+ * data-theme 属性に応じた CSS セレクタにより、テーマ変更に追従する。
  */
 function TileFilter() {
 	return (
@@ -161,7 +161,7 @@ function ScrollZoomHandler() {
 				e.preventDefault();
 				if (e.deltaY < 0) {
 					map.zoomIn();
-				} else {
+				} else if (e.deltaY > 0) {
 					map.zoomOut();
 				}
 			}
@@ -190,8 +190,8 @@ function MapView({
 			{ name: string; lat: number; lon: number }
 		>();
 		const baseArr: PolylineData[] = [];
+		const baseMap = new Map<string, PolylineData>();
 		const highlightArr: HighlightPolylineData[] = [];
-		const seenBaseKeys = new Set<string>();
 		const seenHighlightKeys = new Set<string>();
 		const geometryCache = new Map<
 			string,
@@ -242,12 +242,13 @@ function MapView({
 			const routeKey = `${route.routeId}-${route.fromStopId}-${route.toStopId}`;
 
 			// 全経路ポリライン（shape/trip 単位で重複排除、routeKeys を集約）
-			if (!seenBaseKeys.has(baseKey)) {
-				seenBaseKeys.add(baseKey);
-				baseArr.push({ key: baseKey, positions, routeKeys: new Set([routeKey]) });
+			const existingBase = baseMap.get(baseKey);
+			if (existingBase) {
+				existingBase.routeKeys.add(routeKey);
 			} else {
-				const existing = baseArr.find((b) => b.key === baseKey);
-				if (existing) existing.routeKeys.add(routeKey);
+				const pl: PolylineData = { key: baseKey, positions, routeKeys: new Set([routeKey]) };
+				baseArr.push(pl);
+				baseMap.set(baseKey, pl);
 			}
 
 			// ハイライト区間（trip+from+to 単位で重複排除）
@@ -364,14 +365,13 @@ function MapView({
 				</Marker>
 			))}
 			{basePolylines.map((pl) => {
+				const hoveredRouteFromKey = hoveredKey
+					? routeKeyMap.get(hoveredKey)
+					: null;
 				const isBaseActive =
 					(hoveredRouteKey && pl.routeKeys.has(hoveredRouteKey)) ||
 					(pinnedRouteKey && pl.routeKeys.has(pinnedRouteKey)) ||
-					(hoveredKey &&
-						highlightPolylines.some(
-							(hl) =>
-								hl.key === hoveredKey && pl.routeKeys.has(hl.routeKey),
-						));
+					(hoveredRouteFromKey && pl.routeKeys.has(hoveredRouteFromKey));
 				return (
 					<Polyline
 						key={`base-${pl.key}`}
