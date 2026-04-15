@@ -105,22 +105,28 @@ export function DepartureBoard({
 		}
 	};
 
-	// 表示対象の便を統合しソート
+	// 表示対象の便を統合（ソートとは独立してメモ化）
+	const flattenedDepartures = useMemo(
+		() =>
+			visibleGroups.flatMap((group) =>
+				group.departures.map((dep) => ({
+					...dep,
+					toStopName: group.toStopName,
+					isNextDay: group.isNextDay,
+				})),
+			),
+		[visibleGroups],
+	);
+
+	// ソート適用
 	const allDepartures = useMemo(() => {
-		const deps = visibleGroups.flatMap((group) =>
-			group.departures.map((dep) => ({
-				...dep,
-				toStopName: group.toStopName,
-				isNextDay: group.isNextDay,
-			})),
-		);
 		const dir = sortDirection === "asc" ? 1 : -1;
-		return deps.sort((a, b) => {
-			const aVal = (sortKey === "leaveByTime" ? a.leaveByTime : a[sortKey]) ?? "";
-			const bVal = (sortKey === "leaveByTime" ? b.leaveByTime : b[sortKey]) ?? "";
+		return [...flattenedDepartures].sort((a, b) => {
+			const aVal = (a[sortKey] as string | undefined) ?? "";
+			const bVal = (b[sortKey] as string | undefined) ?? "";
 			return dir * aVal.localeCompare(bVal);
 		});
-	}, [visibleGroups, sortKey, sortDirection]);
+	}, [flattenedDepartures, sortKey, sortDirection]);
 
 	if (!hasRoutes) {
 		return (
@@ -202,30 +208,35 @@ export function DepartureBoard({
 						>
 							<table className="table table-sm">
 								<thead className="sticky top-0 z-10 bg-base-100">
+								{(() => {
+									const sortableHeader = (key: SortKey, label: string) => (
+										<th
+											className="cursor-pointer select-none"
+											tabIndex={0}
+											aria-sort={sortKey === key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
+											onClick={() => handleSortToggle(key)}
+											onKeyDown={(e) => {
+												if (e.key === "Enter" || e.key === " ") {
+													e.preventDefault();
+													handleSortToggle(key);
+												}
+											}}
+										>
+											{label}{sortKey === key && (sortDirection === "asc" ? " ▲" : " ▼")}
+										</th>
+									);
+									return (
 									<tr>
-										<th
-											className="cursor-pointer select-none"
-											onClick={() => handleSortToggle("leaveByTime")}
-										>
-											出発目安{sortKey === "leaveByTime" && (sortDirection === "asc" ? " ▲" : " ▼")}
-										</th>
+										{sortableHeader("leaveByTime", "出発目安")}
 										<th>乗車</th>
-										<th
-											className="cursor-pointer select-none"
-											onClick={() => handleSortToggle("departureTime")}
-										>
-											発車{sortKey === "departureTime" && (sortDirection === "asc" ? " ▲" : " ▼")}
-										</th>
-										<th
-											className="cursor-pointer select-none"
-											onClick={() => handleSortToggle("arrivalTime")}
-										>
-											到着{sortKey === "arrivalTime" && (sortDirection === "asc" ? " ▲" : " ▼")}
-										</th>
+										{sortableHeader("departureTime", "発車")}
+										{sortableHeader("arrivalTime", "到着")}
 										<th>運賃</th>
 										<th>路線</th>
 										<th>行き先</th>
 									</tr>
+									);
+								})()}
 								</thead>
 								<tbody>
 									{allDepartures.map((dep) => {
