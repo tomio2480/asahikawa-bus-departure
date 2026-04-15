@@ -186,6 +186,7 @@ describe("MapView", () => {
 				routes={[
 					{
 						tripId: "TEST:T1",
+						routeId: "TEST:R1",
 						shapeId: "TEST:SH1",
 						fromStopId: "TEST:S1",
 						toStopId: "TEST:S3",
@@ -203,6 +204,7 @@ describe("MapView", () => {
 				routes={[
 					{
 						tripId: "TEST:T1",
+						routeId: "TEST:R1",
 						shapeId: "TEST:SH1",
 						fromStopId: "TEST:S1",
 						toStopId: "TEST:S3",
@@ -221,6 +223,7 @@ describe("MapView", () => {
 				routes={[
 					{
 						tripId: "TEST:T1",
+						routeId: "TEST:R1",
 						shapeId: "TEST:SH1",
 						fromStopId: "TEST:S1",
 						toStopId: "TEST:S3",
@@ -247,6 +250,7 @@ describe("MapView", () => {
 				routes={[
 					{
 						tripId: "TEST:T2",
+						routeId: "TEST:R2",
 						fromStopId: "TEST:S1",
 						toStopId: "TEST:S3",
 					},
@@ -264,6 +268,7 @@ describe("MapView", () => {
 				routes={[
 					{
 						tripId: "TEST:T1",
+						routeId: "TEST:R1",
 						shapeId: "TEST:SH1",
 						fromStopId: "TEST:S1",
 						toStopId: "TEST:S3",

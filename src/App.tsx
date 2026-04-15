@@ -44,6 +44,12 @@ function App() {
 		setHoveredRouteKey(key);
 	}, []);
 
+	const [pinnedRouteKey, setPinnedRouteKey] = useState<string | null>(null);
+	const handleRoutePinToggle = useCallback((key: string) => {
+		setPinnedRouteKey((prev) => (prev === key ? null : key));
+	}, []);
+
+
 	const [selectedDestination, setSelectedDestination] = useState("all");
 	const effectiveDestination = useMemo(() => {
 		if (selectedDestination === "all") return "all";
@@ -66,6 +72,7 @@ function App() {
 					seen.add(key);
 					result.push({
 						tripId: dep.tripId,
+						routeId: dep.routeId,
 						shapeId: dep.shapeId ?? undefined,
 						fromStopId: dep.fromStopId,
 						toStopId: dep.toStopId,
@@ -105,6 +112,8 @@ function App() {
 							hasRoutes={routes.length > 0}
 							hoveredRouteKey={hoveredRouteKey}
 							onRouteHover={handleRouteHover}
+							pinnedRouteKey={pinnedRouteKey}
+							onRoutePinToggle={handleRoutePinToggle}
 							selectedDestination={effectiveDestination}
 							onDestinationChange={setSelectedDestination}
 						/>
@@ -117,6 +126,8 @@ function App() {
 										routes={mapRoutes}
 										onRouteHover={handleRouteHover}
 										hoveredRouteKey={hoveredRouteKey}
+										pinnedRouteKey={pinnedRouteKey}
+										onRoutePinToggle={handleRoutePinToggle}
 									/>
 								</div>
 							</div>

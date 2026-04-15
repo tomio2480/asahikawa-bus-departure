@@ -11,10 +11,14 @@ type DepartureBoardProps = {
 	error: Error | null;
 	/** 経路が登録されているかどうか */
 	hasRoutes: boolean;
-	/** 地図上でホバー中の経路キー（fromStopId-toStopId） */
+	/** ホバーまたは固定中の経路キー */
 	hoveredRouteKey?: string | null;
 	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
 	onRouteHover?: (key: string | null) => void;
+	/** 固定中の経路キー */
+	pinnedRouteKey?: string | null;
+	/** 経路クリック時のトグルコールバック */
+	onRoutePinToggle?: (key: string) => void;
 	/** 現在選択中の行先フィルタ値（"all" で全行先） */
 	selectedDestination?: string;
 	/** 行先フィルタ変更時に呼ばれるコールバック */
@@ -57,6 +61,8 @@ export function DepartureBoard({
 	hasRoutes,
 	hoveredRouteKey,
 	onRouteHover,
+	pinnedRouteKey,
+	onRoutePinToggle,
 	selectedDestination = "all",
 	onDestinationChange,
 }: DepartureBoardProps) {
@@ -186,18 +192,20 @@ export function DepartureBoard({
 								</thead>
 								<tbody>
 									{allDepartures.map((dep) => {
-										const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
+										const routeKey = `${dep.routeId}-${dep.fromStopId}-${dep.toStopId}`;
 										const isHovered = hoveredRouteKey === routeKey;
+										const isPinned = pinnedRouteKey === routeKey;
 										const agencyColor = getAgencyColor(dep.routeId);
 										return (
 											<tr
 												key={`${dep.tripId}-${dep.departureTime}`}
-												className={`${isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""}`}
+												className={`${isPinned ? "bg-info/20" : isHovered ? "bg-info/10" : ""} ${dep.isDeparted ? "opacity-50" : ""} cursor-pointer`}
 												tabIndex={0}
 												onMouseEnter={() => onRouteHover?.(routeKey)}
 												onMouseLeave={() => onRouteHover?.(null)}
 												onFocus={() => onRouteHover?.(routeKey)}
 												onBlur={() => onRouteHover?.(null)}
+												onClick={() => onRoutePinToggle?.(routeKey)}
 											>
 												<td className="font-mono">
 													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
