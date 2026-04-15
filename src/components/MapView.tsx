@@ -138,28 +138,11 @@ function FitBounds({
  * data-theme 属性を MutationObserver で監視し、テーマ変更に追従する。
  */
 function TileFilter() {
-	const [theme, setTheme] = useState<string>(
-		() =>
-			document.documentElement.getAttribute("data-theme") ?? "light",
-	);
-
-	useEffect(() => {
-		const observer = new MutationObserver(() => {
-			const next =
-				document.documentElement.getAttribute("data-theme") ?? "light";
-			setTheme(next);
-		});
-		observer.observe(document.documentElement, {
-			attributes: true,
-			attributeFilter: ["data-theme"],
-		});
-		return () => observer.disconnect();
-	}, []);
-
-	const filter = theme === "dark" ? TILE_FILTER_DARK : TILE_FILTER_LIGHT;
-
 	return (
-		<style data-testid="map-tile-filter">{`.leaflet-tile-pane { filter: ${filter}; }`}</style>
+		<style data-testid="map-tile-filter">{`
+			[data-theme="light"] .leaflet-tile-pane { filter: ${TILE_FILTER_LIGHT}; }
+			[data-theme="dark"] .leaflet-tile-pane { filter: ${TILE_FILTER_DARK}; }
+		`}</style>
 	);
 }
 
@@ -351,18 +334,15 @@ function MapView({
 
 	// FitBounds 用: マーカー座標と乗車区間ポリラインの座標を結合する
 	// ベースポリライン（乗車しない区間）は初期表示範囲に含めない
-	const allPositions = useMemo(() => {
-		const positions: [number, number][] = [];
-		for (const [, stop] of markers) {
-			positions.push([stop.lat, stop.lon]);
-		}
-		for (const pl of highlightPolylines) {
-			for (const pos of pl.positions) {
-				positions.push(pos);
-			}
-		}
-		return positions;
-	}, [markers, highlightPolylines]);
+	const allPositions = useMemo(
+		() => [
+			...Array.from(markers.values()).map(
+				(stop) => [stop.lat, stop.lon] as [number, number],
+			),
+			...highlightPolylines.flatMap((pl) => pl.positions),
+		],
+		[markers, highlightPolylines],
+	);
 
 	return (
 		<MapContainer
