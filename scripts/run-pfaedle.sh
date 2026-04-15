@@ -74,7 +74,7 @@ for operator in "${OPERATORS[@]}"; do
   backup_dir=$(mktemp -d)
   for f in "${PRESERVE_FILES[@]}"; do
     if [ -f "${gtfs_dir}/${f}" ]; then
-      cp "${gtfs_dir}/${f}" "${backup_dir}/${f}"
+      cp -p "${gtfs_dir}/${f}" "${backup_dir}/${f}"
     fi
   done
 
@@ -88,7 +88,7 @@ for operator in "${OPERATORS[@]}"; do
   # 成功・失敗に関わらず退避したファイルを復元
   for f in "${PRESERVE_FILES[@]}"; do
     if [ -f "${backup_dir}/${f}" ]; then
-      cp "${backup_dir}/${f}" "${gtfs_dir}/${f}"
+      cp -p "${backup_dir}/${f}" "${gtfs_dir}/${f}"
     fi
   done
   rm -rf "$backup_dir"
