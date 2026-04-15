@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -53,6 +53,12 @@ function formatUpdatedTime(date: Date): string {
 /** スクロール領域の最大高さ（Tailwind の max-h-60 = 15rem 相当） */
 const SCROLL_MAX_HEIGHT_CLASS = "max-h-60";
 
+/** ソート可能なカラム */
+type SortKey = "leaveByTime" | "departureTime" | "arrivalTime";
+
+/** ソート方向 */
+type SortDirection = "asc" | "desc";
+
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */
 export function DepartureBoard({
 	groups,
@@ -87,18 +93,34 @@ export function DepartureBoard({
 		[groups, selectedDestination],
 	);
 
-	// 表示対象の便を統合し、発車時刻順にソート
+	const [sortKey, setSortKey] = useState<SortKey>("departureTime");
+	const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+	const handleSortToggle = (key: SortKey) => {
+		if (sortKey === key) {
+			setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+		} else {
+			setSortKey(key);
+			setSortDirection("asc");
+		}
+	};
+
+	// 表示対象の便を統合しソート
 	const allDepartures = useMemo(() => {
-		return visibleGroups
-			.flatMap((group) =>
-				group.departures.map((dep) => ({
-					...dep,
-					toStopName: group.toStopName,
-					isNextDay: group.isNextDay,
-				})),
-			)
-			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-	}, [visibleGroups]);
+		const deps = visibleGroups.flatMap((group) =>
+			group.departures.map((dep) => ({
+				...dep,
+				toStopName: group.toStopName,
+				isNextDay: group.isNextDay,
+			})),
+		);
+		const dir = sortDirection === "asc" ? 1 : -1;
+		return deps.sort((a, b) => {
+			const aVal = (sortKey === "leaveByTime" ? a.leaveByTime : a[sortKey]) ?? "";
+			const bVal = (sortKey === "leaveByTime" ? b.leaveByTime : b[sortKey]) ?? "";
+			return dir * aVal.localeCompare(bVal);
+		});
+	}, [visibleGroups, sortKey, sortDirection]);
 
 	if (!hasRoutes) {
 		return (
@@ -181,10 +203,25 @@ export function DepartureBoard({
 							<table className="table table-sm">
 								<thead className="sticky top-0 z-10 bg-base-100">
 									<tr>
-										<th>出発目安</th>
+										<th
+											className="cursor-pointer select-none"
+											onClick={() => handleSortToggle("leaveByTime")}
+										>
+											出発目安{sortKey === "leaveByTime" && (sortDirection === "asc" ? " ▲" : " ▼")}
+										</th>
 										<th>乗車</th>
-										<th>発車</th>
-										<th>到着</th>
+										<th
+											className="cursor-pointer select-none"
+											onClick={() => handleSortToggle("departureTime")}
+										>
+											発車{sortKey === "departureTime" && (sortDirection === "asc" ? " ▲" : " ▼")}
+										</th>
+										<th
+											className="cursor-pointer select-none"
+											onClick={() => handleSortToggle("arrivalTime")}
+										>
+											到着{sortKey === "arrivalTime" && (sortDirection === "asc" ? " ▲" : " ▼")}
+										</th>
 										<th>運賃</th>
 										<th>路線</th>
 										<th>行き先</th>

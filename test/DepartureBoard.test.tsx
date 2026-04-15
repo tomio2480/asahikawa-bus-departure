@@ -250,13 +250,17 @@ describe("DepartureBoard コンポーネント", () => {
 				hasRoutes={true}
 			/>,
 		);
-		expect(screen.getByText("出発目安")).toBeInTheDocument();
-		expect(screen.getByText("乗車")).toBeInTheDocument();
-		expect(screen.getByText("発車")).toBeInTheDocument();
-		expect(screen.getByText("到着")).toBeInTheDocument();
-		expect(screen.getByText("運賃")).toBeInTheDocument();
-		expect(screen.getByText("路線")).toBeInTheDocument();
-		expect(screen.getByText("行き先")).toBeInTheDocument();
+		const headers = screen.getAllByRole("columnheader");
+		const headerTexts = headers.map((h) => h.textContent?.replace(/ [▲▼]/, ""));
+		expect(headerTexts).toEqual([
+			"出発目安",
+			"乗車",
+			"発車",
+			"到着",
+			"運賃",
+			"路線",
+			"行き先",
+		]);
 	});
 
 	it("エラー発生時はエラーメッセージを表示する", () => {
@@ -680,6 +684,45 @@ describe("DepartureBoard コンポーネント", () => {
 		const rows = screen.getAllByRole("row");
 		expect(rows[1].className).toContain("bg-info/20");
 		expect(rows[1].className).not.toContain("bg-info/10");
+	});
+
+	it("発車ヘッダークリックでソート方向が切り替わる", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		const headers = screen.getAllByRole("columnheader");
+		const departureHeader = headers[2]; // 出発目安, 乗車, 発車
+		// 初期状態: 昇順
+		expect(departureHeader.textContent).toContain("▲");
+		// クリックで降順に
+		fireEvent.click(departureHeader);
+		expect(departureHeader.textContent).toContain("▼");
+	});
+
+	it("出発目安ヘッダークリックでソートキーが切り替わる", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		const headers = screen.getAllByRole("columnheader");
+		const leaveByHeader = headers[0]; // 出発目安
+		const departureHeader = headers[2]; // 発車
+		// 初期状態: 発車に▲
+		expect(departureHeader.textContent).toContain("▲");
+		expect(leaveByHeader.textContent).not.toContain("▲");
+		// 出発目安をクリック
+		fireEvent.click(leaveByHeader);
+		expect(leaveByHeader.textContent).toContain("▲");
+		expect(departureHeader.textContent).not.toContain("▲");
 	});
 
 	it("Asaca 乗り継ぎ割引の注釈が表示される", () => {
