@@ -102,10 +102,11 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 
 	return (
 		<div className="relative">
-			<div className="flex items-center gap-2">
+			<div className="flex items-center gap-1 sm:gap-2">
 				<button
 					type="button"
-					className="btn btn-outline btn-sm"
+					className="btn btn-outline btn-sm tooltip tooltip-bottom"
+					data-tip="経路データをファイルに保存"
 					onClick={handleExport}
 					disabled={processing}
 				>
@@ -113,7 +114,8 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 				</button>
 				<button
 					type="button"
-					className="btn btn-outline btn-sm"
+					className="btn btn-outline btn-sm tooltip tooltip-bottom"
+					data-tip="経路データをファイルから読込"
 					onClick={handleImportClick}
 					disabled={processing}
 				>

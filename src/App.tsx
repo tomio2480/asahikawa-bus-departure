@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { DepartureBoard } from "./components/DepartureBoard";
 import { ExpiryWarning } from "./components/ExpiryWarning";
+import { Footer } from "./components/Footer";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 import { type MapRoute, MapView } from "./components/MapView";
 import { RouteRegistration } from "./components/RouteRegistration";
@@ -87,28 +88,30 @@ function App() {
 	const { preference, changeTheme } = useTheme();
 
 	return (
-		<div className="min-h-screen bg-base-200">
-			<header className="navbar bg-base-100">
-				<div className="flex-1">
+		<div className="flex flex-col min-h-screen bg-base-200">
+			<header className="navbar bg-base-100 flex-wrap gap-y-1">
+				<div className="flex-1 min-w-0">
 					<h1 className="text-xl font-bold">旭川バス発車案内</h1>
 				</div>
-				<div className="flex-none gap-2">
-					<select
-						aria-label="テーマ切り替え"
-						className="select select-sm select-bordered"
-						value={preference}
-						onChange={(e) =>
-							changeTheme(e.target.value as ThemePreference)
-						}
-					>
-						<option value="system">デバイス設定</option>
-						<option value="light">ライト</option>
-						<option value="dark">ダーク</option>
-					</select>
-					<RouteTransfer onImportComplete={reload} />
+				<div className="flex-none">
+					<div className="flex items-center gap-1 sm:gap-2">
+						<RouteTransfer onImportComplete={reload} />
+						<select
+							aria-label="テーマ切り替え"
+							className="select select-sm select-bordered"
+							value={preference}
+							onChange={(e) =>
+								changeTheme(e.target.value as ThemePreference)
+							}
+						>
+							<option value="system">デバイス設定</option>
+							<option value="light">ライト</option>
+							<option value="dark">ダーク</option>
+						</select>
+					</div>
 				</div>
 			</header>
-			<main className="container mx-auto p-4 space-y-6">
+			<main className="container mx-auto p-4 space-y-6 flex-1">
 				{loading && !error && <LoadingSpinner />}
 
 				{error && (
@@ -157,6 +160,7 @@ function App() {
 					</>
 				)}
 			</main>
+			<Footer />
 		</div>
 	);
 }

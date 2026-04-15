@@ -293,6 +293,25 @@ describe("App", () => {
 		expect(capturedMapRoutes).toHaveLength(2);
 	});
 
+	it("フッターにコピーライトが表示される", () => {
+		setupDefaultMocks();
+		render(<App />);
+		expect(screen.getByText(/© 2026 Shota Nishihara/)).toBeInTheDocument();
+	});
+
+	it("フッターにGitHubリポジトリリンクが表示される", () => {
+		setupDefaultMocks();
+		render(<App />);
+		const links = screen
+			.getAllByRole("link")
+			.filter((el) => el.textContent === "GitHub");
+		expect(links).toHaveLength(1);
+		expect(links[0]).toHaveAttribute(
+			"href",
+			"https://github.com/tomio2480/asahikawa-bus-departure",
+		);
+	});
+
 	it("発車データがない場合は地図が表示されない", () => {
 		setupDefaultMocks({
 			db: {

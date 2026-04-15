@@ -59,6 +59,20 @@ describe("RouteTransfer", () => {
 		).toBeInTheDocument();
 	});
 
+	it("ボタンに経路データの説明がツールチップとして設定されている", () => {
+		render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
+		const exportBtn = screen.getByRole("button", { name: /エクスポート/ });
+		const importBtn = screen.getByRole("button", { name: /インポート/ });
+		expect(exportBtn).toHaveAttribute(
+			"data-tip",
+			"経路データをファイルに保存",
+		);
+		expect(importBtn).toHaveAttribute(
+			"data-tip",
+			"経路データをファイルから読込",
+		);
+	});
+
 	describe("エクスポート", () => {
 		it("エクスポートボタン押下で JSON ファイルがダウンロードされる", async () => {
 			mockExportRoutes.mockResolvedValue({
