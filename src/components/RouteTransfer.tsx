@@ -110,7 +110,6 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 					<button
 						type="button"
 						className="btn btn-outline btn-sm"
-						title="経路データをファイルに保存"
 						onClick={handleExport}
 						disabled={processing}
 					>
@@ -124,7 +123,6 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 					<button
 						type="button"
 						className="btn btn-outline btn-sm"
-						title="経路データをファイルから読込"
 						onClick={handleImportClick}
 						disabled={processing}
 					>
