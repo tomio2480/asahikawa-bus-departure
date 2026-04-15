@@ -67,11 +67,30 @@ for operator in "${OPERATORS[@]}"; do
   fi
 
   echo "Generating shapes for ${operator}..."
+
+  # pfaedle は -o で出力時に GTFS 全ファイルを上書きするため、
+  # shapes.txt 以外のファイルを退避して復元する
+  backup_dir=$(mktemp -d)
+  for f in fare_attributes.txt fare_rules.txt; do
+    if [ -f "${gtfs_dir}/${f}" ]; then
+      cp "${gtfs_dir}/${f}" "${backup_dir}/${f}"
+    fi
+  done
+
   if ! run_pfaedle "$OSM_FILE" "$gtfs_dir"; then
     echo "Error: pfaedle failed for ${operator}"
+    rm -rf "$backup_dir"
     has_error=true
     continue
   fi
+
+  # 退避したファイルを復元
+  for f in fare_attributes.txt fare_rules.txt; do
+    if [ -f "${backup_dir}/${f}" ]; then
+      cp "${backup_dir}/${f}" "${gtfs_dir}/${f}"
+    fi
+  done
+  rm -rf "$backup_dir"
 
   shapes_file="${gtfs_dir}/shapes.txt"
   if [ ! -f "$shapes_file" ]; then
