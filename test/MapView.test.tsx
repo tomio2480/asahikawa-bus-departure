@@ -29,6 +29,7 @@ vi.mock("leaflet/dist/images/marker-shadow.png", () => ({
 }));
 
 vi.mock("react-leaflet", () => ({
+	Pane: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 	MapContainer: ({
 		children,
 		...props
