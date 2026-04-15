@@ -155,6 +155,30 @@ export function DepartureBoard({
 	const allNextDay =
 		visibleGroups.length > 0 && visibleGroups.every((g) => g.isNextDay);
 
+	const sortableHeader = (key: SortKey, label: string) => (
+		<th
+			className="cursor-pointer select-none"
+			tabIndex={0}
+			aria-sort={
+				sortKey === key
+					? sortDirection === "asc"
+						? "ascending"
+						: "descending"
+					: "none"
+			}
+			onClick={() => handleSortToggle(key)}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					handleSortToggle(key);
+				}
+			}}
+		>
+			{label}
+			{sortKey === key && (sortDirection === "asc" ? " ▲" : " ▼")}
+		</th>
+	);
+
 	return (
 		<div className="space-y-4">
 			{lastUpdated && (
@@ -208,24 +232,6 @@ export function DepartureBoard({
 						>
 							<table className="table table-sm">
 								<thead className="sticky top-0 z-10 bg-base-100">
-								{(() => {
-									const sortableHeader = (key: SortKey, label: string) => (
-										<th
-											className="cursor-pointer select-none"
-											tabIndex={0}
-											aria-sort={sortKey === key ? (sortDirection === "asc" ? "ascending" : "descending") : "none"}
-											onClick={() => handleSortToggle(key)}
-											onKeyDown={(e) => {
-												if (e.key === "Enter" || e.key === " ") {
-													e.preventDefault();
-													handleSortToggle(key);
-												}
-											}}
-										>
-											{label}{sortKey === key && (sortDirection === "asc" ? " ▲" : " ▼")}
-										</th>
-									);
-									return (
 									<tr>
 										{sortableHeader("leaveByTime", "出発目安")}
 										<th>乗車</th>
@@ -235,8 +241,6 @@ export function DepartureBoard({
 										<th>路線</th>
 										<th>行き先</th>
 									</tr>
-									);
-								})()}
 								</thead>
 								<tbody>
 									{allDepartures.map((dep) => {
