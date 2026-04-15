@@ -7,6 +7,7 @@ const STORAGE_KEY = "theme-preference";
 
 /** デバイスのカラースキーム設定を取得する */
 function getSystemTheme(): "light" | "dark" {
+	if (typeof window.matchMedia !== "function") return "light";
 	return window.matchMedia("(prefers-color-scheme: dark)").matches
 		? "dark"
 		: "light";
@@ -48,6 +49,7 @@ export function useTheme() {
 	// デバイスのカラースキーム変更を監視（system モード時のみ）
 	useEffect(() => {
 		if (preference !== "system") return;
+		if (typeof window.matchMedia !== "function") return;
 
 		const mql = window.matchMedia("(prefers-color-scheme: dark)");
 		const handler = () => applyTheme("system");
