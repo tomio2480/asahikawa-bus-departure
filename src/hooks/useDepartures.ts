@@ -168,13 +168,27 @@ export function useDepartures(
 				}
 			}
 
-			// 翌日の始発便を取得（本日分が全て空の場合）
-			if (groupMap.size === 0 && currentRoutes.length > 0) {
+			// 翌日の始発便を取得
+			// 登録経路のうち、グループが存在しないか全便出発済みのものがある場合
+			const needsNextDay = currentRoutes.some((route) => {
+				const group = groupMap.get(route.toStopId);
+				return !group || group.departures.every((d) => d.isDeparted);
+			});
+			if (needsNextDay) {
 				const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 				const tomorrowServiceIds = getActiveServiceIds(currentDb, tomorrow);
 
 				if (tomorrowServiceIds.length > 0) {
 					for (const route of currentRoutes) {
+						// 既にグループがあり、未出発の便が残っていればスキップ
+						const existingGroup = groupMap.get(route.toStopId);
+						if (
+							existingGroup &&
+							existingGroup.departures.some((d) => !d.isDeparted)
+						) {
+							continue;
+						}
+
 						const sanitizedWalk = Math.max(0, Math.floor(route.walkMinutes));
 						const fromStopIds = getSiblingStopIds(currentDb, route.fromStopId);
 						const toStopIds = getSiblingStopIds(currentDb, route.toStopId);
