@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -53,6 +53,12 @@ function formatUpdatedTime(date: Date): string {
 /** スクロール領域の最大高さ（Tailwind の max-h-60 = 15rem 相当） */
 const SCROLL_MAX_HEIGHT_CLASS = "max-h-60";
 
+/** ソート可能なカラム */
+type SortKey = "leaveByTime" | "departureTime" | "arrivalTime";
+
+/** ソート方向 */
+type SortDirection = "asc" | "desc";
+
 /** 発車案内を降車バス停ごとにグルーピングして表示するコンポーネント */
 export function DepartureBoard({
 	groups,
@@ -87,18 +93,40 @@ export function DepartureBoard({
 		[groups, selectedDestination],
 	);
 
-	// 表示対象の便を統合し、発車時刻順にソート
-	const allDepartures = useMemo(() => {
-		return visibleGroups
-			.flatMap((group) =>
+	const [sortKey, setSortKey] = useState<SortKey>("departureTime");
+	const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+	const handleSortToggle = (key: SortKey) => {
+		if (sortKey === key) {
+			setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+		} else {
+			setSortKey(key);
+			setSortDirection("asc");
+		}
+	};
+
+	// 表示対象の便を統合（ソートとは独立してメモ化）
+	const flattenedDepartures = useMemo(
+		() =>
+			visibleGroups.flatMap((group) =>
 				group.departures.map((dep) => ({
 					...dep,
 					toStopName: group.toStopName,
 					isNextDay: group.isNextDay,
 				})),
-			)
-			.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-	}, [visibleGroups]);
+			),
+		[visibleGroups],
+	);
+
+	// ソート適用
+	const allDepartures = useMemo(() => {
+		const dir = sortDirection === "asc" ? 1 : -1;
+		return [...flattenedDepartures].sort((a, b) => {
+			const aVal = (a[sortKey] as string | undefined) ?? "";
+			const bVal = (b[sortKey] as string | undefined) ?? "";
+			return dir * aVal.localeCompare(bVal);
+		});
+	}, [flattenedDepartures, sortKey, sortDirection]);
 
 	if (!hasRoutes) {
 		return (
@@ -126,6 +154,30 @@ export function DepartureBoard({
 
 	const allNextDay =
 		visibleGroups.length > 0 && visibleGroups.every((g) => g.isNextDay);
+
+	const sortableHeader = (key: SortKey, label: string) => (
+		<th
+			className="cursor-pointer select-none"
+			tabIndex={0}
+			aria-sort={
+				sortKey === key
+					? sortDirection === "asc"
+						? "ascending"
+						: "descending"
+					: "none"
+			}
+			onClick={() => handleSortToggle(key)}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					e.preventDefault();
+					handleSortToggle(key);
+				}
+			}}
+		>
+			{label}
+			{sortKey === key && (sortDirection === "asc" ? " ▲" : " ▼")}
+		</th>
+	);
 
 	return (
 		<div className="space-y-4">
@@ -181,10 +233,10 @@ export function DepartureBoard({
 							<table className="table table-sm">
 								<thead className="sticky top-0 z-10 bg-base-100">
 									<tr>
-										<th>出発目安</th>
+										{sortableHeader("leaveByTime", "出発目安")}
 										<th>乗車</th>
-										<th>発車</th>
-										<th>到着</th>
+										{sortableHeader("departureTime", "発車")}
+										{sortableHeader("arrivalTime", "到着")}
 										<th>運賃</th>
 										<th>路線</th>
 										<th>行き先</th>
