@@ -48,7 +48,7 @@ function getJstWeekday(date: Date): number {
 	return weekday;
 }
 
-function formatDate(date: Date): string {
+export function formatDate(date: Date): string {
 	const { year, month, day } = getJstParts(date);
 	return `${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`;
 }

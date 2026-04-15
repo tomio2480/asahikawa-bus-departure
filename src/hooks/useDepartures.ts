@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Database } from "sql.js";
-import { getActiveServiceIds } from "../lib/calendar-service";
+import { formatDate, getActiveServiceIds } from "../lib/calendar-service";
 import {
 	type Departure,
 	calculateBoardingTime,
@@ -116,13 +116,20 @@ export function useDepartures(
 				}
 				dep.fromStopName = stopNameCache.get(dep.fromStopId);
 
-				// 運賃
+				// 運賃（見つからなければ prev~ 付き ID でフォールバック検索）
 				const fareKey = `${dep.routeId}:${dep.fromStopId}:${dep.toStopId}`;
 				if (!fareCache.has(fareKey)) {
-					fareCache.set(
-						fareKey,
-						getFare(db, dep.fromStopId, dep.toStopId, dep.routeId),
-					);
+					let fare = getFare(db, dep.fromStopId, dep.toStopId, dep.routeId);
+					if (!fare) {
+						const addPrev = (id: string) => id.replace(/:/, ":prev~");
+						fare = getFare(
+							db,
+							addPrev(dep.fromStopId),
+							addPrev(dep.toStopId),
+							addPrev(dep.routeId),
+						);
+					}
+					fareCache.set(fareKey, fare);
 				}
 				dep.fare = fareCache.get(fareKey) ?? null;
 			}
@@ -202,12 +209,43 @@ export function useDepartures(
 				}
 			}
 
+			// ダイヤ開始日が今日以前の期間を優先する
+			// Map は同一キーで後から挿入した値を保持するため、
+			// 優先度の低い便を先に、高い便を後に並べる
+			const todayStr = formatDate(now);
+			const prevStartResult = currentDb.exec(
+				"SELECT MIN(start_date) FROM calendar WHERE service_id LIKE '%prev~%'",
+			);
+			const currentStartResult = currentDb.exec(
+				"SELECT MIN(start_date) FROM calendar WHERE service_id NOT LIKE '%prev~%'",
+			);
+			const prevStart =
+				(prevStartResult[0]?.values[0]?.[0] as string) || "";
+			const currentStart =
+				(currentStartResult[0]?.values[0]?.[0] as string) || "";
+			const prevIsActive = prevStart !== "" && prevStart <= todayStr;
+			const currentIsActive =
+				currentStart !== "" && currentStart <= todayStr;
+			// 両方アクティブなら新しいダイヤを優先、片方のみなら有効な方を優先
+			const preferPrev =
+				prevIsActive && (!currentIsActive || prevStart > currentStart);
+
 			const result: DepartureGroup[] = [];
 			for (const [toStopId, data] of groupMap) {
 				const stripPrev = (id: string) => id.replace(/:prev~/, ":");
+				// 優先度の低い便を先に、高い便を後に並べて Map で上書きさせる
+				const sorted = [...data.departures].sort((a, b) => {
+					const aIsPrev = a.tripId.includes(":prev~");
+					const bIsPrev = b.tripId.includes(":prev~");
+					if (aIsPrev === bIsPrev) return 0;
+					if (preferPrev) {
+						return aIsPrev ? 1 : -1; // prev を後ろに（優先）
+					}
+					return aIsPrev ? -1 : 1; // current を後ろに（優先）
+				});
 				const unique = Array.from(
 					new Map(
-						data.departures.map((d) => [
+						sorted.map((d) => [
 							`${stripPrev(d.tripId)}-${d.departureTime}`,
 							d,
 						]),
