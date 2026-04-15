@@ -103,32 +103,24 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 	return (
 		<div className="relative">
 			<div className="flex items-center gap-1 sm:gap-2">
-				<div
-					className="tooltip tooltip-bottom"
+				<button
+					type="button"
+					className="btn btn-outline btn-sm tooltip tooltip-bottom"
 					data-tip="経路データをファイルに保存"
+					onClick={handleExport}
+					disabled={processing}
 				>
-					<button
-						type="button"
-						className="btn btn-outline btn-sm"
-						onClick={handleExport}
-						disabled={processing}
-					>
-						エクスポート
-					</button>
-				</div>
-				<div
-					className="tooltip tooltip-bottom"
+					エクスポート
+				</button>
+				<button
+					type="button"
+					className="btn btn-outline btn-sm tooltip tooltip-bottom"
 					data-tip="経路データをファイルから読込"
+					onClick={handleImportClick}
+					disabled={processing}
 				>
-					<button
-						type="button"
-						className="btn btn-outline btn-sm"
-						onClick={handleImportClick}
-						disabled={processing}
-					>
-						インポート
-					</button>
-				</div>
+					インポート
+				</button>
 				<input
 					ref={fileInputRef}
 					type="file"

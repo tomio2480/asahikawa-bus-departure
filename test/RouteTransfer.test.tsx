@@ -63,11 +63,11 @@ describe("RouteTransfer", () => {
 		render(<RouteTransfer onImportComplete={mockOnImportComplete} />);
 		const exportBtn = screen.getByRole("button", { name: /エクスポート/ });
 		const importBtn = screen.getByRole("button", { name: /インポート/ });
-		expect(exportBtn.parentElement).toHaveAttribute(
+		expect(exportBtn).toHaveAttribute(
 			"data-tip",
 			"経路データをファイルに保存",
 		);
-		expect(importBtn.parentElement).toHaveAttribute(
+		expect(importBtn).toHaveAttribute(
 			"data-tip",
 			"経路データをファイルから読込",
 		);
