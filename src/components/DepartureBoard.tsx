@@ -206,6 +206,12 @@ export function DepartureBoard({
 												onFocus={() => onRouteHover?.(routeKey)}
 												onBlur={() => onRouteHover?.(null)}
 												onClick={() => onRoutePinToggle?.(routeKey)}
+												onKeyDown={(e) => {
+													if (e.key === "Enter" || e.key === " ") {
+														e.preventDefault();
+														onRoutePinToggle?.(routeKey);
+													}
+												}}
 											>
 												<td className="font-mono">
 													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}

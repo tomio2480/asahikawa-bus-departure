@@ -275,52 +275,51 @@ function MapView({
 					}}
 				/>
 			))}
-			{/* 非アクティブなハイライト区間を先に描画 */}
-			{highlightPolylines
-				.filter((pl) => hoveredKey !== pl.key && hoveredRouteKey !== pl.routeKey && pinnedRouteKey !== pl.routeKey)
-				.map((pl) => (
-					<Polyline
-						key={`hl-${pl.key}`}
-						positions={pl.positions}
-						pathOptions={{
-							color: ROUTE_COLOR_SECTION,
-							weight: SECTION_WEIGHT,
-							opacity: 0.9,
-						}}
-						eventHandlers={{
-							mouseover: () => handleMouseOver(pl.key),
-							mouseout: handleMouseOut,
-							click: () => handleClick(pl.key),
-						}}
-					>
-						<Tooltip sticky>
-							{pl.fromStopName} → {pl.toStopName}
-						</Tooltip>
-					</Polyline>
-				))}
-			{/* アクティブなハイライト区間を後に描画（最前面） */}
-			{highlightPolylines
-				.filter((pl) => hoveredKey === pl.key || hoveredRouteKey === pl.routeKey || pinnedRouteKey === pl.routeKey)
-				.map((pl) => (
-					<Polyline
-						key={`hl-${pl.key}`}
-						positions={pl.positions}
-						pathOptions={{
-							color: ROUTE_COLOR_SECTION_HOVER,
-							weight: SECTION_WEIGHT,
-							opacity: 0.9,
-						}}
-						eventHandlers={{
-							mouseover: () => handleMouseOver(pl.key),
-							mouseout: handleMouseOut,
-							click: () => handleClick(pl.key),
-						}}
-					>
-						<Tooltip sticky>
-							{pl.fromStopName} → {pl.toStopName}
-						</Tooltip>
-					</Polyline>
-				))}
+			{/* ハイライト区間（アクティブなものを最前面に表示するためにソート） */}
+			{[...highlightPolylines]
+				.sort((a, b) => {
+					const aActive =
+						hoveredKey === a.key ||
+						hoveredRouteKey === a.routeKey ||
+						pinnedRouteKey === a.routeKey
+							? 1
+							: 0;
+					const bActive =
+						hoveredKey === b.key ||
+						hoveredRouteKey === b.routeKey ||
+						pinnedRouteKey === b.routeKey
+							? 1
+							: 0;
+					return aActive - bActive;
+				})
+				.map((pl) => {
+					const isActive =
+						hoveredKey === pl.key ||
+						hoveredRouteKey === pl.routeKey ||
+						pinnedRouteKey === pl.routeKey;
+					return (
+						<Polyline
+							key={`hl-${pl.key}`}
+							positions={pl.positions}
+							pathOptions={{
+								color: isActive
+									? ROUTE_COLOR_SECTION_HOVER
+									: ROUTE_COLOR_SECTION,
+								weight: SECTION_WEIGHT,
+								opacity: 0.9,
+							}}
+							eventHandlers={{
+								mouseover: () => handleMouseOver(pl.key),
+								mouseout: handleMouseOut,
+								click: () => handleClick(pl.key),
+							}}
+						>
+							<Tooltip sticky>
+								{pl.fromStopName} → {pl.toStopName}
+							</Tooltip>
+						</Polyline>
+					);
+				})}
 		</MapContainer>
 	);
 }
