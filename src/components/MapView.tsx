@@ -35,9 +35,11 @@ const DEFAULT_ZOOM = 13;
 /** 全経路の色 */
 const ROUTE_COLOR_BASE = "#b0c4de";
 /** ハイライト区間の色 */
-const ROUTE_COLOR_SECTION = "#3B82F6";
+const ROUTE_COLOR_SECTION = "#B0C1E2";
+/** ハイライト区間の固定色 */
+const ROUTE_COLOR_SECTION_PINNED = "#6D8CC6";
 /** ハイライト区間のホバー色 */
-const ROUTE_COLOR_SECTION_HOVER = "#1D4ED8";
+const ROUTE_COLOR_SECTION_HOVER = "#375FA9";
 
 /** 全経路の線幅 */
 const BASE_WEIGHT = 6;
@@ -320,7 +322,7 @@ function MapView({
 							key={`hl-${pl.key}`}
 							positions={pl.positions}
 							pathOptions={{
-								color: ROUTE_COLOR_SECTION_HOVER,
+								color: ROUTE_COLOR_SECTION_PINNED,
 								weight: SECTION_WEIGHT,
 								opacity: 0.9,
 							}}
