@@ -29,6 +29,7 @@ vi.mock("leaflet/dist/images/marker-shadow.png", () => ({
 }));
 
 vi.mock("react-leaflet", () => ({
+	Pane: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 	MapContainer: ({
 		children,
 		...props
@@ -278,7 +279,7 @@ describe("MapView", () => {
 		);
 		const polylines = screen.getAllByTestId("polyline");
 		expect(polylines[0].dataset.color).toBe("#b0c4de");
-		expect(polylines[1].dataset.color).toBe("#3B82F6");
+		expect(polylines[1].dataset.color).toBe("#B0C1E2");
 	});
 
 	it("ルートが空の場合でも地図は表示される", () => {
