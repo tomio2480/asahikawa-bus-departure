@@ -54,6 +54,9 @@ run_pfaedle() {
 }
 
 # --- 各事業者の shapes.txt 生成 ---
+# pfaedle は -o で出力時に GTFS 全ファイルを上書きするため、
+# pfaedle が生成しないファイルを退避して復元する
+PRESERVE_FILES=(fare_attributes.txt fare_rules.txt feed_info.txt translations.txt attributions.txt)
 has_error=false
 processed=0
 
@@ -68,9 +71,6 @@ for operator in "${OPERATORS[@]}"; do
 
   echo "Generating shapes for ${operator}..."
 
-  # pfaedle は -o で出力時に GTFS 全ファイルを上書きするため、
-  # pfaedle が生成しないファイルを退避して復元する
-  PRESERVE_FILES=(fare_attributes.txt fare_rules.txt feed_info.txt translations.txt)
   backup_dir=$(mktemp -d)
   for f in "${PRESERVE_FILES[@]}"; do
     if [ -f "${gtfs_dir}/${f}" ]; then
