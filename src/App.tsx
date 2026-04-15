@@ -120,18 +120,6 @@ function App() {
 				{db && !loading && !error && (
 					<>
 						<ExpiryWarning expiry={expiry} currentDate={currentDate} />
-						<DepartureBoard
-							groups={groups}
-							lastUpdated={lastUpdated}
-							error={departuresError}
-							hasRoutes={routes.length > 0}
-							hoveredRouteKey={hoveredRouteKey}
-							onRouteHover={handleRouteHover}
-							pinnedRouteKey={pinnedRouteKey}
-							onRoutePinToggle={handleRoutePinToggle}
-							selectedDestination={effectiveDestination}
-							onDestinationChange={setSelectedDestination}
-						/>
 						{mapRoutes.length > 0 && (
 							<div className="card bg-base-100 shadow-sm">
 								<div className="card-body">
@@ -147,6 +135,18 @@ function App() {
 								</div>
 							</div>
 						)}
+						<DepartureBoard
+							groups={groups}
+							lastUpdated={lastUpdated}
+							error={departuresError}
+							hasRoutes={routes.length > 0}
+							hoveredRouteKey={hoveredRouteKey}
+							onRouteHover={handleRouteHover}
+							pinnedRouteKey={pinnedRouteKey}
+							onRoutePinToggle={handleRoutePinToggle}
+							selectedDestination={effectiveDestination}
+							onDestinationChange={setSelectedDestination}
+						/>
 						<RouteRegistration
 							db={db}
 							routes={routes}
