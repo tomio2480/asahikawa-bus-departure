@@ -54,6 +54,9 @@ run_pfaedle() {
 }
 
 # --- 各事業者の shapes.txt 生成 ---
+# pfaedle は -o で出力時に GTFS 全ファイルを上書きするため、
+# pfaedle が生成しないファイルを退避して復元する
+PRESERVE_FILES=(fare_attributes.txt fare_rules.txt feed_info.txt translations.txt attributions.txt)
 has_error=false
 processed=0
 
@@ -67,9 +70,30 @@ for operator in "${OPERATORS[@]}"; do
   fi
 
   echo "Generating shapes for ${operator}..."
+
+  backup_dir=$(mktemp -d)
+  for f in "${PRESERVE_FILES[@]}"; do
+    if [ -f "${gtfs_dir}/${f}" ]; then
+      cp -p "${gtfs_dir}/${f}" "${backup_dir}/${f}"
+    fi
+  done
+
+  pfaedle_ok=true
   if ! run_pfaedle "$OSM_FILE" "$gtfs_dir"; then
     echo "Error: pfaedle failed for ${operator}"
+    pfaedle_ok=false
     has_error=true
+  fi
+
+  # 成功・失敗に関わらず退避したファイルを復元
+  for f in "${PRESERVE_FILES[@]}"; do
+    if [ -f "${backup_dir}/${f}" ]; then
+      cp -p "${backup_dir}/${f}" "${gtfs_dir}/${f}"
+    fi
+  done
+  rm -rf "$backup_dir"
+
+  if [ "$pfaedle_ok" = false ]; then
     continue
   fi
 
