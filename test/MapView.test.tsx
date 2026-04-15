@@ -372,9 +372,9 @@ describe("MapView", () => {
 				"[data-testid='map-tile-filter']",
 			);
 			expect(style).toBeInTheDocument();
-			expect(style?.textContent).toContain("sepia(0.3)");
-			expect(style?.textContent).toContain("brightness(1.05)");
-			expect(style?.textContent).not.toContain("invert");
+			expect(style?.textContent).toContain("sepia(1)");
+			expect(style?.textContent).toContain("saturate(0.4)");
+			expect(style?.textContent).toContain("brightness(1");
 		});
 
 		it("ダークテーマではダークセピアフィルタが適用される", () => {
@@ -397,8 +397,8 @@ describe("MapView", () => {
 				"[data-testid='map-tile-filter']",
 			);
 			expect(style).toBeInTheDocument();
-			expect(style?.textContent).toContain("invert(1)");
-			expect(style?.textContent).toContain("hue-rotate(180deg)");
+			expect(style?.textContent).toContain("sepia(1)");
+			expect(style?.textContent).toContain("brightness(0.55)");
 		});
 	});
 

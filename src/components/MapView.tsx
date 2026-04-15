@@ -104,9 +104,9 @@ function getStopInfo(
 }
 
 /** タイルペインにセピアフィルタを適用するための CSS フィルタ */
-const TILE_FILTER_LIGHT = "sepia(0.3) brightness(1.05) saturate(0.8)";
+const TILE_FILTER_LIGHT = "sepia(1) saturate(0.4) brightness(1.0)";
 const TILE_FILTER_DARK =
-	"sepia(0.3) brightness(0.6) saturate(0.8) invert(1) hue-rotate(180deg)";
+	"sepia(1) saturate(0.4) brightness(0.55)";
 
 /**
  * 全マーカー・ポリラインの座標から地図の表示範囲を自動調整する。
