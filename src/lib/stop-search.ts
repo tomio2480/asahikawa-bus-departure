@@ -17,11 +17,10 @@ function normalizeName(name: string): string {
 		.trim();
 }
 
-/** 正規化後に一方が他方を含む（前方/後方/部分一致）か判定する */
+/** 正規化後に一方が他方を含む（前方/後方/部分一致/正規化一致）か判定する */
 function namesContain(a: string, b: string): boolean {
 	const na = normalizeName(a);
 	const nb = normalizeName(b);
-	if (na === nb) return false;
 	return na.includes(nb) || nb.includes(na);
 }
 
@@ -175,27 +174,36 @@ function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 	}
 
 	// 名前に包含関係があり 200m 以内のクラスタを統合
+	// 比較には元の名前を使い、統合後の表示名は最後に構築する
+	const originalNames = clusters.map((c) => c.stopName);
+	const mergedNames: string[][] = clusters.map((_, i) => [originalNames[i]]);
 	for (let i = 0; i < clusters.length; i++) {
 		for (let j = i + 1; j < clusters.length; j++) {
-			if (
-				namesContain(clusters[i].stopName, clusters[j].stopName) &&
+			const canMerge =
+				mergedNames[i].some((ni) =>
+					mergedNames[j].some((nj) => namesContain(ni, nj)),
+				) &&
 				distanceMeters(
 					clusters[i].lat,
 					clusters[i].lon,
 					clusters[j].lat,
 					clusters[j].lon,
-				) <= MERGE_THRESHOLD_METERS
-			) {
-				// 短い名前/長い名前 の形式で統合
-				const nameA = clusters[i].stopName;
-				const nameB = clusters[j].stopName;
-				const shorter = nameA.length <= nameB.length ? nameA : nameB;
-				const longer = nameA.length <= nameB.length ? nameB : nameA;
-				clusters[i].stopName = `${shorter}/${longer}`;
+				) <= MERGE_THRESHOLD_METERS;
+			if (canMerge) {
 				clusters[i].stopIds.push(...clusters[j].stopIds);
+				mergedNames[i].push(...mergedNames[j]);
 				clusters.splice(j, 1);
+				mergedNames.splice(j, 1);
 				j--;
 			}
+		}
+	}
+	// 統合された名前を「短い名前/長い名前」形式に設定
+	for (let i = 0; i < clusters.length; i++) {
+		const uniqueNames = [...new Set(mergedNames[i])];
+		if (uniqueNames.length > 1) {
+			uniqueNames.sort((a, b) => a.length - b.length);
+			clusters[i].stopName = uniqueNames.join("/");
 		}
 	}
 
@@ -308,14 +316,25 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 		siblingsStmt.free();
 	}
 
-	// 名前に包含関係があるバス停（200m 以内）
+	// 名前に包含関係があるバス停（200m 以内、bounding box で候補を絞り込み）
 	const siblingIds = new Set(siblings);
-	const allStopsStmt = db.prepare(
-		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops",
+	const degPerMeter = 1 / 111_000; // 緯度 1 度 ≈ 111km
+	const latDelta = MERGE_THRESHOLD_METERS * degPerMeter;
+	const lonDelta =
+		MERGE_THRESHOLD_METERS /
+		(111_000 * Math.cos((refLat * Math.PI) / 180));
+	const nearbyStmt = db.prepare(
+		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ?",
 	);
 	try {
-		while (allStopsStmt.step()) {
-			const row = allStopsStmt.getAsObject() as {
+		nearbyStmt.bind([
+			refLat - latDelta,
+			refLat + latDelta,
+			refLon - lonDelta,
+			refLon + lonDelta,
+		]);
+		while (nearbyStmt.step()) {
+			const row = nearbyStmt.getAsObject() as {
 				stop_id: string;
 				stop_name: string;
 				stop_lat: number;
@@ -332,7 +351,7 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 			}
 		}
 	} finally {
-		allStopsStmt.free();
+		nearbyStmt.free();
 	}
 
 	return siblings.length > 0 ? siblings : [stopId];
