@@ -89,8 +89,8 @@ function App() {
 
 	return (
 		<div className="flex flex-col min-h-screen bg-base-200">
-			<header className="navbar bg-base-100">
-				<div className="flex-1">
+			<header className="navbar bg-base-100 flex-wrap gap-y-1">
+				<div className="flex-1 min-w-0">
 					<h1 className="text-xl font-bold">旭川バス発車案内</h1>
 				</div>
 				<div className="flex-none">
