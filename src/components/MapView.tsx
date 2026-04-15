@@ -11,6 +11,7 @@ import {
 	Popup,
 	TileLayer,
 	Tooltip,
+	useMap,
 } from "react-leaflet";
 import type { Database } from "sql.js";
 import { findClosestPointIndex } from "../lib/geo-utils";
@@ -100,6 +101,92 @@ function getStopInfo(
 	} finally {
 		stmt.free();
 	}
+}
+
+/** タイルペインにセピアフィルタを適用するための CSS フィルタ */
+const TILE_FILTER_LIGHT = "sepia(0.3) brightness(1.05) saturate(0.8)";
+const TILE_FILTER_DARK =
+	"sepia(0.3) brightness(0.6) saturate(0.8) invert(1) hue-rotate(180deg)";
+
+/**
+ * 全マーカー・ポリラインの座標から地図の表示範囲を自動調整する。
+ * ルートやマーカーが存在しない場合はデフォルトの中心・ズームを維持する。
+ */
+function FitBounds({
+	positions,
+}: { positions: [number, number][] }) {
+	const map = useMap();
+
+	useEffect(() => {
+		if (positions.length === 0) return;
+
+		const bounds = L.latLngBounds(positions);
+		if (bounds.isValid()) {
+			map.fitBounds(bounds, { padding: [30, 30] });
+		}
+	}, [map, positions]);
+
+	return null;
+}
+
+/**
+ * テーマに応じたセピアフィルタを .leaflet-tile-pane に適用する。
+ * data-theme 属性を MutationObserver で監視し、テーマ変更に追従する。
+ */
+function TileFilter() {
+	const [theme, setTheme] = useState<string>(
+		() =>
+			document.documentElement.getAttribute("data-theme") ?? "light",
+	);
+
+	useEffect(() => {
+		const observer = new MutationObserver(() => {
+			const next =
+				document.documentElement.getAttribute("data-theme") ?? "light";
+			setTheme(next);
+		});
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ["data-theme"],
+		});
+		return () => observer.disconnect();
+	}, []);
+
+	const filter = theme === "dark" ? TILE_FILTER_DARK : TILE_FILTER_LIGHT;
+
+	return (
+		<style data-testid="map-tile-filter">{`.leaflet-tile-pane { filter: ${filter}; }`}</style>
+	);
+}
+
+/**
+ * 通常スクロールでは地図をズームせず、Ctrl/Cmd+スクロール時のみズームする。
+ * モバイルでは二本指操作でのみズームを許可する。
+ */
+function ScrollZoomHandler() {
+	const map = useMap();
+
+	useEffect(() => {
+		const container = map.getContainer();
+
+		const handleWheel = (e: WheelEvent) => {
+			if (e.ctrlKey || e.metaKey) {
+				e.preventDefault();
+				if (e.deltaY < 0) {
+					map.zoomIn();
+				} else {
+					map.zoomOut();
+				}
+			}
+		};
+
+		container.addEventListener("wheel", handleWheel, { passive: false });
+		return () => {
+			container.removeEventListener("wheel", handleWheel);
+		};
+	}, [map]);
+
+	return null;
 }
 
 function MapView({
@@ -252,12 +339,30 @@ function MapView({
 		}
 	}, [hoveredKey, routeKeyMap]);
 
+	// FitBounds 用: 全マーカー座標とポリライン座標を結合する
+	const allPositions = useMemo(() => {
+		const positions: [number, number][] = [];
+		for (const [, stop] of markers) {
+			positions.push([stop.lat, stop.lon]);
+		}
+		for (const pl of basePolylines) {
+			for (const pos of pl.positions) {
+				positions.push(pos);
+			}
+		}
+		return positions;
+	}, [markers, basePolylines]);
+
 	return (
 		<MapContainer
 			center={ASAHIKAWA_CENTER}
 			zoom={DEFAULT_ZOOM}
+			scrollWheelZoom={false}
 			style={{ height: "400px", width: "100%" }}
 		>
+			<FitBounds positions={allPositions} />
+			<TileFilter />
+			<ScrollZoomHandler />
 			<TileLayer
 				url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
 				attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
