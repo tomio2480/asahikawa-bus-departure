@@ -101,37 +101,35 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 	}, []);
 
 	return (
-		<div className="relative">
-			<div className="flex items-center gap-1 sm:gap-2">
-				<button
-					type="button"
-					className="btn btn-outline btn-sm tooltip tooltip-bottom"
-					data-tip="経路データをファイルに保存"
-					onClick={handleExport}
-					disabled={processing}
-				>
-					エクスポート
-				</button>
-				<button
-					type="button"
-					className="btn btn-outline btn-sm tooltip tooltip-bottom"
-					data-tip="経路データをファイルから読込"
-					onClick={handleImportClick}
-					disabled={processing}
-				>
-					インポート
-				</button>
-				<input
-					ref={fileInputRef}
-					type="file"
-					accept=".json"
-					className="hidden"
-					onChange={handleFileChange}
-				/>
-			</div>
+		<div className="relative flex items-center gap-1 sm:gap-2 shrink-0">
+			<button
+				type="button"
+				className="btn btn-outline btn-sm tooltip tooltip-bottom"
+				data-tip="経路データをファイルに保存"
+				onClick={handleExport}
+				disabled={processing}
+			>
+				エクスポート
+			</button>
+			<button
+				type="button"
+				className="btn btn-outline btn-sm tooltip tooltip-bottom"
+				data-tip="経路データをファイルから読込"
+				onClick={handleImportClick}
+				disabled={processing}
+			>
+				インポート
+			</button>
+			<input
+				ref={fileInputRef}
+				type="file"
+				accept=".json"
+				className="hidden"
+				onChange={handleFileChange}
+			/>
 			{message && (
 				<div
-					className={`absolute right-0 mt-1 whitespace-nowrap text-sm ${message.type === "error" ? "text-error" : "text-success"}`}
+					className={`absolute right-0 top-full mt-1 whitespace-nowrap text-sm ${message.type === "error" ? "text-error" : "text-success"}`}
 					role="alert"
 				>
 					{message.text}
