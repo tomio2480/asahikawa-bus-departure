@@ -226,7 +226,8 @@ export function useDepartures(
 			const prevIsActive = prevStart !== "" && prevStart <= todayStr;
 			const currentIsActive =
 				currentStart !== "" && currentStart <= todayStr;
-			// 両方アクティブなら新しいダイヤを優先、片方のみなら有効な方を優先
+			// 片方のみ開始済みならその期間を優先する
+			// 両方開始済みなら、より最近に適用開始された方が現行ダイヤとして優先する
 			const preferPrev =
 				prevIsActive && (!currentIsActive || prevStart > currentStart);
 

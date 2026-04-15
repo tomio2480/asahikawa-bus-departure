@@ -30,8 +30,8 @@ for op in "${OPERATORS[@]}"; do
   fi
 
   # start_date 列を抽出してソート比較
-  current_dates=$(awk -F',' 'NR==1 { for(i=1;i<=NF;i++) if($i=="start_date") col=i } NR>1 && col { print $col }' "$current_cal" | sort -u)
-  prev_dates=$(awk -F',' 'NR==1 { for(i=1;i<=NF;i++) if($i=="start_date") col=i } NR>1 && col { print $col }' "$prev_cal" | sort -u)
+  current_dates=$(awk -F',' 'NR==1 { for(i=1;i<=NF;i++) if($i=="start_date") col=i } NR>1 && col { print $col }' "$current_cal" | tr -d '\r' | sort -u)
+  prev_dates=$(awk -F',' 'NR==1 { for(i=1;i<=NF;i++) if($i=="start_date") col=i } NR>1 && col { print $col }' "$prev_cal" | tr -d '\r' | sort -u)
 
   if [ "$current_dates" != "$prev_dates" ]; then
     echo "Calendar period changed for ${op}: ${prev_dates} -> ${current_dates}"
