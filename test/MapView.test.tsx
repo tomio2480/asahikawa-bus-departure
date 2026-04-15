@@ -210,6 +210,7 @@ beforeEach(() => {
 afterEach(() => {
 	cleanup();
 	db.close();
+	document.documentElement.removeAttribute("data-theme");
 });
 
 describe("MapView", () => {

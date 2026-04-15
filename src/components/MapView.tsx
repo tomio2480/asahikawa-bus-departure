@@ -364,10 +364,11 @@ function MapView({
 					<Popup>{stop.name}</Popup>
 				</Marker>
 			))}
-			{basePolylines.map((pl) => {
+			{(() => {
 				const hoveredRouteFromKey = hoveredKey
-					? routeKeyMap.get(hoveredKey)
+					? routeKeyMap.get(hoveredKey) ?? null
 					: null;
+				return basePolylines.map((pl) => {
 				const isBaseActive =
 					(hoveredRouteKey && pl.routeKeys.has(hoveredRouteKey)) ||
 					(pinnedRouteKey && pl.routeKeys.has(pinnedRouteKey)) ||
@@ -385,7 +386,8 @@ function MapView({
 						}}
 					/>
 				);
-			})}
+			});
+			})()}
 			{/* 非アクティブなハイライト区間 */}
 			<Pane name="highlight-inactive" style={{ zIndex: 450 }}>
 				{highlightPolylines
