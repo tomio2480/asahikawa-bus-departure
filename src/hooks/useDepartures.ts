@@ -172,14 +172,9 @@ export function useDepartures(
 			// 登録経路のうち、グループが存在しないか全便出発済みのものがある場合
 			const needsNextDay = currentRoutes.some((route) => {
 				const group = groupMap.get(route.toStopId);
-				return (
-					!group ||
-					(!group.isNextDay &&
-						group.departures.length > 0 &&
-						group.departures.every((d) => d.isDeparted))
-				);
+				return !group || group.departures.every((d) => d.isDeparted);
 			});
-			if (needsNextDay && currentRoutes.length > 0) {
+			if (needsNextDay) {
 				const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 				const tomorrowServiceIds = getActiveServiceIds(currentDb, tomorrow);
 
@@ -189,7 +184,7 @@ export function useDepartures(
 						const existingGroup = groupMap.get(route.toStopId);
 						if (
 							existingGroup &&
-							existingGroup.departures.some((d) => d.isDeparted === false)
+							existingGroup.departures.some((d) => !d.isDeparted)
 						) {
 							continue;
 						}
