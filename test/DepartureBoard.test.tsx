@@ -686,7 +686,7 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(rows[1].className).not.toContain("bg-info/10");
 	});
 
-	it("発車ヘッダークリックでソート方向が切り替わる", () => {
+	it("発車ヘッダークリックでソート方向が切り替わり行順序が反転する", () => {
 		render(
 			<DepartureBoard
 				groups={[makeGroup()]}
@@ -699,9 +699,20 @@ describe("DepartureBoard コンポーネント", () => {
 		const departureHeader = headers[2]; // 出発目安, 乗車, 発車
 		// 初期状態: 昇順
 		expect(departureHeader.textContent).toContain("▲");
+		const tbody = screen.getAllByRole("rowgroup")[1];
+		const rowsBefore = within(tbody).getAllByRole("row");
+		const timesBefore = rowsBefore.map(
+			(row) => within(row).getAllByRole("cell")[2].textContent,
+		);
+		expect(timesBefore).toEqual(["08:00", "09:00"]);
 		// クリックで降順に
 		fireEvent.click(departureHeader);
 		expect(departureHeader.textContent).toContain("▼");
+		const rowsAfter = within(tbody).getAllByRole("row");
+		const timesAfter = rowsAfter.map(
+			(row) => within(row).getAllByRole("cell")[2].textContent,
+		);
+		expect(timesAfter).toEqual(["09:00", "08:00"]);
 	});
 
 	it("出発目安ヘッダークリックでソートキーが切り替わる", () => {
