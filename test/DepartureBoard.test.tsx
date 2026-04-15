@@ -606,6 +606,38 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(onPin).toHaveBeenCalledWith("R001-test:S001-test:S002");
 	});
 
+	it("Enter キーで onRoutePinToggle が呼ばれる", () => {
+		const onPin = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onRoutePinToggle={onPin}
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		fireEvent.keyDown(rows[1], { key: "Enter" });
+		expect(onPin).toHaveBeenCalledWith("R001-test:S001-test:S002");
+	});
+
+	it("Space キーで onRoutePinToggle が呼ばれる", () => {
+		const onPin = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onRoutePinToggle={onPin}
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		fireEvent.keyDown(rows[1], { key: " " });
+		expect(onPin).toHaveBeenCalledWith("R001-test:S001-test:S002");
+	});
+
 	it("pinnedRouteKey に一致する行に固定スタイルが適用される", () => {
 		render(
 			<DepartureBoard

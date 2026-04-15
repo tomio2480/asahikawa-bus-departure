@@ -278,19 +278,14 @@ function MapView({
 			{/* ハイライト区間（アクティブなものを最前面に表示するためにソート） */}
 			{[...highlightPolylines]
 				.sort((a, b) => {
-					const aActive =
-						hoveredKey === a.key ||
-						hoveredRouteKey === a.routeKey ||
-						pinnedRouteKey === a.routeKey
-							? 1
-							: 0;
-					const bActive =
-						hoveredKey === b.key ||
-						hoveredRouteKey === b.routeKey ||
-						pinnedRouteKey === b.routeKey
-							? 1
-							: 0;
-					return aActive - bActive;
+					// 0=非アクティブ, 1=固定, 2=ホバー（ホバーが最前面）
+					const priority = (pl: HighlightPolylineData) => {
+						if (hoveredKey === pl.key || hoveredRouteKey === pl.routeKey)
+							return 2;
+						if (pinnedRouteKey === pl.routeKey) return 1;
+						return 0;
+					};
+					return priority(a) - priority(b);
 				})
 				.map((pl) => {
 					const isActive =
