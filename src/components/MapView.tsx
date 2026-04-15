@@ -45,6 +45,7 @@ const SECTION_WEIGHT = 10;
 
 type MapRoute = {
 	tripId: string;
+	routeId: string;
 	shapeId?: string;
 	fromStopId: string;
 	toStopId: string;
@@ -55,8 +56,12 @@ type MapViewProps = {
 	routes: MapRoute[];
 	/** 経路ホバー時に呼ばれるコールバック（null でホバー解除） */
 	onRouteHover?: (key: string | null) => void;
-	/** 外部からのホバー中経路キー（fromStopId-toStopId） */
+	/** ホバーまたは固定中の経路キー */
 	hoveredRouteKey?: string | null;
+	/** 固定中の経路キー */
+	pinnedRouteKey?: string | null;
+	/** 経路クリック時のトグルコールバック */
+	onRoutePinToggle?: (key: string) => void;
 };
 
 type PolylineData = {
@@ -94,7 +99,14 @@ function getStopInfo(
 	}
 }
 
-function MapView({ db, routes, onRouteHover, hoveredRouteKey }: MapViewProps) {
+function MapView({
+	db,
+	routes,
+	onRouteHover,
+	hoveredRouteKey,
+	pinnedRouteKey,
+	onRoutePinToggle,
+}: MapViewProps) {
 	const { markers, basePolylines, highlightPolylines } = useMemo(() => {
 		const markersMap = new Map<
 			string,
@@ -174,7 +186,7 @@ function MapView({ db, routes, onRouteHover, hoveredRouteKey }: MapViewProps) {
 				if (segment.length > 0) {
 					highlightArr.push({
 						key: highlightKey,
-						routeKey: `${route.fromStopId}-${route.toStopId}`,
+						routeKey: `${route.routeId}-${route.fromStopId}-${route.toStopId}`,
 						positions: segment,
 						fromStopName: fromStop.name,
 						toStopName: toStop.name,
@@ -202,6 +214,19 @@ function MapView({ db, routes, onRouteHover, hoveredRouteKey }: MapViewProps) {
 
 	const onRouteHoverRef = useRef(onRouteHover);
 	onRouteHoverRef.current = onRouteHover;
+
+	const onRoutePinToggleRef = useRef(onRoutePinToggle);
+	onRoutePinToggleRef.current = onRoutePinToggle;
+
+	const handleClick = useCallback(
+		(key: string) => {
+			const routeKey = routeKeyMap.get(key);
+			if (routeKey) {
+				onRoutePinToggleRef.current?.(routeKey);
+			}
+		},
+		[routeKeyMap],
+	);
 
 	const handleMouseOver = useCallback(
 		(key: string) => {
@@ -250,29 +275,46 @@ function MapView({ db, routes, onRouteHover, hoveredRouteKey }: MapViewProps) {
 					}}
 				/>
 			))}
-			{highlightPolylines.map((pl) => {
-				const isActive =
-					hoveredKey === pl.key || hoveredRouteKey === pl.routeKey;
-				return (
-					<Polyline
-						key={`hl-${pl.key}`}
-						positions={pl.positions}
-						pathOptions={{
-							color: isActive ? ROUTE_COLOR_SECTION_HOVER : ROUTE_COLOR_SECTION,
-							weight: SECTION_WEIGHT,
-							opacity: 0.9,
-						}}
-						eventHandlers={{
-							mouseover: () => handleMouseOver(pl.key),
-							mouseout: handleMouseOut,
-						}}
-					>
-						<Tooltip sticky>
-							{pl.fromStopName} → {pl.toStopName}
-						</Tooltip>
-					</Polyline>
-				);
-			})}
+			{/* ハイライト区間（アクティブなものを最前面に表示するためにソート） */}
+			{[...highlightPolylines]
+				.sort((a, b) => {
+					// 0=非アクティブ, 1=固定, 2=ホバー（ホバーが最前面）
+					const priority = (pl: HighlightPolylineData) => {
+						if (hoveredKey === pl.key || hoveredRouteKey === pl.routeKey)
+							return 2;
+						if (pinnedRouteKey === pl.routeKey) return 1;
+						return 0;
+					};
+					return priority(a) - priority(b);
+				})
+				.map((pl) => {
+					const isActive =
+						hoveredKey === pl.key ||
+						hoveredRouteKey === pl.routeKey ||
+						pinnedRouteKey === pl.routeKey;
+					return (
+						<Polyline
+							key={`hl-${pl.key}`}
+							positions={pl.positions}
+							pathOptions={{
+								color: isActive
+									? ROUTE_COLOR_SECTION_HOVER
+									: ROUTE_COLOR_SECTION,
+								weight: SECTION_WEIGHT,
+								opacity: 0.9,
+							}}
+							eventHandlers={{
+								mouseover: () => handleMouseOver(pl.key),
+								mouseout: handleMouseOut,
+								click: () => handleClick(pl.key),
+							}}
+						>
+							<Tooltip sticky>
+								{pl.fromStopName} → {pl.toStopName}
+							</Tooltip>
+						</Polyline>
+					);
+				})}
 		</MapContainer>
 	);
 }

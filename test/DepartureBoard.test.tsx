@@ -521,6 +521,167 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(onChange).toHaveBeenCalledWith("test:S003");
 	});
 
+	it("ホバー時に onRouteHover が routeId を含むキーで呼ばれる", async () => {
+		const onHover = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onRouteHover={onHover}
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		// thead の行を除いた最初のデータ行
+		const dataRow = rows[1];
+		fireEvent.mouseEnter(dataRow);
+		// routeId-fromStopId-toStopId 形式であること
+		expect(onHover).toHaveBeenCalledWith("R001-test:S001-test:S002");
+	});
+
+	it("異なる routeId の便は別のルートキーを持つ", async () => {
+		const onHover = vi.fn();
+		const groups: DepartureGroup[] = [
+			{
+				toStopId: "test:S002",
+				toStopName: "市役所前",
+				departures: [
+					{
+						tripId: "T001",
+						routeId: "R001",
+						routeName: "1番",
+						headsign: "市役所方面",
+						departureTime: "08:00:00",
+						arrivalTime: "08:30:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S002",
+						shapeId: null,
+						fare: null,
+					},
+					{
+						tripId: "T002",
+						routeId: "R002",
+						routeName: "2番",
+						headsign: "市役所方面",
+						departureTime: "08:15:00",
+						arrivalTime: "08:45:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S002",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			},
+		];
+		render(
+			<DepartureBoard
+				groups={groups}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onRouteHover={onHover}
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		fireEvent.mouseEnter(rows[1]); // R001 の行
+		expect(onHover).toHaveBeenCalledWith("R001-test:S001-test:S002");
+		fireEvent.mouseEnter(rows[2]); // R002 の行
+		expect(onHover).toHaveBeenCalledWith("R002-test:S001-test:S002");
+	});
+
+	it("クリックで onRoutePinToggle が呼ばれる", () => {
+		const onPin = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onRoutePinToggle={onPin}
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		fireEvent.click(rows[1]);
+		expect(onPin).toHaveBeenCalledWith("R001-test:S001-test:S002");
+	});
+
+	it("Enter キーで onRoutePinToggle が呼ばれる", () => {
+		const onPin = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onRoutePinToggle={onPin}
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		fireEvent.keyDown(rows[1], { key: "Enter" });
+		expect(onPin).toHaveBeenCalledWith("R001-test:S001-test:S002");
+	});
+
+	it("Space キーで onRoutePinToggle が呼ばれる", () => {
+		const onPin = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				onRoutePinToggle={onPin}
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		fireEvent.keyDown(rows[1], { key: " " });
+		expect(onPin).toHaveBeenCalledWith("R001-test:S001-test:S002");
+	});
+
+	it("pinnedRouteKey に一致する行に固定スタイルが適用される", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				pinnedRouteKey="R001-test:S001-test:S002"
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		expect(rows[1].className).toContain("bg-info/20");
+	});
+
+	it("hoveredRouteKey に一致する行にホバースタイルが適用される", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hoveredRouteKey="R001-test:S001-test:S002"
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		expect(rows[1].className).toContain("bg-info/10");
+	});
+
+	it("固定とホバーが同時にある場合、固定スタイルが優先される", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				pinnedRouteKey="R001-test:S001-test:S002"
+				hoveredRouteKey="R001-test:S001-test:S002"
+			/>,
+		);
+		const rows = screen.getAllByRole("row");
+		expect(rows[1].className).toContain("bg-info/20");
+		expect(rows[1].className).not.toContain("bg-info/10");
+	});
+
 	it("Asaca 乗り継ぎ割引の注釈が表示される", () => {
 		render(
 			<DepartureBoard
