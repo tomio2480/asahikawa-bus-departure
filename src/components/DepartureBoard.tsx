@@ -155,16 +155,9 @@ export function DepartureBoard({
 	const allNextDay =
 		visibleGroups.length > 0 && visibleGroups.every((g) => g.isNextDay);
 
-	/** ソートキーから td のインデックスへのマッピング */
-	const sortColumnIndex: Record<SortKey, number> = {
-		leaveByTime: 0,
-		departureTime: 2,
-		arrivalTime: 3,
-	};
-
 	const sortableHeader = (key: SortKey, label: string) => (
 		<th
-			className={`cursor-pointer select-none ${sortKey === key ? "bg-base-200" : ""}`}
+			className={`cursor-pointer select-none ${sortKey === key ? "bg-base-300" : ""}`}
 			tabIndex={0}
 			aria-sort={
 				sortKey === key
@@ -272,7 +265,7 @@ export function DepartureBoard({
 													}
 												}}
 											>
-												<td className={`font-mono ${sortColumnIndex[sortKey] === 0 ? "bg-base-200/50" : ""}`}>
+												<td className={`font-mono ${sortKey === "leaveByTime" ? "bg-base-300/50" : ""}`}>
 													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
 													{dep.isDeparted && (
 														<span className="ml-1 badge badge-sm badge-ghost">
@@ -281,10 +274,10 @@ export function DepartureBoard({
 													)}
 												</td>
 												<td>{dep.fromStopName ?? "-"}</td>
-												<td className={`font-mono ${sortColumnIndex[sortKey] === 2 ? "bg-base-200/50" : ""}`}>
+												<td className={`font-mono ${sortKey === "departureTime" ? "bg-base-300/50" : ""}`}>
 													{formatTime(dep.departureTime)}
 												</td>
-												<td className={`font-mono ${sortColumnIndex[sortKey] === 3 ? "bg-base-200/50" : ""}`}>
+												<td className={`font-mono ${sortKey === "arrivalTime" ? "bg-base-300/50" : ""}`}>
 													{formatTime(dep.arrivalTime)}
 												</td>
 												<td>

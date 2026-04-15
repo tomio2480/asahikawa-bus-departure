@@ -38,7 +38,6 @@ export function useTheme() {
 	const changeTheme = useCallback((newPref: ThemePreference) => {
 		setPreference(newPref);
 		localStorage.setItem(STORAGE_KEY, newPref);
-		applyTheme(newPref);
 	}, []);
 
 	// 初回マウント時にテーマを適用
@@ -46,14 +45,12 @@ export function useTheme() {
 		applyTheme(preference);
 	}, [preference]);
 
-	// デバイスのカラースキーム変更を監視（system モード時に追従）
+	// デバイスのカラースキーム変更を監視（system モード時のみ）
 	useEffect(() => {
+		if (preference !== "system") return;
+
 		const mql = window.matchMedia("(prefers-color-scheme: dark)");
-		const handler = () => {
-			if (preference === "system") {
-				applyTheme("system");
-			}
-		};
+		const handler = () => applyTheme("system");
 		mql.addEventListener("change", handler);
 		return () => mql.removeEventListener("change", handler);
 	}, [preference]);
