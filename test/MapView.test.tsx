@@ -311,7 +311,7 @@ describe("MapView", () => {
 			/>,
 		);
 		const polylines = screen.getAllByTestId("polyline");
-		expect(polylines[0].dataset.color).toBe("#b0c4de");
+		expect(polylines[0].dataset.color).toBe("#D8DDE6");
 		expect(polylines[1].dataset.color).toBe("#B0C1E2");
 	});
 
