@@ -100,8 +100,9 @@ export function loadGtfsData(
 	db: Database,
 	data: GtfsData,
 	operatorId: string,
+	idPrefix = "",
 ): void {
-	const ns = (id: string) => `${operatorId}:${id}`;
+	const ns = (id: string) => `${operatorId}:${idPrefix}${id}`;
 
 	db.run("BEGIN TRANSACTION");
 	try {

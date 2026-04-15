@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import Papa from "papaparse";
 import type { GtfsData } from "../src/types/gtfs";
@@ -277,16 +283,28 @@ function convertOperator(inputDir: string): GtfsData {
 	};
 }
 
+/** calendar.txt から start_date の集合を取得する */
+function getCalendarStartDates(operatorDir: string): Set<string> {
+	const calendarPath = join(operatorDir, "calendar.txt");
+	if (!existsSync(calendarPath)) return new Set();
+	const rows = parseCsv(readFileSync(calendarPath, "utf-8"));
+	return new Set(rows.map((r) => r.start_date).filter(Boolean));
+}
+
 function main(): void {
 	const inputBase = process.argv[2];
 	const outputDir = process.argv[3] ?? "public/data";
+	const prevBase = process.argv[4];
 
 	if (!inputBase) {
 		console.error(
-			"Usage: npx tsx scripts/convert-gtfs.ts <input-dir> [output-dir]",
+			"Usage: npx tsx scripts/convert-gtfs.ts <input-dir> [output-dir] [prev-dir]",
 		);
 		console.error(
 			"  <input-dir> should contain subdirectories for each operator",
+		);
+		console.error(
+			"  [prev-dir] optional: previous period GTFS data directory",
 		);
 		process.exit(1);
 	}
@@ -336,6 +354,40 @@ function main(): void {
 		};
 		console.log(`  Output: ${outputPath}`);
 		console.log("  Records:", stats);
+
+		// 前期間データの処理
+		const prevOutputPath = join(outputDir, `${operator.id}_prev.json`);
+		if (prevBase) {
+			const prevDir = join(prevBase, operator.id);
+			if (existsSync(prevDir)) {
+				const currentDates = getCalendarStartDates(operatorDir);
+				const prevDates = getCalendarStartDates(prevDir);
+				const isSamePeriod =
+					currentDates.size === prevDates.size &&
+					[...currentDates].every((d) => prevDates.has(d));
+
+				if (!isSamePeriod) {
+					console.log(`  Converting previous period for ${operator.name}...`);
+					try {
+						const prevData = convertOperator(prevDir);
+						writeFileSync(prevOutputPath, JSON.stringify(prevData), "utf-8");
+						console.log(`  Previous period output: ${prevOutputPath}`);
+					} catch (e) {
+						console.error(
+							`  Error converting previous period for ${operator.name}:`,
+							e instanceof Error ? e.message : e,
+						);
+					}
+				} else {
+					console.log(`  Same calendar period, skipping previous for ${operator.name}`);
+					// 同一期間の場合、既存の _prev.json を削除
+					if (existsSync(prevOutputPath)) {
+						unlinkSync(prevOutputPath);
+						console.log(`  Removed stale ${prevOutputPath}`);
+					}
+				}
+			}
+		}
 	}
 
 	if (hasError) {
@@ -345,7 +397,13 @@ function main(): void {
 	console.log("Done.");
 }
 
-export { parseCsv, validateCoordinate, convertOperator, OPERATORS };
+export {
+	parseCsv,
+	validateCoordinate,
+	convertOperator,
+	getCalendarStartDates,
+	OPERATORS,
+};
 
 const isDirectExecution =
 	process.argv[1] &&
