@@ -4,23 +4,13 @@ import { NEARBY_THRESHOLD_METERS, distanceMeters } from "./geo-utils";
 /** 名前統合の距離閾値（メートル） */
 const MERGE_THRESHOLD_METERS = 200;
 
-/** バス停名を正規化する（全角数字/英字→半角、全角スペース→半角） */
+/** バス停名を正規化する（Unicode NFKC 正規化で全角/半角を統一） */
 function normalizeName(name: string): string {
-	return name
-		.replace(/[０-９]/g, (c) =>
-			String.fromCharCode(c.charCodeAt(0) - 0xfee0),
-		)
-		.replace(/[Ａ-Ｚａ-ｚ]/g, (c) =>
-			String.fromCharCode(c.charCodeAt(0) - 0xfee0),
-		)
-		.replace(/\u3000/g, " ")
-		.trim();
+	return name.normalize("NFKC").trim();
 }
 
-/** 正規化後に一方が他方を含む（前方/後方/部分一致/正規化一致）か判定する */
-function namesContain(a: string, b: string): boolean {
-	const na = normalizeName(a);
-	const nb = normalizeName(b);
+/** 正規化済みの名前で包含関係を判定する */
+function normalizedNamesContain(na: string, nb: string): boolean {
 	return na.includes(nb) || nb.includes(na);
 }
 
@@ -177,11 +167,17 @@ function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 	// 比較には元の名前を使い、統合後の表示名は最後に構築する
 	const originalNames = clusters.map((c) => c.stopName);
 	const mergedNames: string[][] = clusters.map((_, i) => [originalNames[i]]);
+	// 正規化済み名前を事前計算してループ内の再正規化を回避
+	const normalizedMergedNames: string[][] = mergedNames.map((names) =>
+		names.map(normalizeName),
+	);
 	for (let i = 0; i < clusters.length; i++) {
 		for (let j = i + 1; j < clusters.length; j++) {
 			const canMerge =
-				mergedNames[i].some((ni) =>
-					mergedNames[j].some((nj) => namesContain(ni, nj)),
+				normalizedMergedNames[i].some((ni) =>
+					normalizedMergedNames[j].some((nj) =>
+						normalizedNamesContain(ni, nj),
+					),
 				) &&
 				distanceMeters(
 					clusters[i].lat,
@@ -192,8 +188,10 @@ function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 			if (canMerge) {
 				clusters[i].stopIds.push(...clusters[j].stopIds);
 				mergedNames[i].push(...mergedNames[j]);
+				normalizedMergedNames[i].push(...normalizedMergedNames[j]);
 				clusters.splice(j, 1);
 				mergedNames.splice(j, 1);
+				normalizedMergedNames.splice(j, 1);
 				j--;
 			}
 		}
@@ -318,6 +316,7 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 
 	// 名前に包含関係があるバス停（200m 以内、bounding box で候補を絞り込み）
 	const siblingIds = new Set(siblings);
+	const normalizedRefName = normalizeName(refName);
 	const degPerMeter = 1 / 111_000; // 緯度 1 度 ≈ 111km
 	const latDelta = MERGE_THRESHOLD_METERS * degPerMeter;
 	const lonDelta =
@@ -342,7 +341,7 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 			};
 			if (siblingIds.has(row.stop_id)) continue;
 			if (
-				namesContain(refName, row.stop_name) &&
+				normalizedNamesContain(normalizedRefName, normalizeName(row.stop_name)) &&
 				distanceMeters(refLat, refLon, row.stop_lat, row.stop_lon) <=
 					MERGE_THRESHOLD_METERS
 			) {
