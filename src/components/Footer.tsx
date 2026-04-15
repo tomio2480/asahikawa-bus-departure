@@ -1,3 +1,21 @@
+const OPERATORS = [
+	{ name: "旭川電気軌道", url: "https://www.asahikawa-denkikidou.jp/" },
+	{ name: "道北バス", url: "https://www.dohokubus.com/" },
+	{ name: "ふらのバス", url: "https://www.furanobus.jp/" },
+] as const;
+
+const SOCIAL_LINKS = [
+	{ name: "X (Twitter)", url: "https://x.com/tomio2480" },
+	{
+		name: "GitHub Sponsors",
+		url: "https://github.com/sponsors/tomio2480",
+	},
+	{
+		name: "GitHub",
+		url: "https://github.com/tomio2480/asahikawa-bus-departure",
+	},
+] as const;
+
 /** アプリケーションのフッター */
 export function Footer() {
 	return (
@@ -10,30 +28,17 @@ export function Footer() {
 						正確な時刻・運賃は各事業者の公式ページをご確認ください。
 					</p>
 					<nav className="flex flex-wrap justify-center gap-x-4 gap-y-1">
-						<a
-							href="https://www.asahikawa-denkikidou.jp/"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link link-hover"
-						>
-							旭川電気軌道
-						</a>
-						<a
-							href="https://www.dohokubus.com/"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link link-hover"
-						>
-							道北バス
-						</a>
-						<a
-							href="https://www.furanobus.jp/"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link link-hover"
-						>
-							ふらのバス
-						</a>
+						{OPERATORS.map((op) => (
+							<a
+								key={op.url}
+								href={op.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="link link-hover"
+							>
+								{op.name}
+							</a>
+						))}
 					</nav>
 				</section>
 				<section className="text-xs text-base-content/50">
@@ -63,30 +68,17 @@ export function Footer() {
 			{/* 下段: SNS・コピーライト */}
 			<div className="bg-base-300 text-base-content p-4 text-center space-y-2">
 				<nav className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
-					<a
-						href="https://x.com/tomio2480"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="link link-hover"
-					>
-						X (Twitter)
-					</a>
-					<a
-						href="https://github.com/sponsors/tomio2480"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="link link-hover"
-					>
-						GitHub Sponsors
-					</a>
-					<a
-						href="https://github.com/tomio2480/asahikawa-bus-departure"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="link link-hover"
-					>
-						GitHub
-					</a>
+					{SOCIAL_LINKS.map((link) => (
+						<a
+							key={link.url}
+							href={link.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="link link-hover"
+						>
+							{link.name}
+						</a>
+					))}
 				</nav>
 				<p className="text-xs text-base-content/60">
 					&copy; 2026 Shota Nishihara

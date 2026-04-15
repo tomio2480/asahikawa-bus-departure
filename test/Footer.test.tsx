@@ -47,6 +47,7 @@ describe("Footer", () => {
 		const links = screen.getAllByRole("link");
 		for (const link of links) {
 			expect(link).toHaveAttribute("rel", "noopener noreferrer");
+			expect(link).toHaveAttribute("target", "_blank");
 		}
 	});
 
