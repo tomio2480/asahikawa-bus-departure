@@ -225,7 +225,7 @@ export function DepartureBoard({
 												key={stopId}
 												type="button"
 												aria-pressed={isActive}
-												className={`badge cursor-pointer ${isActive ? "badge-primary" : "badge-outline"}`}
+												className={`badge cursor-pointer hover:opacity-80 transition-opacity ${isActive ? "badge-primary" : "badge-outline"}`}
 												onClick={() =>
 													onDestinationToggle?.(stopId)
 												}
