@@ -219,18 +219,18 @@ export function DepartureBoard({
 								>
 									{[...destinations.entries()].map(([stopId, name]) => {
 										const isActive =
-											selectedDestinations.size > 0 &&
 											selectedDestinations.has(stopId);
 										return (
 											<button
 												key={stopId}
 												type="button"
+												aria-pressed={isActive}
 												className={`badge cursor-pointer ${isActive ? "badge-primary" : "badge-outline"}`}
 												onClick={() =>
 													onDestinationToggle?.(stopId)
 												}
 											>
-												{name}
+												{name || stopId}
 											</button>
 										);
 									})}

@@ -129,6 +129,9 @@ describe("DepartureBoard コンポーネント", () => {
 		const tag2 = screen.getByRole("button", { name: "旭川四条駅" });
 		expect(tag1).toBeInTheDocument();
 		expect(tag2).toBeInTheDocument();
+		// 未選択状態では aria-pressed が false
+		expect(tag1).toHaveAttribute("aria-pressed", "false");
+		expect(tag2).toHaveAttribute("aria-pressed", "false");
 	});
 
 	it("selectedDestinations で行先がフィルタされる", () => {
