@@ -52,21 +52,39 @@ function App() {
 	}, []);
 
 
-	const [selectedDestination, setSelectedDestination] = useState("all");
-	const effectiveDestination = useMemo(() => {
-		if (selectedDestination === "all") return "all";
-		return groups.some((g) => g.toStopId === selectedDestination)
-			? selectedDestination
-			: "all";
-	}, [selectedDestination, groups]);
+	const [selectedDestinations, setSelectedDestinations] = useState<
+		Set<string>
+	>(new Set());
+	const effectiveDestinations = useMemo(() => {
+		if (selectedDestinations.size === 0) return new Set<string>();
+		const valid = new Set<string>();
+		for (const id of selectedDestinations) {
+			if (groups.some((g) => g.toStopId === id)) {
+				valid.add(id);
+			}
+		}
+		return valid;
+	}, [selectedDestinations, groups]);
+
+	const handleDestinationToggle = useCallback((id: string) => {
+		setSelectedDestinations((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) {
+				next.delete(id);
+			} else {
+				next.add(id);
+			}
+			return next;
+		});
+	}, []);
 
 	const mapRoutes = useMemo<MapRoute[]>(() => {
 		const seen = new Set<string>();
 		const result: MapRoute[] = [];
 		const filteredGroups =
-			effectiveDestination === "all"
+			effectiveDestinations.size === 0
 				? groups
-				: groups.filter((g) => g.toStopId === effectiveDestination);
+				: groups.filter((g) => effectiveDestinations.has(g.toStopId));
 		for (const group of filteredGroups) {
 			for (const dep of group.departures) {
 				const key = `${dep.tripId}-${dep.fromStopId}-${dep.toStopId}`;
@@ -83,7 +101,7 @@ function App() {
 			}
 		}
 		return result;
-	}, [groups, effectiveDestination]);
+	}, [groups, effectiveDestinations]);
 
 	const { preference, changeTheme } = useTheme();
 
@@ -148,8 +166,8 @@ function App() {
 							onRouteHover={handleRouteHover}
 							pinnedRouteKey={pinnedRouteKey}
 							onRoutePinToggle={handleRoutePinToggle}
-							selectedDestination={effectiveDestination}
-							onDestinationChange={setSelectedDestination}
+							selectedDestinations={effectiveDestinations}
+							onDestinationToggle={handleDestinationToggle}
 						/>
 						<RouteRegistration
 							db={db}
