@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { DepartureBoard } from "./components/DepartureBoard";
 import { ExpiryWarning } from "./components/ExpiryWarning";
-import { Footer } from "./components/Footer";
+import { DataAttribution, Footer } from "./components/Footer";
 import { LoadingSpinner } from "./components/LoadingSpinner";
 import { type MapRoute, MapView } from "./components/MapView";
 import { RouteRegistration } from "./components/RouteRegistration";
@@ -123,6 +123,7 @@ function App() {
 				{db && !loading && !error && (
 					<>
 						<ExpiryWarning expiry={expiry} currentDate={currentDate} />
+						<DataAttribution />
 						{mapRoutes.length > 0 && (
 							<div className="card bg-base-100 shadow-sm">
 								<div className="card-body">

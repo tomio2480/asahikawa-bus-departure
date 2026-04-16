@@ -1,36 +1,93 @@
+const OPERATORS = [
+	{ name: "旭川電気軌道", url: "https://www.asahikawa-denkikidou.jp/" },
+	{ name: "道北バス", url: "https://www.dohokubus.com/" },
+	{ name: "ふらのバス", url: "https://www.furanobus.jp/" },
+] as const;
+
+const SOCIAL_LINKS = [
+	{ name: "X (Twitter)", url: "https://x.com/tomio2480" },
+	{
+		name: "GitHub Sponsors",
+		url: "https://github.com/sponsors/tomio2480",
+	},
+	{
+		name: "GitHub",
+		url: "https://github.com/tomio2480/asahikawa-bus-departure",
+	},
+] as const;
+
+/** 免責事項・公式リンク・データ出典を表示するカード */
+export function DataAttribution() {
+	return (
+		<div className="card bg-base-100 shadow-sm">
+			<div className="card-body py-3 px-4 text-center space-y-1">
+				<div className="text-sm text-base-content/70">
+					このサービスの情報は参考値です。正確な時刻・運賃は各事業者の公式ページをご確認ください:
+					<nav
+						aria-label="各事業者の公式サイト"
+						className="inline-flex flex-wrap justify-center gap-x-3 ml-1"
+					>
+						{OPERATORS.map((op) => (
+							<a
+								key={op.url}
+								href={op.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="link link-primary underline"
+							>
+								{op.name}
+							</a>
+						))}
+					</nav>
+				</div>
+				<p className="text-xs text-base-content/70">
+					交通データ:
+					<a
+						href="https://ckan.hoda.jp/dataset/gtfs-data"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="link link-primary underline ml-1"
+					>
+						「公共交通GTFSデータ」（HODA 北海道オープンデータプラットフォーム）
+					</a>
+					を加工して作成 /
+					<a
+						href="https://creativecommons.org/licenses/by/4.0/deed.ja"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="link link-primary underline ml-1"
+					>
+						CC BY 4.0
+					</a>
+				</p>
+			</div>
+		</div>
+	);
+}
+
 /** アプリケーションのフッター */
 export function Footer() {
 	return (
-		<footer className="footer footer-center bg-base-100 text-base-content p-6 mt-auto">
-			<nav className="flex flex-wrap justify-center gap-x-4 gap-y-2">
-				<a
-					href="https://x.com/tomio2480"
-					target="_blank"
-					rel="noopener noreferrer"
-					className="link link-hover"
-				>
-					X (Twitter)
-				</a>
-				<a
-					href="https://github.com/sponsors/tomio2480"
-					target="_blank"
-					rel="noopener noreferrer"
-					className="link link-hover"
-				>
-					GitHub Sponsors
-				</a>
-				<a
-					href="https://github.com/tomio2480/asahikawa-bus-departure"
-					target="_blank"
-					rel="noopener noreferrer"
-					className="link link-hover"
-				>
-					GitHub
-				</a>
+		<footer className="mt-auto bg-base-300 text-base-content p-4 text-center space-y-2">
+			<nav
+				aria-label="SNS・支援リンク"
+				className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm"
+			>
+				{SOCIAL_LINKS.map((link) => (
+					<a
+						key={link.url}
+						href={link.url}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="link link-hover"
+					>
+						{link.name}
+					</a>
+				))}
 			</nav>
-			<aside>
-				<p>&copy; 2026 Shota Nishihara</p>
-			</aside>
+			<p className="text-xs text-base-content/70">
+				&copy; 2026 Shota Nishihara
+			</p>
 		</footer>
 	);
 }
