@@ -288,6 +288,11 @@ export function DepartureBoard({
 															出発済
 														</span>
 													)}
+													{dep.isNextDay && !dep.isDeparted && (
+														<span className="ml-1 badge badge-sm badge-outline">
+															始発以降
+														</span>
+													)}
 												</td>
 												<td>{dep.fromStopName ?? "-"}</td>
 												<td className={`font-mono ${sortKey === "departureTime" ? "bg-base-300/50" : ""}`}>
