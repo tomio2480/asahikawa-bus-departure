@@ -53,6 +53,9 @@ function formatUpdatedTime(date: Date): string {
 /** スクロール領域の最大高さ（Tailwind の max-h-60 = 15rem 相当） */
 const SCROLL_MAX_HEIGHT_CLASS = "max-h-60";
 
+/** selectedDestinations のデフォルト値（参照安定性のためモジュールスコープで保持） */
+const EMPTY_DESTINATIONS = new Set<string>();
+
 /** ソート可能なカラム */
 type SortKey = "leaveByTime" | "departureTime" | "arrivalTime";
 
@@ -69,7 +72,7 @@ export function DepartureBoard({
 	onRouteHover,
 	pinnedRouteKey,
 	onRoutePinToggle,
-	selectedDestinations = new Set<string>(),
+	selectedDestinations = EMPTY_DESTINATIONS,
 	onDestinationToggle,
 }: DepartureBoardProps) {
 
