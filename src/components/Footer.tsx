@@ -40,7 +40,7 @@ export function DataAttribution() {
 						))}
 					</nav>
 				</div>
-				<p className="text-xs text-base-content/50">
+				<p className="text-xs text-base-content/70">
 					交通データ:
 					<a
 						href="https://ckan.hoda.jp/dataset/gtfs-data"
@@ -85,7 +85,7 @@ export function Footer() {
 					</a>
 				))}
 			</nav>
-			<p className="text-xs text-base-content/60">
+			<p className="text-xs text-base-content/70">
 				&copy; 2026 Shota Nishihara
 			</p>
 		</footer>
