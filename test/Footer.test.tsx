@@ -57,7 +57,7 @@ describe("DataAttribution", () => {
 		it("免責表示が表示される", () => {
 			render(<DataAttribution />);
 			expect(
-				screen.getByText("このサービスの情報は参考値です。"),
+				screen.getByText(/このサービスの情報は参考値です/),
 			).toBeInTheDocument();
 			expect(
 				screen.getByText(

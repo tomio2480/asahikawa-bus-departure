@@ -20,15 +20,12 @@ const SOCIAL_LINKS = [
 export function DataAttribution() {
 	return (
 		<div className="card bg-base-100 shadow-sm">
-			<div className="card-body text-center space-y-3">
-				<section className="text-sm text-base-content/70 space-y-2">
-					<p>このサービスの情報は参考値です。</p>
-					<p>
-						正確な時刻・運賃は各事業者の公式ページをご確認ください。
-					</p>
+			<div className="card-body py-3 px-4 text-center space-y-1">
+				<div className="text-sm text-base-content/70">
+					このサービスの情報は参考値です。正確な時刻・運賃は各事業者の公式ページをご確認ください:
 					<nav
 						aria-label="各事業者の公式サイト"
-						className="flex flex-wrap justify-center gap-x-4 gap-y-1"
+						className="inline-flex flex-wrap justify-center gap-x-3 ml-1"
 					>
 						{OPERATORS.map((op) => (
 							<a
@@ -36,36 +33,33 @@ export function DataAttribution() {
 								href={op.url}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="link link-hover"
+								className="link link-primary underline"
 							>
 								{op.name}
 							</a>
 						))}
 					</nav>
-				</section>
-				<section className="text-xs text-base-content/50">
-					<p>
-						交通データ:
-						<a
-							href="https://ckan.hoda.jp/dataset/gtfs-data"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link link-hover"
-						>
-							「公共交通GTFSデータ」（HODA
-							北海道オープンデータプラットフォーム）
-						</a>
-						を加工して作成 /
-						<a
-							href="https://creativecommons.org/licenses/by/4.0/deed.ja"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link link-hover"
-						>
-							CC BY 4.0
-						</a>
-					</p>
-				</section>
+				</div>
+				<p className="text-xs text-base-content/50">
+					交通データ:
+					<a
+						href="https://ckan.hoda.jp/dataset/gtfs-data"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="link link-primary underline ml-1"
+					>
+						「公共交通GTFSデータ」（HODA 北海道オープンデータプラットフォーム）
+					</a>
+					を加工して作成 /
+					<a
+						href="https://creativecommons.org/licenses/by/4.0/deed.ja"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="link link-primary underline ml-1"
+					>
+						CC BY 4.0
+					</a>
+				</p>
 			</div>
 		</div>
 	);
