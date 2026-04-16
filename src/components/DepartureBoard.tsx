@@ -121,10 +121,13 @@ export function DepartureBoard({
 		[visibleGroups],
 	);
 
-	// ソート適用
+	// ソート適用（翌日便は常に当日便の後に配置）
 	const allDepartures = useMemo(() => {
 		const dir = sortDirection === "asc" ? 1 : -1;
 		return [...flattenedDepartures].sort((a, b) => {
+			const aNext = a.isNextDay ? 1 : 0;
+			const bNext = b.isNextDay ? 1 : 0;
+			if (aNext !== bNext) return aNext - bNext;
 			const aVal = (a[sortKey] as string | undefined) ?? "";
 			const bVal = (b[sortKey] as string | undefined) ?? "";
 			return dir * aVal.localeCompare(bVal);

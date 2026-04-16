@@ -210,6 +210,64 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(times).toEqual(["08:00", "08:15", "09:00"]);
 	});
 
+	it("翌日便は当日便の後に表示される", () => {
+		const groups: DepartureGroup[] = [
+			{
+				toStopId: "test:S002",
+				toStopName: "旭川空港",
+				departures: [
+					{
+						tripId: "T010",
+						routeId: "R001",
+						routeName: "77番",
+						headsign: "旭川空港行き",
+						departureTime: "10:14:00",
+						arrivalTime: "10:37:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S002",
+						shapeId: null,
+						fare: null,
+					},
+				],
+				isNextDay: true,
+			},
+			{
+				toStopId: "test:S003",
+				toStopName: "旭川駅",
+				departures: [
+					{
+						tripId: "T020",
+						routeId: "R002",
+						routeName: "83番",
+						headsign: "旭川駅前行き",
+						departureTime: "19:46:00",
+						arrivalTime: "20:11:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S003",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			},
+		];
+		render(
+			<DepartureBoard
+				groups={groups}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+
+		const tbody = screen.getAllByRole("rowgroup")[1];
+		const rows = within(tbody).getAllByRole("row");
+		const headsigns = rows.map(
+			(row) => within(row).getAllByRole("cell")[6].textContent,
+		);
+		// 当日便（19:46）が先、翌日便（10:14）が後
+		expect(headsigns).toEqual(["旭川駅前行き", "旭川空港行き"]);
+	});
+
 	it("発車予定がない場合はメッセージを表示する", () => {
 		render(
 			<DepartureBoard
