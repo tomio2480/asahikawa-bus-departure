@@ -26,7 +26,10 @@ export function DataAttribution() {
 					<p>
 						正確な時刻・運賃は各事業者の公式ページをご確認ください。
 					</p>
-					<nav className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+					<nav
+						aria-label="各事業者の公式サイト"
+						className="flex flex-wrap justify-center gap-x-4 gap-y-1"
+					>
 						{OPERATORS.map((op) => (
 							<a
 								key={op.url}
@@ -72,7 +75,10 @@ export function DataAttribution() {
 export function Footer() {
 	return (
 		<footer className="mt-auto bg-base-300 text-base-content p-4 text-center space-y-2">
-			<nav className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
+			<nav
+				aria-label="SNS・支援リンク"
+				className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm"
+			>
 				{SOCIAL_LINKS.map((link) => (
 					<a
 						key={link.url}
