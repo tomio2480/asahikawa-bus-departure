@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { Footer } from "../src/components/Footer";
+import { DataAttribution, Footer } from "../src/components/Footer";
 
 afterEach(() => {
 	cleanup();
@@ -42,7 +42,7 @@ describe("Footer", () => {
 		expect(links[0]).toHaveAttribute("target", "_blank");
 	});
 
-	it("外部リンクに rel='noopener noreferrer' が設定されている", () => {
+	it("外部リンクに rel='noopener noreferrer' と target='_blank' が設定されている", () => {
 		render(<Footer />);
 		const links = screen.getAllByRole("link");
 		for (const link of links) {
@@ -50,10 +50,12 @@ describe("Footer", () => {
 			expect(link).toHaveAttribute("target", "_blank");
 		}
 	});
+});
 
+describe("DataAttribution", () => {
 	describe("免責表示と公式リンク", () => {
 		it("免責表示が表示される", () => {
-			render(<Footer />);
+			render(<DataAttribution />);
 			expect(
 				screen.getByText("このサービスの情報は参考値です。"),
 			).toBeInTheDocument();
@@ -65,7 +67,7 @@ describe("Footer", () => {
 		});
 
 		it("旭川電気軌道の公式リンクが正しい URL を持つ", () => {
-			render(<Footer />);
+			render(<DataAttribution />);
 			const link = screen.getByRole("link", { name: "旭川電気軌道" });
 			expect(link).toHaveAttribute(
 				"href",
@@ -74,13 +76,13 @@ describe("Footer", () => {
 		});
 
 		it("道北バスの公式リンクが正しい URL を持つ", () => {
-			render(<Footer />);
+			render(<DataAttribution />);
 			const link = screen.getByRole("link", { name: "道北バス" });
 			expect(link).toHaveAttribute("href", "https://www.dohokubus.com/");
 		});
 
 		it("ふらのバスの公式リンクが正しい URL を持つ", () => {
-			render(<Footer />);
+			render(<DataAttribution />);
 			const link = screen.getByRole("link", { name: "ふらのバス" });
 			expect(link).toHaveAttribute("href", "https://www.furanobus.jp/");
 		});
@@ -88,12 +90,12 @@ describe("Footer", () => {
 
 	describe("データ出典表示", () => {
 		it("HODA のデータ出典が表示される", () => {
-			render(<Footer />);
+			render(<DataAttribution />);
 			expect(screen.getByText(/加工して作成/)).toBeInTheDocument();
 		});
 
 		it("HODA データセットへのリンクが正しい URL を持つ", () => {
-			render(<Footer />);
+			render(<DataAttribution />);
 			const link = screen.getByRole("link", {
 				name: /公共交通GTFSデータ/,
 			});
@@ -104,12 +106,21 @@ describe("Footer", () => {
 		});
 
 		it("CC BY 4.0 ライセンスへのリンクが表示される", () => {
-			render(<Footer />);
+			render(<DataAttribution />);
 			const link = screen.getByRole("link", { name: /CC BY 4\.0/ });
 			expect(link).toHaveAttribute(
 				"href",
 				"https://creativecommons.org/licenses/by/4.0/deed.ja",
 			);
 		});
+	});
+
+	it("外部リンクに rel='noopener noreferrer' と target='_blank' が設定されている", () => {
+		render(<DataAttribution />);
+		const links = screen.getAllByRole("link");
+		for (const link of links) {
+			expect(link).toHaveAttribute("rel", "noopener noreferrer");
+			expect(link).toHaveAttribute("target", "_blank");
+		}
 	});
 });

@@ -16,12 +16,11 @@ const SOCIAL_LINKS = [
 	},
 ] as const;
 
-/** アプリケーションのフッター */
-export function Footer() {
+/** 免責事項・公式リンク・データ出典を表示するカード */
+export function DataAttribution() {
 	return (
-		<footer className="mt-auto">
-			{/* 上段: 免責事項・公式リンク・データ出典 */}
-			<div className="bg-base-100 text-base-content p-6 text-center space-y-3">
+		<div className="card bg-base-100 shadow-sm">
+			<div className="card-body text-center space-y-3">
 				<section className="text-sm text-base-content/70 space-y-2">
 					<p>このサービスの情報は参考値です。</p>
 					<p>
@@ -65,25 +64,30 @@ export function Footer() {
 					</p>
 				</section>
 			</div>
-			{/* 下段: SNS・コピーライト */}
-			<div className="bg-base-300 text-base-content p-4 text-center space-y-2">
-				<nav className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
-					{SOCIAL_LINKS.map((link) => (
-						<a
-							key={link.url}
-							href={link.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="link link-hover"
-						>
-							{link.name}
-						</a>
-					))}
-				</nav>
-				<p className="text-xs text-base-content/60">
-					&copy; 2026 Shota Nishihara
-				</p>
-			</div>
+		</div>
+	);
+}
+
+/** アプリケーションのフッター */
+export function Footer() {
+	return (
+		<footer className="mt-auto bg-base-300 text-base-content p-4 text-center space-y-2">
+			<nav className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm">
+				{SOCIAL_LINKS.map((link) => (
+					<a
+						key={link.url}
+						href={link.url}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="link link-hover"
+					>
+						{link.name}
+					</a>
+				))}
+			</nav>
+			<p className="text-xs text-base-content/60">
+				&copy; 2026 Shota Nishihara
+			</p>
 		</footer>
 	);
 }
