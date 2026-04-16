@@ -19,10 +19,10 @@ type DepartureBoardProps = {
 	pinnedRouteKey?: string | null;
 	/** 経路クリック時のトグルコールバック */
 	onRoutePinToggle?: (key: string) => void;
-	/** 現在選択中の行先フィルタ値（"all" で全行先） */
-	selectedDestination?: string;
-	/** 行先フィルタ変更時に呼ばれるコールバック */
-	onDestinationChange?: (destinationId: string) => void;
+	/** 選択中の行先 ID の集合（空集合で全行先） */
+	selectedDestinations?: Set<string>;
+	/** 行先タグクリック時のトグルコールバック */
+	onDestinationToggle?: (destinationId: string) => void;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -69,8 +69,8 @@ export function DepartureBoard({
 	onRouteHover,
 	pinnedRouteKey,
 	onRoutePinToggle,
-	selectedDestination = "all",
-	onDestinationChange,
+	selectedDestinations = new Set<string>(),
+	onDestinationToggle,
 }: DepartureBoardProps) {
 
 	// 行先の選択肢（ドロップダウン用。フィルタ中も全選択肢を表示する）
@@ -87,10 +87,10 @@ export function DepartureBoard({
 	// 選択中の行先でグループを絞り込む
 	const visibleGroups = useMemo(
 		() =>
-			selectedDestination === "all"
+			selectedDestinations.size === 0
 				? groups
-				: groups.filter((g) => g.toStopId === selectedDestination),
-		[groups, selectedDestination],
+				: groups.filter((g) => selectedDestinations.has(g.toStopId)),
+		[groups, selectedDestinations],
 	);
 
 	const [sortKey, setSortKey] = useState<SortKey>("departureTime");
@@ -212,19 +212,29 @@ export function DepartureBoard({
 								</span>
 							)}
 							{destinations.size > 1 && (
-								<select
+								<div
+									className="flex flex-wrap gap-1"
+									role="group"
 									aria-label="行き先で絞り込む"
-									className="select select-sm select-bordered"
-									value={selectedDestination}
-									onChange={(e) => onDestinationChange?.(e.target.value)}
 								>
-									<option value="all">全ての行先</option>
-									{[...destinations.entries()].map(([stopId, name]) => (
-										<option key={stopId} value={stopId}>
-											{name}
-										</option>
-									))}
-								</select>
+									{[...destinations.entries()].map(([stopId, name]) => {
+										const isActive =
+											selectedDestinations.size > 0 &&
+											selectedDestinations.has(stopId);
+										return (
+											<button
+												key={stopId}
+												type="button"
+												className={`badge cursor-pointer ${isActive ? "badge-primary" : "badge-outline"}`}
+												onClick={() =>
+													onDestinationToggle?.(stopId)
+												}
+											>
+												{name}
+											</button>
+										);
+									})}
+								</div>
 							)}
 						</div>
 						<div

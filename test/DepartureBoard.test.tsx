@@ -95,7 +95,7 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(headsigns.length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("複数の行先がプルダウンの選択肢に表示される", () => {
+	it("複数の行先がタグとして表示される", () => {
 		const groups = [
 			makeGroup(),
 			makeGroup({
@@ -125,23 +125,13 @@ describe("DepartureBoard コンポーネント", () => {
 				hasRoutes={true}
 			/>,
 		);
-		const select = screen.getByRole("combobox");
-		expect(select).toBeInTheDocument();
-		const options = screen.getAllByRole("option");
-		expect(options).toHaveLength(3);
-		expect(options.map((o) => o.textContent)).toEqual([
-			"全ての行先",
-			"市役所前",
-			"旭川四条駅",
-		]);
-		expect(options.map((o) => (o as HTMLOptionElement).value)).toEqual([
-			"all",
-			"test:S002",
-			"test:S003",
-		]);
+		const tag1 = screen.getByRole("button", { name: "市役所前" });
+		const tag2 = screen.getByRole("button", { name: "旭川四条駅" });
+		expect(tag1).toBeInTheDocument();
+		expect(tag2).toBeInTheDocument();
 	});
 
-	it("selectedDestination で行先がフィルタされる", () => {
+	it("selectedDestinations で行先がフィルタされる", () => {
 		const groups = [
 			makeGroup(),
 			makeGroup({
@@ -169,7 +159,7 @@ describe("DepartureBoard コンポーネント", () => {
 				lastUpdated={new Date()}
 				error={null}
 				hasRoutes={true}
-				selectedDestination="test:S003"
+				selectedDestinations={new Set(["test:S003"])}
 			/>,
 		);
 
@@ -478,7 +468,7 @@ describe("DepartureBoard コンポーネント", () => {
 				lastUpdated={new Date()}
 				error={null}
 				hasRoutes={true}
-				selectedDestination="registered:S003"
+				selectedDestinations={new Set(["registered:S003"])}
 			/>,
 		);
 
@@ -486,8 +476,8 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(screen.queryByText("市役所方面")).not.toBeInTheDocument();
 	});
 
-	it("onDestinationChange がプルダウン操作で呼ばれる", () => {
-		const onChange = vi.fn();
+	it("onDestinationToggle がタグクリックで呼ばれる", () => {
+		const onToggle = vi.fn();
 		const groups = [
 			makeGroup(),
 			makeGroup({
@@ -515,14 +505,105 @@ describe("DepartureBoard コンポーネント", () => {
 				lastUpdated={new Date()}
 				error={null}
 				hasRoutes={true}
-				onDestinationChange={onChange}
+				onDestinationToggle={onToggle}
 			/>,
 		);
 
-		const select = screen.getByRole("combobox");
-		fireEvent.change(select, { target: { value: "test:S003" } });
+		const tag = screen.getByRole("button", { name: "旭川四条駅" });
+		fireEvent.click(tag);
 
-		expect(onChange).toHaveBeenCalledWith("test:S003");
+		expect(onToggle).toHaveBeenCalledWith("test:S003");
+	});
+
+	it("複数の行き先を選択するとそれらのみ表示される", () => {
+		const groups = [
+			makeGroup(),
+			makeGroup({
+				toStopId: "test:S003",
+				toStopName: "旭川四条駅",
+				departures: [
+					{
+						tripId: "T003",
+						routeId: "R002",
+						routeName: "2番",
+						headsign: "四条方面",
+						departureTime: "08:15:00",
+						arrivalTime: "08:45:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S003",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			}),
+			makeGroup({
+				toStopId: "test:S004",
+				toStopName: "旭川空港",
+				departures: [
+					{
+						tripId: "T004",
+						routeId: "R003",
+						routeName: "77番",
+						headsign: "空港方面",
+						departureTime: "08:30:00",
+						arrivalTime: "09:00:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S004",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			}),
+		];
+		render(
+			<DepartureBoard
+				groups={groups}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				selectedDestinations={new Set(["test:S002", "test:S003"])}
+			/>,
+		);
+
+		expect(screen.getAllByText("市役所方面").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("四条方面").length).toBeGreaterThan(0);
+		expect(screen.queryByText("空港方面")).not.toBeInTheDocument();
+	});
+
+	it("何も選択していない場合は全行き先が表示される", () => {
+		const groups = [
+			makeGroup(),
+			makeGroup({
+				toStopId: "test:S003",
+				toStopName: "旭川四条駅",
+				departures: [
+					{
+						tripId: "T003",
+						routeId: "R002",
+						routeName: "2番",
+						headsign: "四条方面",
+						departureTime: "08:15:00",
+						arrivalTime: "08:45:00",
+						fromStopId: "test:S001",
+						toStopId: "test:S003",
+						shapeId: null,
+						fare: null,
+					},
+				],
+			}),
+		];
+		render(
+			<DepartureBoard
+				groups={groups}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				selectedDestinations={new Set()}
+			/>,
+		);
+
+		expect(screen.getAllByText("市役所方面").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("四条方面").length).toBeGreaterThan(0);
 	});
 
 	it("ホバー時に onRouteHover が routeId を含むキーで呼ばれる", async () => {
