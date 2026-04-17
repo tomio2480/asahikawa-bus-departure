@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useNotificationSettings } from "../src/hooks/useNotificationSettings";
 
 const STORAGE_KEY = "notify-before-minutes";
@@ -55,5 +55,27 @@ describe("useNotificationSettings", () => {
 			result.current.setMinutes(-5);
 		});
 		expect(result.current.minutes).toBe(1);
+	});
+
+	it("localStorage.setItem が例外を投げた場合 setMinutes も throw し、state は変更されない", () => {
+		const { result } = renderHook(() => useNotificationSettings());
+		const initial = result.current.minutes;
+		const setItemSpy = vi
+			.spyOn(Storage.prototype, "setItem")
+			.mockImplementation(() => {
+				throw new DOMException("quota exceeded", "QuotaExceededError");
+			});
+
+		try {
+			expect(() => {
+				act(() => {
+					result.current.setMinutes(30);
+				});
+			}).toThrow(/quota exceeded/);
+			// state は永続化失敗時に変更されないこと（画面表示と保存済み値の整合を維持）
+			expect(result.current.minutes).toBe(initial);
+		} finally {
+			setItemSpy.mockRestore();
+		}
 	});
 });
