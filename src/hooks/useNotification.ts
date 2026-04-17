@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Departure } from "../lib/departure-query";
 import type { RegisteredRouteEntry } from "../types/route-entry";
 
@@ -95,21 +95,32 @@ export function useNotification({
 		return result;
 	}, []);
 
+	// 通知が有効な経路の Map（routes 変更時のみ再構築）
+	const enabledRoutes = useMemo(
+		() =>
+			new Map(
+				routes
+					.filter((r) => r.notifyEnabled)
+					.map((r) => [`${r.fromStopId}-${r.toStopId}`, r]),
+			),
+		[routes],
+	);
+
 	useEffect(() => {
 		if (!enabled) return;
 		if (permission !== "granted") return;
 		if (notifyBeforeMinutes <= 0) return;
+		if (enabledRoutes.size === 0) return;
 
-		const enabledRoutes = new Map<string, RegisteredRouteEntry>();
-		for (const route of routes) {
-			if (route.notifyEnabled) {
-				enabledRoutes.set(
-					`${route.fromStopId}-${route.toStopId}`,
-					route,
-				);
+		// 現在の departures に含まれない tripId を notifiedRef から除去
+		const currentKeys = new Set(
+			departures.map((d) => `${d.tripId}-${d.departureTime}`),
+		);
+		for (const key of notifiedRef.current) {
+			if (!currentKeys.has(key)) {
+				notifiedRef.current.delete(key);
 			}
 		}
-		if (enabledRoutes.size === 0) return;
 
 		const currentTime = getCurrentJstTime();
 		const currentMinutes = timeToMinutes(currentTime);
@@ -134,7 +145,7 @@ export function useNotification({
 				});
 			}
 		}
-	}, [departures, routes, notifyBeforeMinutes, enabled, permission]);
+	}, [departures, enabledRoutes, notifyBeforeMinutes, enabled, permission]);
 
 	return { permission, requestPermission };
 }
