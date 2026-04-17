@@ -196,11 +196,6 @@ function App() {
 							onRoutePinToggle={handleRoutePinToggle}
 							selectedDestinations={effectiveDestinations}
 							onDestinationToggle={handleDestinationToggle}
-							hasNotifyEnabledRoutes={hasNotifyEnabledRoutes}
-							notifyBeforeMinutes={notifyBeforeMinutes}
-							onNotifyBeforeMinutesChange={setNotifyBeforeMinutes}
-							notifyPermission={notifyPermission}
-							onRequestNotificationPermission={requestPermission}
 						/>
 						<RouteRegistration
 							db={db}
@@ -210,6 +205,9 @@ function App() {
 							onDelete={remove}
 							onRequestNotificationPermission={requestPermission}
 							notifyPermission={notifyPermission}
+							hasNotifyEnabledRoutes={hasNotifyEnabledRoutes}
+							notifyBeforeMinutes={notifyBeforeMinutes}
+							onNotifyBeforeMinutesChange={setNotifyBeforeMinutes}
 						/>
 					</>
 				)}

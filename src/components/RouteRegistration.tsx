@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Database } from "sql.js";
 import { type StopSearchResult, getStopName } from "../lib/stop-search";
 import type { RegisteredRouteEntry, RouteEntry } from "../types/route-entry";
@@ -19,6 +19,12 @@ type RouteRegistrationProps = {
 	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
 	/** 現在の通知パーミッション（警告表示のために使用） */
 	notifyPermission?: NotificationPermission | "unsupported";
+	/** 通知が有効な経路が 1 件以上あるかどうか */
+	hasNotifyEnabledRoutes?: boolean;
+	/** 通知する出発目安の何分前（undefined のとき通知タイミング UI を非表示） */
+	notifyBeforeMinutes?: number;
+	/** 通知タイミング変更コールバック */
+	onNotifyBeforeMinutesChange?: (minutes: number) => void;
 };
 
 type FormState = {
@@ -44,6 +50,9 @@ export function RouteRegistration({
 	onDelete,
 	onRequestNotificationPermission,
 	notifyPermission,
+	hasNotifyEnabledRoutes,
+	notifyBeforeMinutes,
+	onNotifyBeforeMinutesChange,
 }: RouteRegistrationProps) {
 	const stopNameMap = useMemo(() => {
 		const ids = new Set<string>();
@@ -66,6 +75,34 @@ export function RouteRegistration({
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+	// 通知分前入力のローカル表示値（一時クリアを許容するため string で管理）
+	const [notifyInputValue, setNotifyInputValue] = useState(
+		() => (notifyBeforeMinutes !== undefined ? String(notifyBeforeMinutes) : ""),
+	);
+	// 外部から prop が変更された場合（localStorage 初期読込等）に同期する
+	useEffect(() => {
+		if (notifyBeforeMinutes !== undefined) {
+			setNotifyInputValue(String(notifyBeforeMinutes));
+		}
+	}, [notifyBeforeMinutes]);
+
+	/**
+	 * 通知分前入力の確定処理。
+	 * blur / Enter キー押下時に呼び出され、表示値を検証して有効なら
+	 * onNotifyBeforeMinutesChange に伝播、無効なら直前の有効値に戻す。
+	 */
+	const commitNotifyInput = () => {
+		const v = Number(notifyInputValue);
+		// UI 属性 min="1" max="60" step="1" と意図を揃える
+		if (Number.isInteger(v) && v >= 1 && v <= 60) {
+			onNotifyBeforeMinutesChange?.(v);
+			return;
+		}
+		if (notifyBeforeMinutes !== undefined) {
+			setNotifyInputValue(String(notifyBeforeMinutes));
+		}
+	};
 
 	const resetForm = useCallback(() => {
 		setForm(initialFormState);
@@ -282,6 +319,58 @@ export function RouteRegistration({
 								role="alert"
 							>
 								ブラウザの通知が拒否されています。通知 ON の経路でも発車前の通知は送信されません。ブラウザ設定で許可に変更してください。
+							</div>
+						)}
+						{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
+							<div className="space-y-2 text-sm">
+								<p className="font-semibold text-base-content">
+									{`現在、発車 ${notifyBeforeMinutes} 分前に通知します`}
+								</p>
+								<div className="flex items-center gap-2">
+									<label
+										htmlFor="notify-before-minutes"
+										className="text-base-content/70 cursor-pointer"
+									>
+										通知タイミング
+									</label>
+									<input
+										id="notify-before-minutes"
+										type="number"
+										className="input input-bordered input-xs w-14"
+										min="1"
+										max="60"
+										step="1"
+										aria-describedby="notify-before-minutes-unit"
+										value={notifyInputValue}
+										onChange={(e) => {
+											// 確定は blur / Enter で行う（入力中の逐次 persist を防ぐ）
+											setNotifyInputValue(e.target.value);
+										}}
+										onBlur={commitNotifyInput}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") {
+												e.preventDefault();
+												commitNotifyInput();
+											}
+										}}
+									/>
+									<span
+										id="notify-before-minutes-unit"
+										className="text-base-content/70"
+									>
+										分前
+									</span>
+									{notifyPermission === "default" &&
+										onRequestNotificationPermission && (
+											<button
+												type="button"
+												className="btn btn-xs btn-outline"
+												onClick={onRequestNotificationPermission}
+											>
+												通知を許可
+											</button>
+										)}
+								</div>
 							</div>
 						)}
 						<div className="overflow-x-auto">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -23,16 +23,6 @@ type DepartureBoardProps = {
 	selectedDestinations?: Set<string>;
 	/** 行先タグクリック時のトグルコールバック */
 	onDestinationToggle?: (destinationId: string) => void;
-	/** 通知が有効な経路が 1 件以上あるかどうか */
-	hasNotifyEnabledRoutes?: boolean;
-	/** 通知する出発目安の何分前（undefined のとき通知設定 UI を非表示） */
-	notifyBeforeMinutes?: number;
-	/** 通知タイミング変更コールバック */
-	onNotifyBeforeMinutesChange?: (minutes: number) => void;
-	/** 現在の Notification パーミッション */
-	notifyPermission?: NotificationPermission | "unsupported";
-	/** パーミッション要求コールバック */
-	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -84,11 +74,6 @@ export function DepartureBoard({
 	onRoutePinToggle,
 	selectedDestinations = EMPTY_DESTINATIONS,
 	onDestinationToggle,
-	hasNotifyEnabledRoutes,
-	notifyBeforeMinutes,
-	onNotifyBeforeMinutesChange,
-	notifyPermission,
-	onRequestNotificationPermission,
 }: DepartureBoardProps) {
 
 	// 行先の選択肢（ドロップダウン用。フィルタ中も全選択肢を表示する）
@@ -114,40 +99,12 @@ export function DepartureBoard({
 	const [sortKey, setSortKey] = useState<SortKey>("departureTime");
 	const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
-	// 通知分前入力のローカル表示値（一時クリアを許容するため string で管理）
-	const [notifyInputValue, setNotifyInputValue] = useState(
-		() => (notifyBeforeMinutes !== undefined ? String(notifyBeforeMinutes) : ""),
-	);
-	// 外部から prop が変更された場合（localStorage 初期読込等）に同期する
-	useEffect(() => {
-		if (notifyBeforeMinutes !== undefined) {
-			setNotifyInputValue(String(notifyBeforeMinutes));
-		}
-	}, [notifyBeforeMinutes]);
-
 	const handleSortToggle = (key: SortKey) => {
 		if (sortKey === key) {
 			setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
 		} else {
 			setSortKey(key);
 			setSortDirection("asc");
-		}
-	};
-
-	/**
-	 * 通知分前入力の確定処理。
-	 * blur / Enter キー押下時に呼び出され、表示値を検証して有効なら
-	 * onNotifyBeforeMinutesChange に伝播、無効なら直前の有効値に戻す。
-	 */
-	const commitNotifyInput = () => {
-		const v = Number(notifyInputValue);
-		// UI 属性 min="1" max="60" step="1" と意図を揃える
-		if (Number.isInteger(v) && v >= 1 && v <= 60) {
-			onNotifyBeforeMinutesChange?.(v);
-			return;
-		}
-		if (notifyBeforeMinutes !== undefined) {
-			setNotifyInputValue(String(notifyBeforeMinutes));
 		}
 	};
 
@@ -253,87 +210,36 @@ export function DepartureBoard({
 			{groups.length > 0 && (
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
-						<div className="flex flex-wrap items-center justify-between gap-2">
-							<div className="flex flex-wrap items-center gap-3">
-								<h3 className="card-title text-lg">発車案内</h3>
-								{allNextDay && (
-									<span className="badge badge-outline badge-sm">
-										始発以降の便
-									</span>
-								)}
-								{destinations.size > 1 && (
-									<div
-										className="flex flex-wrap gap-1"
-										role="group"
-										aria-label="行き先で絞り込む"
-									>
-										{[...destinations.entries()].map(([stopId, name]) => {
-											const isActive =
-												selectedDestinations.has(stopId);
-											return (
-												<button
-													key={stopId}
-													type="button"
-													aria-pressed={isActive}
-													className={`badge cursor-pointer hover:opacity-80 transition-opacity ${isActive ? "badge-primary" : "badge-outline"}`}
-													onClick={() =>
-														onDestinationToggle?.(stopId)
-													}
-												>
-													{name || stopId}
-												</button>
-											);
-										})}
-									</div>
-								)}
-							</div>
-							{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
-								<div className="flex items-center gap-1.5 text-sm shrink-0 ml-auto">
-									<label
-										htmlFor="notify-before-minutes"
-										className="text-base-content/70 cursor-pointer"
-									>
-										通知
-									</label>
-									<input
-										id="notify-before-minutes"
-										type="number"
-										className="input input-bordered input-xs w-14"
-										min="1"
-										max="60"
-										step="1"
-										aria-describedby="notify-before-minutes-unit"
-										value={notifyInputValue}
-										onChange={(e) => {
-											// 確定は blur / Enter で行う（入力中の逐次 persist を防ぐ）
-											setNotifyInputValue(e.target.value);
-										}}
-										onBlur={commitNotifyInput}
-										onKeyDown={(e) => {
-											if (e.key === "Enter") {
-												e.preventDefault();
-												commitNotifyInput();
-											}
-										}}
-									/>
-									<span
-										id="notify-before-minutes-unit"
-										className="text-base-content/70"
-									>
-										分前
-									</span>
-									{notifyPermission === "default" && (
-										<button
-											type="button"
-											className="btn btn-xs btn-outline"
-											onClick={onRequestNotificationPermission}
-										>
-											通知を許可
-										</button>
-									)}
-									{notifyPermission === "denied" && (
-										<span className="text-error text-xs">通知が拒否されています</span>
-									)}
+						<div className="flex flex-wrap items-center gap-3">
+							<h3 className="card-title text-lg">発車案内</h3>
+							{allNextDay && (
+								<span className="badge badge-outline badge-sm">
+									始発以降の便
+								</span>
+							)}
+							{destinations.size > 1 && (
+								<div
+									className="flex flex-wrap gap-1"
+									role="group"
+									aria-label="行き先で絞り込む"
+								>
+									{[...destinations.entries()].map(([stopId, name]) => {
+										const isActive =
+											selectedDestinations.has(stopId);
+										return (
+											<button
+												key={stopId}
+												type="button"
+												aria-pressed={isActive}
+												className={`badge cursor-pointer hover:opacity-80 transition-opacity ${isActive ? "badge-primary" : "badge-outline"}`}
+												onClick={() =>
+													onDestinationToggle?.(stopId)
+												}
+											>
+												{name || stopId}
+											</button>
+										);
+									})}
 								</div>
 							)}
 						</div>

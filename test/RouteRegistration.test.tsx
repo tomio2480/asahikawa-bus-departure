@@ -407,6 +407,231 @@ describe("RouteRegistration コンポーネント", () => {
 		});
 	});
 
+	describe("通知タイミング UI", () => {
+		const notifyEnabledRoutes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: true,
+			},
+		];
+
+		it("hasNotifyEnabledRoutes=true のとき現在値が明示表示される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			expect(screen.getByText(/現在、発車\s*5\s*分前に通知します/)).toBeInTheDocument();
+		});
+
+		it("hasNotifyEnabledRoutes=true のとき変更用の入力が表示される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			expect(
+				screen.getByRole("spinbutton", { name: "通知タイミング" }),
+			).toBeInTheDocument();
+		});
+
+		it("変更用入力には単位「分前」が accessible description として関連付けられている", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			expect(input).toHaveAccessibleDescription("分前");
+		});
+
+		it("hasNotifyEnabledRoutes=false のとき通知タイミング UI は表示されない", () => {
+			const routes: RegisteredRouteEntry[] = [
+				{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
+			];
+			render(
+				<RouteRegistration
+					db={db}
+					routes={routes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={false}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			expect(
+				screen.queryByRole("spinbutton", { name: "通知タイミング" }),
+			).not.toBeInTheDocument();
+			expect(screen.queryByText(/現在、発車/)).not.toBeInTheDocument();
+		});
+
+		it("notifyPermission が default のとき「通知を許可」ボタンが表示される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					notifyPermission="default"
+					onRequestNotificationPermission={vi.fn().mockResolvedValue("granted")}
+				/>,
+			);
+			expect(
+				screen.getByRole("button", { name: "通知を許可" }),
+			).toBeInTheDocument();
+		});
+
+		it("blur で有効値が onNotifyBeforeMinutesChange に渡る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			fireEvent.blur(input);
+			expect(onChange).toHaveBeenCalledTimes(1);
+			expect(onChange).toHaveBeenCalledWith(15);
+		});
+
+		it("Enter キーで有効値が onNotifyBeforeMinutesChange に渡る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "20" } });
+			fireEvent.keyDown(input, { key: "Enter" });
+			expect(onChange).toHaveBeenCalledTimes(1);
+			expect(onChange).toHaveBeenCalledWith(20);
+		});
+
+		it("onChange 単体では onNotifyBeforeMinutesChange が呼ばれない", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "1" } });
+			fireEvent.change(input, { target: { value: "15" } });
+			expect(onChange).not.toHaveBeenCalled();
+		});
+
+		it("blur で 60 を超える値は反映されず表示が直前値に戻る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "100" } });
+			fireEvent.blur(input);
+			expect(onChange).not.toHaveBeenCalled();
+			expect(input).toHaveValue(5);
+		});
+
+		it("blur で小数は反映されず表示が直前値に戻る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "5.5" } });
+			fireEvent.blur(input);
+			expect(onChange).not.toHaveBeenCalled();
+			expect(input).toHaveValue(5);
+		});
+
+		it("blur で空値は反映されず表示が直前値に戻る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "" } });
+			fireEvent.blur(input);
+			expect(onChange).not.toHaveBeenCalled();
+			expect(input).toHaveValue(5);
+		});
+	});
+
 	it("複数の経路が一覧に表示される", () => {
 		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
