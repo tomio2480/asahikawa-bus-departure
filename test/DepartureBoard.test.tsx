@@ -1040,12 +1040,72 @@ describe("通知設定 UI", () => {
 		// クリア後、入力が空になること（5 のままフリーズしないこと）
 		fireEvent.change(input, { target: { value: "" } });
 		expect(input).toHaveValue(null);
-		// 有効な値を入力するとコールバックが呼ばれること
+		// blur で確定して onNotifyBeforeMinutesChange が呼ばれる設計のため onChange 単体では呼ばれない
 		fireEvent.change(input, { target: { value: "10" } });
-		expect(onChange).toHaveBeenCalledWith(10);
+		expect(onChange).not.toHaveBeenCalled();
 	});
 
-	it("60 を超える値を入力しても onNotifyBeforeMinutesChange が呼ばれない", () => {
+	it("onChange 単体では onNotifyBeforeMinutesChange が呼ばれない（入力中の逐次 persist を防ぐ）", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		// "15" を入力する過程で "1" が中間値として永続化されないこと
+		fireEvent.change(input, { target: { value: "1" } });
+		fireEvent.change(input, { target: { value: "15" } });
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("blur で有効値が onNotifyBeforeMinutesChange に渡る", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		fireEvent.change(input, { target: { value: "15" } });
+		fireEvent.blur(input);
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(onChange).toHaveBeenCalledWith(15);
+	});
+
+	it("Enter キーで有効値が onNotifyBeforeMinutesChange に渡る", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		fireEvent.change(input, { target: { value: "20" } });
+		fireEvent.keyDown(input, { key: "Enter" });
+		expect(onChange).toHaveBeenCalledTimes(1);
+		expect(onChange).toHaveBeenCalledWith(20);
+	});
+
+	it("blur で 60 を超える値は反映されず表示が直前値に戻る", () => {
 		const onChange = vi.fn();
 		render(
 			<DepartureBoard
@@ -1060,10 +1120,12 @@ describe("通知設定 UI", () => {
 		);
 		const input = screen.getByRole("spinbutton", { name: "通知" });
 		fireEvent.change(input, { target: { value: "100" } });
+		fireEvent.blur(input);
 		expect(onChange).not.toHaveBeenCalled();
+		expect(input).toHaveValue(5);
 	});
 
-	it("小数を入力しても onNotifyBeforeMinutesChange が呼ばれない", () => {
+	it("blur で小数は反映されず表示が直前値に戻る", () => {
 		const onChange = vi.fn();
 		render(
 			<DepartureBoard
@@ -1078,10 +1140,12 @@ describe("通知設定 UI", () => {
 		);
 		const input = screen.getByRole("spinbutton", { name: "通知" });
 		fireEvent.change(input, { target: { value: "5.5" } });
+		fireEvent.blur(input);
 		expect(onChange).not.toHaveBeenCalled();
+		expect(input).toHaveValue(5);
 	});
 
-	it("0 以下の値を入力しても onNotifyBeforeMinutesChange が呼ばれない", () => {
+	it("blur で 0 以下の値は反映されず表示が直前値に戻る", () => {
 		const onChange = vi.fn();
 		render(
 			<DepartureBoard
@@ -1096,7 +1160,28 @@ describe("通知設定 UI", () => {
 		);
 		const input = screen.getByRole("spinbutton", { name: "通知" });
 		fireEvent.change(input, { target: { value: "0" } });
-		fireEvent.change(input, { target: { value: "-1" } });
+		fireEvent.blur(input);
 		expect(onChange).not.toHaveBeenCalled();
+		expect(input).toHaveValue(5);
+	});
+
+	it("blur で空値は反映されず表示が直前値に戻る", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		fireEvent.change(input, { target: { value: "" } });
+		fireEvent.blur(input);
+		expect(onChange).not.toHaveBeenCalled();
+		expect(input).toHaveValue(5);
 	});
 });

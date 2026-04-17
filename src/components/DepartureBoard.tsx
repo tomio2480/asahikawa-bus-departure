@@ -134,6 +134,23 @@ export function DepartureBoard({
 		}
 	};
 
+	/**
+	 * 通知分前入力の確定処理。
+	 * blur / Enter キー押下時に呼び出され、表示値を検証して有効なら
+	 * onNotifyBeforeMinutesChange に伝播、無効なら直前の有効値に戻す。
+	 */
+	const commitNotifyInput = () => {
+		const v = Number(notifyInputValue);
+		// UI 属性 min="1" max="60" step="1" と意図を揃える
+		if (Number.isInteger(v) && v >= 1 && v <= 60) {
+			onNotifyBeforeMinutesChange?.(v);
+			return;
+		}
+		if (notifyBeforeMinutes !== undefined) {
+			setNotifyInputValue(String(notifyBeforeMinutes));
+		}
+	};
+
 	// 表示対象の便を統合（ソートとは独立してメモ化）
 	const flattenedDepartures = useMemo(
 		() =>
@@ -287,17 +304,14 @@ export function DepartureBoard({
 										step="1"
 										value={notifyInputValue}
 										onChange={(e) => {
+											// 確定は blur / Enter で行う（入力中の逐次 persist を防ぐ）
 											setNotifyInputValue(e.target.value);
-											const v = Number(e.target.value);
-											// UI 属性 min="1" max="60" step="1" と意図を揃える
-											if (Number.isInteger(v) && v >= 1 && v <= 60) {
-												onNotifyBeforeMinutesChange?.(v);
-											}
 										}}
-										onBlur={() => {
-											// フォーカスを外したとき、不正な入力値を最終有効値に戻す
-											if (notifyBeforeMinutes !== undefined) {
-												setNotifyInputValue(String(notifyBeforeMinutes));
+										onBlur={commitNotifyInput}
+										onKeyDown={(e) => {
+											if (e.key === "Enter") {
+												e.preventDefault();
+												commitNotifyInput();
 											}
 										}}
 									/>
