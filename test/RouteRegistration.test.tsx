@@ -149,6 +149,7 @@ describe("RouteRegistration コンポーネント", () => {
 			fromStopId: "test:S001",
 			toStopId: "test:S002",
 			walkMinutes: 5,
+			notifyEnabled: false,
 		});
 	});
 
@@ -177,6 +178,7 @@ describe("RouteRegistration コンポーネント", () => {
 			fromStopId: "test:S001",
 			toStopId: "test:S002",
 			walkMinutes: 10,
+			notifyEnabled: false,
 		});
 	});
 
