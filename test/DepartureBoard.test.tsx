@@ -971,7 +971,7 @@ describe("通知設定 UI", () => {
 			/>,
 		);
 		expect(
-			screen.getByRole("spinbutton", { name: "通知（分前）" }),
+			screen.getByRole("spinbutton", { name: "通知" }),
 		).toBeInTheDocument();
 	});
 
@@ -987,7 +987,7 @@ describe("通知設定 UI", () => {
 			/>,
 		);
 		expect(
-			screen.queryByRole("spinbutton", { name: "通知（分前）" }),
+			screen.queryByRole("spinbutton", { name: "通知" }),
 		).not.toBeInTheDocument();
 	});
 
@@ -1036,7 +1036,7 @@ describe("通知設定 UI", () => {
 				onNotifyBeforeMinutesChange={onChange}
 			/>,
 		);
-		const input = screen.getByRole("spinbutton", { name: "通知（分前）" });
+		const input = screen.getByRole("spinbutton", { name: "通知" });
 		// クリア後、入力が空になること（5 のままフリーズしないこと）
 		fireEvent.change(input, { target: { value: "" } });
 		expect(input).toHaveValue(null);

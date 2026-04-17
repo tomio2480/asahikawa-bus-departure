@@ -272,12 +272,19 @@ export function DepartureBoard({
 							</div>
 							{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
 								<div className="flex items-center gap-1.5 text-sm shrink-0 ml-auto">
-									<span className="text-base-content/70">通知</span>
+									<label
+										htmlFor="notify-before-minutes"
+										className="text-base-content/70 cursor-pointer"
+									>
+										通知
+									</label>
 									<input
+										id="notify-before-minutes"
 										type="number"
 										className="input input-bordered input-xs w-14"
 										min="1"
 										max="60"
+										step="1"
 										value={notifyInputValue}
 										onChange={(e) => {
 											setNotifyInputValue(e.target.value);
@@ -292,7 +299,6 @@ export function DepartureBoard({
 												setNotifyInputValue(String(notifyBeforeMinutes));
 											}
 										}}
-										aria-label="通知（分前）"
 									/>
 									<span className="text-base-content/70">分前</span>
 									{notifyPermission === "default" && (
