@@ -289,7 +289,8 @@ export function DepartureBoard({
 										onChange={(e) => {
 											setNotifyInputValue(e.target.value);
 											const v = Number(e.target.value);
-											if (Number.isFinite(v) && v > 0) {
+											// UI 属性 min="1" max="60" step="1" と意図を揃える
+											if (Number.isInteger(v) && v >= 1 && v <= 60) {
 												onNotifyBeforeMinutesChange?.(v);
 											}
 										}}

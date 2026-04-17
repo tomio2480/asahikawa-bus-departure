@@ -1044,4 +1044,59 @@ describe("通知設定 UI", () => {
 		fireEvent.change(input, { target: { value: "10" } });
 		expect(onChange).toHaveBeenCalledWith(10);
 	});
+
+	it("60 を超える値を入力しても onNotifyBeforeMinutesChange が呼ばれない", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		fireEvent.change(input, { target: { value: "100" } });
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("小数を入力しても onNotifyBeforeMinutesChange が呼ばれない", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		fireEvent.change(input, { target: { value: "5.5" } });
+		expect(onChange).not.toHaveBeenCalled();
+	});
+
+	it("0 以下の値を入力しても onNotifyBeforeMinutesChange が呼ばれない", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		fireEvent.change(input, { target: { value: "0" } });
+		fireEvent.change(input, { target: { value: "-1" } });
+		expect(onChange).not.toHaveBeenCalled();
+	});
 });
