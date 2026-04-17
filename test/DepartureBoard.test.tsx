@@ -957,3 +957,91 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(screen.getByText(/100円引き/)).toBeInTheDocument();
 	});
 });
+
+describe("通知設定 UI", () => {
+	it("hasNotifyEnabledRoutes が true のとき通知設定入力が表示される", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+			/>,
+		);
+		expect(
+			screen.getByRole("spinbutton", { name: "通知（分前）" }),
+		).toBeInTheDocument();
+	});
+
+	it("hasNotifyEnabledRoutes が false のとき通知設定入力が表示されない", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={false}
+				notifyBeforeMinutes={5}
+			/>,
+		);
+		expect(
+			screen.queryByRole("spinbutton", { name: "通知（分前）" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("notifyPermission が default のとき「通知を許可」ボタンが表示される", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				notifyPermission="default"
+			/>,
+		);
+		expect(
+			screen.getByRole("button", { name: "通知を許可" }),
+		).toBeInTheDocument();
+	});
+
+	it("notifyPermission が denied のときエラー文言が表示される", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				notifyPermission="denied"
+			/>,
+		);
+		expect(screen.getByText("通知が拒否されています")).toBeInTheDocument();
+	});
+
+	it("入力フィールドを一時クリアしても値がフリーズしない", () => {
+		const onChange = vi.fn();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+				onNotifyBeforeMinutesChange={onChange}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知（分前）" });
+		// クリア後、入力が空になること（5 のままフリーズしないこと）
+		fireEvent.change(input, { target: { value: "" } });
+		expect(input).toHaveValue(null);
+		// 有効な値を入力するとコールバックが呼ばれること
+		fireEvent.change(input, { target: { value: "10" } });
+		expect(onChange).toHaveBeenCalledWith(10);
+	});
+});

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DepartureGroup } from "../hooks/useDepartures";
 import { getAgencyColor } from "../lib/agency-colors";
 
@@ -113,6 +113,17 @@ export function DepartureBoard({
 
 	const [sortKey, setSortKey] = useState<SortKey>("departureTime");
 	const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+	// 通知分前入力のローカル表示値（一時クリアを許容するため string で管理）
+	const [notifyInputValue, setNotifyInputValue] = useState(
+		() => (notifyBeforeMinutes !== undefined ? String(notifyBeforeMinutes) : ""),
+	);
+	// 外部から prop が変更された場合（localStorage 初期読込等）に同期する
+	useEffect(() => {
+		if (notifyBeforeMinutes !== undefined) {
+			setNotifyInputValue(String(notifyBeforeMinutes));
+		}
+	}, [notifyBeforeMinutes]);
 
 	const handleSortToggle = (key: SortKey) => {
 		if (sortKey === key) {
@@ -260,18 +271,25 @@ export function DepartureBoard({
 								)}
 							</div>
 							{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
-								<div className="flex items-center gap-1.5 text-sm shrink-0">
+								<div className="flex items-center gap-1.5 text-sm shrink-0 ml-auto">
 									<span className="text-base-content/70">通知</span>
 									<input
 										type="number"
 										className="input input-bordered input-xs w-14"
 										min="1"
 										max="60"
-										value={notifyBeforeMinutes}
+										value={notifyInputValue}
 										onChange={(e) => {
+											setNotifyInputValue(e.target.value);
 											const v = Number(e.target.value);
 											if (Number.isFinite(v) && v > 0) {
 												onNotifyBeforeMinutesChange?.(v);
+											}
+										}}
+										onBlur={() => {
+											// フォーカスを外したとき、不正な入力値を最終有効値に戻す
+											if (notifyBeforeMinutes !== undefined) {
+												setNotifyInputValue(String(notifyBeforeMinutes));
 											}
 										}}
 										aria-label="通知（分前）"
