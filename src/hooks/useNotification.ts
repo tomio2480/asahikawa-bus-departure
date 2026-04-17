@@ -136,7 +136,9 @@ export function useNotification({
 			if (!enabledRoutes.has(routeKey)) continue;
 
 			const depMinutes = timeToMinutes(dep.departureTime);
-			const minutesUntil = depMinutes - currentMinutes;
+			let minutesUntil = depMinutes - currentMinutes;
+			// GTFS の 24 時超表記（例: 24:05）と 0 時過ぎの現在時刻の差を補正
+			if (minutesUntil > 1200) minutesUntil -= 1440;
 
 			if (minutesUntil > 0 && minutesUntil <= notifyBeforeMinutes) {
 				notifiedRef.current.add(key);

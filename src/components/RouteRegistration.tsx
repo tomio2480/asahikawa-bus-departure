@@ -304,6 +304,7 @@ export function RouteRegistration({
 															const result = await onRequestNotificationPermission();
 															if (result === "denied") return;
 														}
+														setSubmitting(true);
 														try {
 															await onUpdate({
 																...route,
@@ -313,6 +314,8 @@ export function RouteRegistration({
 															setErrorMessage(
 																err instanceof Error ? err.message : "通知設定の更新に失敗しました",
 															);
+														} finally {
+															setSubmitting(false);
 														}
 													}}
 													disabled={submitting}
