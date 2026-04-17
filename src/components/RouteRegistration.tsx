@@ -324,7 +324,7 @@ export function RouteRegistration({
 						{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
 							<div className="space-y-2 text-sm">
 								<p className="font-semibold text-base-content">
-									{`現在、発車 ${notifyBeforeMinutes} 分前に通知します`}
+									{`現在、出発 ${notifyBeforeMinutes} 分前に通知します`}
 								</p>
 								<div className="flex items-center gap-2">
 									<label

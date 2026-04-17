@@ -430,7 +430,7 @@ describe("RouteRegistration コンポーネント", () => {
 					notifyBeforeMinutes={5}
 				/>,
 			);
-			expect(screen.getByText(/現在、発車\s*5\s*分前に通知します/)).toBeInTheDocument();
+			expect(screen.getByText(/現在、出発\s*5\s*分前に通知します/)).toBeInTheDocument();
 		});
 
 		it("hasNotifyEnabledRoutes=true のとき変更用の入力が表示される", () => {

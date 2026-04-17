@@ -127,6 +127,7 @@ function App() {
 	const hasNotifyEnabledRoutes = routes.some((r) => r.notifyEnabled);
 
 	const { permission: notifyPermission, requestPermission } = useNotification({
+		db,
 		departures: allDeparturesForNotification,
 		routes,
 		notifyBeforeMinutes,
