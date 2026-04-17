@@ -57,7 +57,9 @@ function makeRoute(overrides?: Partial<RegisteredRouteEntry>): RegisteredRouteEn
 
 describe("useNotification", () => {
 	it("通知が有効な経路の出発N分前に通知が送信される", () => {
-		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+		// departure 08:10 - walkMinutes 10 = leaveByTime 08:00
+		// notifyBeforeMinutes 5: 07:55 に通知が発火する
+		vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
 
 		renderHook(() =>
 			useNotification({
@@ -88,7 +90,7 @@ describe("useNotification", () => {
 	});
 
 	it("同じ便に対して重複通知しない", () => {
-		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+		vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
 		const departures = [makeDeparture()];
 		const routes = [makeRoute()];
 
@@ -157,7 +159,7 @@ describe("useNotification", () => {
 	});
 
 	it("通知の body に発車時刻、乗車バス停名、到着時刻、行先、運賃、路線名が含まれる", () => {
-		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+		vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
 
 		renderHook(() =>
 			useNotification({

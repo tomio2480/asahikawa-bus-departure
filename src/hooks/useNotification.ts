@@ -133,16 +133,20 @@ export function useNotification({
 			if (notifiedRef.current.has(key)) continue;
 
 			const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
-			if (!enabledRoutes.has(routeKey)) continue;
+			const route = enabledRoutes.get(routeKey);
+			if (!route) continue;
 
+			// 徒歩時間を差し引いた自宅出発目安時刻を基準に通知タイミングを計算する
+			const walkMinutes = Math.max(0, Math.floor(route.walkMinutes));
 			const depMinutes = timeToMinutes(dep.departureTime);
-			let minutesUntil = depMinutes - currentMinutes;
+			const leaveMinutes = depMinutes - walkMinutes;
+			let minutesUntilLeave = leaveMinutes - currentMinutes;
 			// GTFS の 24 時超表記（例: 24:05）と 0 時過ぎの現在時刻の差を補正
-			if (minutesUntil > 1200) minutesUntil -= 1440;
+			if (minutesUntilLeave > 1200) minutesUntilLeave -= 1440;
 
-			if (minutesUntil > 0 && minutesUntil <= notifyBeforeMinutes) {
+			if (minutesUntilLeave > 0 && minutesUntilLeave <= notifyBeforeMinutes) {
 				notifiedRef.current.add(key);
-				new globalThis.Notification(`バス発車 ${minutesUntil}分前`, {
+				new globalThis.Notification(`出発 ${minutesUntilLeave}分前`, {
 					body: formatNotificationBody(dep),
 				});
 			}

@@ -23,6 +23,16 @@ type DepartureBoardProps = {
 	selectedDestinations?: Set<string>;
 	/** 行先タグクリック時のトグルコールバック */
 	onDestinationToggle?: (destinationId: string) => void;
+	/** 通知が有効な経路が 1 件以上あるかどうか */
+	hasNotifyEnabledRoutes?: boolean;
+	/** 通知する出発目安の何分前（undefined のとき通知設定 UI を非表示） */
+	notifyBeforeMinutes?: number;
+	/** 通知タイミング変更コールバック */
+	onNotifyBeforeMinutesChange?: (minutes: number) => void;
+	/** 現在の Notification パーミッション */
+	notifyPermission?: NotificationPermission | "unsupported";
+	/** パーミッション要求コールバック */
+	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
 };
 
 /** HH:MM:SS または H:MM:SS 形式の時刻を HH:MM に短縮する */
@@ -74,6 +84,11 @@ export function DepartureBoard({
 	onRoutePinToggle,
 	selectedDestinations = EMPTY_DESTINATIONS,
 	onDestinationToggle,
+	hasNotifyEnabledRoutes,
+	notifyBeforeMinutes,
+	onNotifyBeforeMinutesChange,
+	notifyPermission,
+	onRequestNotificationPermission,
 }: DepartureBoardProps) {
 
 	// 行先の選択肢（ドロップダウン用。フィルタ中も全選択肢を表示する）
@@ -210,36 +225,70 @@ export function DepartureBoard({
 			{groups.length > 0 && (
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
-						<div className="flex items-center gap-3">
-							<h3 className="card-title text-lg">発車案内</h3>
-							{allNextDay && (
-								<span className="badge badge-outline badge-sm">
-									始発以降の便
-								</span>
-							)}
-							{destinations.size > 1 && (
-								<div
-									className="flex flex-wrap gap-1"
-									role="group"
-									aria-label="行き先で絞り込む"
-								>
-									{[...destinations.entries()].map(([stopId, name]) => {
-										const isActive =
-											selectedDestinations.has(stopId);
-										return (
-											<button
-												key={stopId}
-												type="button"
-												aria-pressed={isActive}
-												className={`badge cursor-pointer hover:opacity-80 transition-opacity ${isActive ? "badge-primary" : "badge-outline"}`}
-												onClick={() =>
-													onDestinationToggle?.(stopId)
-												}
-											>
-												{name || stopId}
-											</button>
-										);
-									})}
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<div className="flex flex-wrap items-center gap-3">
+								<h3 className="card-title text-lg">発車案内</h3>
+								{allNextDay && (
+									<span className="badge badge-outline badge-sm">
+										始発以降の便
+									</span>
+								)}
+								{destinations.size > 1 && (
+									<div
+										className="flex flex-wrap gap-1"
+										role="group"
+										aria-label="行き先で絞り込む"
+									>
+										{[...destinations.entries()].map(([stopId, name]) => {
+											const isActive =
+												selectedDestinations.has(stopId);
+											return (
+												<button
+													key={stopId}
+													type="button"
+													aria-pressed={isActive}
+													className={`badge cursor-pointer hover:opacity-80 transition-opacity ${isActive ? "badge-primary" : "badge-outline"}`}
+													onClick={() =>
+														onDestinationToggle?.(stopId)
+													}
+												>
+													{name || stopId}
+												</button>
+											);
+										})}
+									</div>
+								)}
+							</div>
+							{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
+								<div className="flex items-center gap-1.5 text-sm shrink-0">
+									<span className="text-base-content/70">通知</span>
+									<input
+										type="number"
+										className="input input-bordered input-xs w-14"
+										min="1"
+										max="60"
+										value={notifyBeforeMinutes}
+										onChange={(e) => {
+											const v = Number(e.target.value);
+											if (Number.isFinite(v) && v > 0) {
+												onNotifyBeforeMinutesChange?.(v);
+											}
+										}}
+										aria-label="通知（分前）"
+									/>
+									<span className="text-base-content/70">分前</span>
+									{notifyPermission === "default" && (
+										<button
+											type="button"
+											className="btn btn-xs btn-outline"
+											onClick={onRequestNotificationPermission}
+										>
+											通知を許可
+										</button>
+									)}
+									{notifyPermission === "denied" && (
+										<span className="text-error text-xs">通知が拒否されています</span>
+									)}
 								</div>
 							)}
 						</div>
