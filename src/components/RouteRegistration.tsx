@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Database } from "sql.js";
+import { useToast } from "../hooks/useToast";
 import { type StopSearchResult, getStopName } from "../lib/stop-search";
 import type { RegisteredRouteEntry, RouteEntry } from "../types/route-entry";
 import { StopSearch } from "./StopSearch";
@@ -75,10 +76,16 @@ export function RouteRegistration({
 	const [editingId, setEditingId] = useState<number | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	// トグル処理中の経路 ID。submitting と分離することで、フォーム側の
+	// 「登録」ボタンが通知 ON/OFF のたびに「保存中...」へ切り替わるなどの
+	// 表示揺れを防ぐ。トグル処理は複数同時実行させないため null | number で十分。
+	const [togglingRouteId, setTogglingRouteId] = useState<number | null>(null);
+
+	const { showToast } = useToast();
 
 	// 通知分前入力のローカル表示値（一時クリアを許容するため string で管理）
-	const [notifyInputValue, setNotifyInputValue] = useState(
-		() => (notifyBeforeMinutes !== undefined ? String(notifyBeforeMinutes) : ""),
+	const [notifyInputValue, setNotifyInputValue] = useState(() =>
+		notifyBeforeMinutes !== undefined ? String(notifyBeforeMinutes) : "",
 	);
 	// 外部から prop が変更された場合（localStorage 初期読込等）に同期する
 	useEffect(() => {
@@ -88,19 +95,37 @@ export function RouteRegistration({
 	}, [notifyBeforeMinutes]);
 
 	/**
+	 * 現在の入力値が有効（整数かつ 1〜60）かどうか。
+	 * UI 属性 min="1" max="60" step="1" と意図を揃える。
+	 */
+	const notifyInputParsed = Number(notifyInputValue);
+	const isNotifyInputValid =
+		notifyInputValue.trim() !== "" &&
+		Number.isInteger(notifyInputParsed) &&
+		notifyInputParsed >= 1 &&
+		notifyInputParsed <= 60;
+	const isNotifyInputChanged =
+		notifyBeforeMinutes === undefined ||
+		notifyInputParsed !== notifyBeforeMinutes;
+	const canCommitNotifyInput = isNotifyInputValid && isNotifyInputChanged;
+
+	/**
 	 * 通知分前入力の確定処理。
-	 * blur / Enter キー押下時に呼び出され、表示値を検証して有効なら
-	 * onNotifyBeforeMinutesChange に伝播、無効なら直前の有効値に戻す。
+	 * Enter キー押下 / 設定ボタンクリック時に呼び出され、onNotifyBeforeMinutesChange
+	 * に伝播する。呼び出し元が throw した場合はエラートーストで通知する。
 	 */
 	const commitNotifyInput = () => {
-		const v = Number(notifyInputValue);
-		// UI 属性 min="1" max="60" step="1" と意図を揃える
-		if (Number.isInteger(v) && v >= 1 && v <= 60) {
-			onNotifyBeforeMinutesChange?.(v);
-			return;
-		}
-		if (notifyBeforeMinutes !== undefined) {
-			setNotifyInputValue(String(notifyBeforeMinutes));
+		if (!canCommitNotifyInput) return;
+		try {
+			onNotifyBeforeMinutesChange?.(notifyInputParsed);
+			showToast(`通知タイミングを ${notifyInputParsed} 分前に設定しました`, {
+				variant: "success",
+			});
+		} catch (err) {
+			const detail = err instanceof Error ? err.message : String(err);
+			showToast(`通知タイミングを設定できませんでした: ${detail}`, {
+				variant: "error",
+			});
 		}
 	};
 
@@ -173,7 +198,14 @@ export function RouteRegistration({
 				setSubmitting(false);
 			}
 		},
-		[form, editingId, onAdd, onUpdate, resetForm, onRequestNotificationPermission],
+		[
+			form,
+			editingId,
+			onAdd,
+			onUpdate,
+			resetForm,
+			onRequestNotificationPermission,
+		],
 	);
 
 	const handleEdit = useCallback(
@@ -314,11 +346,9 @@ export function RouteRegistration({
 					<div className="card-body">
 						<h2 className="card-title">登録済み経路</h2>
 						{notifyPermission === "denied" && (
-							<div
-								className="alert alert-warning py-2 text-sm"
-								role="alert"
-							>
-								ブラウザの通知が拒否されています。通知 ON の経路でも出発前の通知は送信されません。ブラウザ設定で許可に変更してください。
+							<div className="alert alert-warning py-2 text-sm" role="alert">
+								ブラウザの通知が拒否されています。通知 ON
+								の経路でも出発前の通知は送信されません。ブラウザ設定で許可に変更してください。
 							</div>
 						)}
 						{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
@@ -343,10 +373,10 @@ export function RouteRegistration({
 										aria-describedby="notify-before-minutes-unit"
 										value={notifyInputValue}
 										onChange={(e) => {
-											// 確定は blur / Enter で行う（入力中の逐次 persist を防ぐ）
+											// 確定は Enter キー / 設定ボタンで行う（入力中の逐次 persist を防ぐ）。
+											// blur による自動確定は廃止（意図しない確定を避けるため）。
 											setNotifyInputValue(e.target.value);
 										}}
-										onBlur={commitNotifyInput}
 										onKeyDown={(e) => {
 											if (e.key === "Enter") {
 												e.preventDefault();
@@ -360,6 +390,15 @@ export function RouteRegistration({
 									>
 										分前
 									</span>
+									<button
+										type="button"
+										className="btn btn-xs btn-primary"
+										onClick={commitNotifyInput}
+										disabled={!canCommitNotifyInput}
+										aria-label="通知タイミングを設定"
+									>
+										設定
+									</button>
 									{notifyPermission === "default" &&
 										onRequestNotificationPermission && (
 											<button
@@ -400,28 +439,56 @@ export function RouteRegistration({
 													className="toggle toggle-primary toggle-xs"
 													checked={route.notifyEnabled === true}
 													onChange={async () => {
-														setSubmitting(true);
+														// submitting（フォーム送信用）とは別状態で管理し、
+														// 登録/更新ボタンの表示（テキスト・disabled）が通知 ON/OFF で
+														// 乱れないようにする。
+														setTogglingRouteId(route.id);
+														// 「どの経路を切り替えたか」を明示するためバス停名を文言に含める。
+														// 失敗時のトーストでも同じ文脈を提示できるよう先に組み立てる。
+														const fromName =
+															stopNameMap.get(route.fromStopId) ??
+															route.fromStopId;
+														const toName =
+															stopNameMap.get(route.toStopId) ?? route.toStopId;
+														const routeLabel = `${fromName} → ${toName}`;
 														try {
 															// permission が "default" のときに許可プロンプトを促す。
 															// "denied" のときはユーザーの意図だけ保存し、発火側 (useNotification) で抑止する。
 															// permission 要求の rejection もこの try/catch で捕捉するため
 															// ここに入れている（以前は try 外で rejection が未処理になっていた）。
-															if (!route.notifyEnabled && onRequestNotificationPermission) {
+															if (
+																!route.notifyEnabled &&
+																onRequestNotificationPermission
+															) {
 																await onRequestNotificationPermission();
 															}
+															const nextEnabled = !route.notifyEnabled;
 															await onUpdate({
 																...route,
-																notifyEnabled: !route.notifyEnabled,
+																notifyEnabled: nextEnabled,
 															});
+															showToast(
+																nextEnabled
+																	? `${routeLabel} の通知を ON にしました`
+																	: `${routeLabel} の通知を OFF にしました`,
+																{ variant: "success" },
+															);
 														} catch (err) {
-															setErrorMessage(
-																err instanceof Error ? err.message : "通知設定の更新に失敗しました",
+															const detail =
+																err instanceof Error
+																	? err.message
+																	: "通知設定の更新に失敗しました";
+															showToast(
+																`${routeLabel} の通知設定に失敗しました: ${detail}`,
+																{
+																	variant: "error",
+																},
 															);
 														} finally {
-															setSubmitting(false);
+															setTogglingRouteId(null);
 														}
 													}}
-													disabled={submitting}
+													disabled={togglingRouteId === route.id}
 													aria-label="通知の切り替え"
 												/>
 											</td>

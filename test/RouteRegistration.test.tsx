@@ -1,5 +1,11 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render as rtlRender,
+	screen,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
 import initSqlJs from "sql.js";
 import {
 	afterEach,
@@ -11,9 +17,24 @@ import {
 	vi,
 } from "vitest";
 import { RouteRegistration } from "../src/components/RouteRegistration";
+import { ToastContainer } from "../src/components/Toast";
+import { ToastProvider } from "../src/hooks/useToast";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
 import type { RegisteredRouteEntry } from "../src/types/route-entry";
+
+/**
+ * ToastProvider + ToastContainer を含めてレンダリングするヘルパ。
+ * RouteRegistration は useToast を使うため ToastProvider 下での描画が必須。
+ */
+function render(ui: ReactElement) {
+	return rtlRender(
+		<ToastProvider>
+			<ToastContainer />
+			{ui}
+		</ToastProvider>,
+	);
+}
 
 const testStops: GtfsData["stops"] = [
 	{
@@ -300,6 +321,199 @@ describe("RouteRegistration コンポーネント", () => {
 		});
 	});
 
+	it("トグル ON 成功時に「通知を ON にしました」トーストが表示される", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={vi.fn().mockResolvedValue(undefined)}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+
+		expect(await screen.findByText(/通知を ON にしました/)).toBeInTheDocument();
+	});
+
+	it("トグル OFF 成功時に「通知を OFF にしました」トーストが表示される", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: true,
+			},
+		];
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={vi.fn().mockResolvedValue(undefined)}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+
+		expect(
+			await screen.findByText(/通知を OFF にしました/),
+		).toBeInTheDocument();
+	});
+
+	it("トグル処理中でも経路登録ボタンの表示（テキスト・disabled）は変わらない", async () => {
+		// 通知の ON/OFF をするたびに登録ボタンが「保存中...」になったり disabled になったり
+		// 揺れる問題を回避する。トグル操作はフォーム送信と独立した状態で管理すべき。
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		// onUpdate を保留させてトグル処理中の状態を観測する
+		let resolveUpdate: () => void = () => {};
+		const onUpdate = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					resolveUpdate = r;
+				}),
+		);
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={onUpdate}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		const submitButton = screen.getByRole("button", { name: "登録" });
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+
+		// トグル処理が保留中でも登録ボタンは「登録」のままで enabled
+		expect(submitButton).toHaveTextContent("登録");
+		expect(submitButton).not.toBeDisabled();
+
+		resolveUpdate();
+	});
+
+	it("トグル ON 成功時のトーストに乗車バス停名・降車バス停名が含まれる", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={vi.fn().mockResolvedValue(undefined)}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+
+		// どの経路のトグルを切り替えたのか明示するため、乗車/降車のバス停名を文言に含める
+		expect(
+			await screen.findByText(
+				/旭川駅前[\s\S]*市役所前[\s\S]*通知を\s*ON\s*にしました/,
+			),
+		).toBeInTheDocument();
+	});
+
+	it("トグル OFF 成功時のトーストに乗車バス停名・降車バス停名が含まれる", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: true,
+			},
+		];
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={vi.fn().mockResolvedValue(undefined)}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+
+		expect(
+			await screen.findByText(
+				/旭川駅前[\s\S]*市役所前[\s\S]*通知を\s*OFF\s*にしました/,
+			),
+		).toBeInTheDocument();
+	});
+
+	it("トグル操作で onUpdate が reject したときエラートーストが表示される", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		const onUpdate = vi
+			.fn()
+			.mockRejectedValue(new Error("IndexedDB 書き込みに失敗"));
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={onUpdate}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+
+		expect(
+			await screen.findByText(/IndexedDB 書き込みに失敗/),
+		).toBeInTheDocument();
+	});
+
 	it("permission が denied でもトグルは機能しユーザーの意図を保存する", async () => {
 		const routes: RegisteredRouteEntry[] = [
 			{
@@ -365,15 +579,11 @@ describe("RouteRegistration コンポーネント", () => {
 		);
 
 		expect(
-			screen.getByText(
-				/ブラウザの通知が拒否されています/,
-			),
+			screen.getByText(/ブラウザの通知が拒否されています/),
 		).toBeInTheDocument();
 		// 本 PR で「発車」→「出発」に用語統一したため、警告文言も整合していることを確認する
 		expect(
-			screen.getByText(
-				/出発前の通知は送信されません/,
-			),
+			screen.getByText(/出発前の通知は送信されません/),
 		).toBeInTheDocument();
 	});
 
@@ -447,9 +657,12 @@ describe("RouteRegistration コンポーネント", () => {
 		const toggle = screen.getByRole("checkbox", { name: "通知の切り替え" });
 		await userEvent.click(toggle);
 
-		// エラーメッセージが表示される（rejection が catch で捕捉された証左）
+		// エラートーストが表示される（rejection が catch で捕捉された証左）。
+		// トースト文言にはどの経路で失敗したか明示するためバス停名と原因が含まれる。
 		expect(
-			await screen.findByText("permission 要求に失敗しました"),
+			await screen.findByText(
+				/旭川駅前[\s\S]*市役所前[\s\S]*permission 要求に失敗しました/,
+			),
 		).toBeInTheDocument();
 		// permission 要求段階で失敗したため onUpdate は呼ばれない
 		expect(onUpdate).not.toHaveBeenCalled();
@@ -518,7 +731,9 @@ describe("RouteRegistration コンポーネント", () => {
 					notifyBeforeMinutes={5}
 				/>,
 			);
-			expect(screen.getByText(/現在、出発\s*5\s*分前に通知します/)).toBeInTheDocument();
+			expect(
+				screen.getByText(/現在、出発\s*5\s*分前に通知します/),
+			).toBeInTheDocument();
 		});
 
 		it("hasNotifyEnabledRoutes=true のとき変更用の入力が表示される", () => {
@@ -556,7 +771,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("hasNotifyEnabledRoutes=false のとき通知タイミング UI は表示されない", () => {
 			const routes: RegisteredRouteEntry[] = [
-				{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
+				{
+					id: 1,
+					fromStopId: "test:S001",
+					toStopId: "test:S002",
+					walkMinutes: 5,
+				},
 			];
 			render(
 				<RouteRegistration
@@ -594,7 +814,25 @@ describe("RouteRegistration コンポーネント", () => {
 			).toBeInTheDocument();
 		});
 
-		it("blur で有効値が onNotifyBeforeMinutesChange に渡る", () => {
+		it("設定ボタンが表示される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={vi.fn()}
+				/>,
+			);
+			expect(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			).toBeInTheDocument();
+		});
+
+		it("値を変更して設定ボタンを押すと onNotifyBeforeMinutesChange が呼ばれる", async () => {
 			const onChange = vi.fn();
 			render(
 				<RouteRegistration
@@ -610,12 +848,37 @@ describe("RouteRegistration コンポーネント", () => {
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
 			fireEvent.change(input, { target: { value: "15" } });
-			fireEvent.blur(input);
+			await userEvent.click(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			);
 			expect(onChange).toHaveBeenCalledTimes(1);
 			expect(onChange).toHaveBeenCalledWith(15);
 		});
 
-		it("Enter キーで有効値が onNotifyBeforeMinutesChange に渡る", () => {
+		it("設定ボタン押下で成功トーストが表示される", async () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={vi.fn()}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			await userEvent.click(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			);
+			expect(
+				await screen.findByText(/通知タイミングを\s*15\s*分前に設定しました/),
+			).toBeInTheDocument();
+		});
+
+		it("Enter キー押下でも onNotifyBeforeMinutesChange が呼ばれ成功トーストが表示される", async () => {
 			const onChange = vi.fn();
 			render(
 				<RouteRegistration
@@ -634,9 +897,32 @@ describe("RouteRegistration コンポーネント", () => {
 			fireEvent.keyDown(input, { key: "Enter" });
 			expect(onChange).toHaveBeenCalledTimes(1);
 			expect(onChange).toHaveBeenCalledWith(20);
+			expect(
+				await screen.findByText(/通知タイミングを\s*20\s*分前に設定しました/),
+			).toBeInTheDocument();
 		});
 
-		it("onChange 単体では onNotifyBeforeMinutesChange が呼ばれない", () => {
+		it("blur では onNotifyBeforeMinutesChange が呼ばれない（確定は Enter / 設定ボタンのみ）", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			fireEvent.blur(input);
+			expect(onChange).not.toHaveBeenCalled();
+		});
+
+		it("入力を変更しただけでは onNotifyBeforeMinutesChange は呼ばれない", () => {
 			const onChange = vi.fn();
 			render(
 				<RouteRegistration
@@ -656,8 +942,7 @@ describe("RouteRegistration コンポーネント", () => {
 			expect(onChange).not.toHaveBeenCalled();
 		});
 
-		it("blur で 60 を超える値は反映されず表示が直前値に戻る", () => {
-			const onChange = vi.fn();
+		it("現在値と同じ値では設定ボタンが無効化される", () => {
 			render(
 				<RouteRegistration
 					db={db}
@@ -667,18 +952,36 @@ describe("RouteRegistration コンポーネント", () => {
 					onDelete={vi.fn().mockResolvedValue(undefined)}
 					hasNotifyEnabledRoutes={true}
 					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					onNotifyBeforeMinutesChange={vi.fn()}
+				/>,
+			);
+			// 初期値が 5 で入力値も 5 のまま
+			expect(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			).toBeDisabled();
+		});
+
+		it("範囲外の値（60 超）では設定ボタンが無効化される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={vi.fn()}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
 			fireEvent.change(input, { target: { value: "100" } });
-			fireEvent.blur(input);
-			expect(onChange).not.toHaveBeenCalled();
-			expect(input).toHaveValue(5);
+			expect(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			).toBeDisabled();
 		});
 
-		it("blur で小数は反映されず表示が直前値に戻る", () => {
-			const onChange = vi.fn();
+		it("小数値では設定ボタンが無効化される", () => {
 			render(
 				<RouteRegistration
 					db={db}
@@ -688,18 +991,40 @@ describe("RouteRegistration コンポーネント", () => {
 					onDelete={vi.fn().mockResolvedValue(undefined)}
 					hasNotifyEnabledRoutes={true}
 					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					onNotifyBeforeMinutesChange={vi.fn()}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
 			fireEvent.change(input, { target: { value: "5.5" } });
-			fireEvent.blur(input);
-			expect(onChange).not.toHaveBeenCalled();
-			expect(input).toHaveValue(5);
+			expect(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			).toBeDisabled();
 		});
 
-		it("blur で空値は反映されず表示が直前値に戻る", () => {
-			const onChange = vi.fn();
+		it("空値では設定ボタンが無効化される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={vi.fn()}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "" } });
+			expect(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			).toBeDisabled();
+		});
+
+		it("onNotifyBeforeMinutesChange が throw した場合はエラートーストが表示される", async () => {
+			const onChange = vi.fn().mockImplementation(() => {
+				throw new Error("localStorage 書き込みに失敗しました");
+			});
 			render(
 				<RouteRegistration
 					db={db}
@@ -713,10 +1038,14 @@ describe("RouteRegistration コンポーネント", () => {
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
-			fireEvent.change(input, { target: { value: "" } });
-			fireEvent.blur(input);
-			expect(onChange).not.toHaveBeenCalled();
-			expect(input).toHaveValue(5);
+			fireEvent.change(input, { target: { value: "15" } });
+			await userEvent.click(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			);
+			// エラートースト文言は実装依存だが「設定できませんでした」は確実に含める
+			expect(
+				await screen.findByText(/通知タイミング.*設定できませんでした/),
+			).toBeInTheDocument();
 		});
 	});
 
