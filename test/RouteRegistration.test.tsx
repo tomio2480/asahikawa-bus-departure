@@ -136,8 +136,9 @@ describe("RouteRegistration コンポーネント", () => {
 		const toOption = screen.getByText("市役所前");
 		await userEvent.click(toOption);
 
-		// 徒歩時間を入力
+		// 徒歩時間を入力（デフォルト値をクリアしてから入力）
 		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
+		await userEvent.clear(walkInput);
 		await userEvent.type(walkInput, "5");
 
 		// 登録ボタンをクリック
@@ -151,22 +152,32 @@ describe("RouteRegistration コンポーネント", () => {
 		});
 	});
 
-	it("徒歩所要時間が未入力で登録するとエラーになる", async () => {
+	it("徒歩所要時間のデフォルト値が10である", () => {
 		renderComponent();
+		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
+		expect(walkInput).toHaveValue(10);
+	});
 
-		// バス停を選択
+	it("徒歩所要時間を空にして登録するとデフォルト値10で登録される", async () => {
+		const { onAdd } = renderComponent();
+
 		const comboboxes = screen.getAllByRole("combobox");
 		await userEvent.type(comboboxes[0], "旭川駅");
 		await userEvent.click(screen.getByText("旭川駅前"));
 		await userEvent.type(comboboxes[1], "市役所");
 		await userEvent.click(screen.getByText("市役所前"));
 
-		// 徒歩時間は入力しない
+		// 徒歩時間をクリア
+		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
+		await userEvent.clear(walkInput);
+
 		await userEvent.click(screen.getByRole("button", { name: "登録" }));
 
-		expect(
-			screen.getByText("徒歩所要時間を入力してください"),
-		).toBeInTheDocument();
+		expect(onAdd).toHaveBeenCalledWith({
+			fromStopId: "test:S001",
+			toStopId: "test:S002",
+			walkMinutes: 10,
+		});
 	});
 
 	it("編集ボタンで編集モードに切り替わる", async () => {

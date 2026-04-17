@@ -26,7 +26,7 @@ type FormState = {
 const initialFormState: FormState = {
 	fromStop: null,
 	toStop: null,
-	walkMinutes: "",
+	walkMinutes: "10",
 };
 
 /** 経路登録・編集・削除を行うコンポーネント */
@@ -84,8 +84,12 @@ export function RouteRegistration({
 				);
 				return;
 			}
-			const walkMinutes = Number(form.walkMinutes);
-			if (form.walkMinutes === "" || !Number.isFinite(walkMinutes)) {
+			const DEFAULT_WALK_MINUTES = 10;
+			const walkMinutes =
+				form.walkMinutes === ""
+					? DEFAULT_WALK_MINUTES
+					: Number(form.walkMinutes);
+			if (!Number.isFinite(walkMinutes)) {
 				setErrorMessage("徒歩所要時間を入力してください");
 				return;
 			}
@@ -204,7 +208,7 @@ export function RouteRegistration({
 									walkMinutes: e.target.value,
 								}))
 							}
-							placeholder="0"
+							placeholder="10"
 						/>
 					</div>
 					{errorMessage && (
