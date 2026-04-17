@@ -302,6 +302,7 @@ export function DepartureBoard({
 										min="1"
 										max="60"
 										step="1"
+										aria-describedby="notify-before-minutes-unit"
 										value={notifyInputValue}
 										onChange={(e) => {
 											// 確定は blur / Enter で行う（入力中の逐次 persist を防ぐ）
@@ -315,7 +316,12 @@ export function DepartureBoard({
 											}
 										}}
 									/>
-									<span className="text-base-content/70">分前</span>
+									<span
+										id="notify-before-minutes-unit"
+										className="text-base-content/70"
+									>
+										分前
+									</span>
 									{notifyPermission === "default" && (
 										<button
 											type="button"

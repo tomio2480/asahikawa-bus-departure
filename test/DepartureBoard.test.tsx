@@ -975,6 +975,21 @@ describe("通知設定 UI", () => {
 		).toBeInTheDocument();
 	});
 
+	it("通知設定入力には単位「分前」が accessible description として関連付けられている", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+				hasNotifyEnabledRoutes={true}
+				notifyBeforeMinutes={5}
+			/>,
+		);
+		const input = screen.getByRole("spinbutton", { name: "通知" });
+		expect(input).toHaveAccessibleDescription("分前");
+	});
+
 	it("hasNotifyEnabledRoutes が false のとき通知設定入力が表示されない", () => {
 		render(
 			<DepartureBoard
