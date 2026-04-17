@@ -143,12 +143,12 @@ export function RouteRegistration({
 				return;
 			}
 
-			let notifyEnabled = form.notifyEnabled;
+			// permission が denied でもユーザーの意図は保存し、発火側 (useNotification) で抑止する。
+			// permission 要求は副作用としてのみ呼び、結果で notifyEnabled を上書きしない
+			// （登録済み経路トグルと同じポリシー）。
+			const notifyEnabled = form.notifyEnabled;
 			if (notifyEnabled && onRequestNotificationPermission) {
-				const result = await onRequestNotificationPermission();
-				if (result === "denied") {
-					notifyEnabled = false;
-				}
+				await onRequestNotificationPermission();
 			}
 
 			setSubmitting(true);
@@ -318,7 +318,7 @@ export function RouteRegistration({
 								className="alert alert-warning py-2 text-sm"
 								role="alert"
 							>
-								ブラウザの通知が拒否されています。通知 ON の経路でも発車前の通知は送信されません。ブラウザ設定で許可に変更してください。
+								ブラウザの通知が拒否されています。通知 ON の経路でも出発前の通知は送信されません。ブラウザ設定で許可に変更してください。
 							</div>
 						)}
 						{hasNotifyEnabledRoutes && notifyBeforeMinutes !== undefined && (
@@ -400,13 +400,15 @@ export function RouteRegistration({
 													className="toggle toggle-primary toggle-xs"
 													checked={route.notifyEnabled === true}
 													onChange={async () => {
-														// permission が "default" のときに許可プロンプトを促す。
-														// "denied" のときはユーザーの意図だけ保存し、発火側 (useNotification) で抑止する。
-														if (!route.notifyEnabled && onRequestNotificationPermission) {
-															await onRequestNotificationPermission();
-														}
 														setSubmitting(true);
 														try {
+															// permission が "default" のときに許可プロンプトを促す。
+															// "denied" のときはユーザーの意図だけ保存し、発火側 (useNotification) で抑止する。
+															// permission 要求の rejection もこの try/catch で捕捉するため
+															// ここに入れている（以前は try 外で rejection が未処理になっていた）。
+															if (!route.notifyEnabled && onRequestNotificationPermission) {
+																await onRequestNotificationPermission();
+															}
 															await onUpdate({
 																...route,
 																notifyEnabled: !route.notifyEnabled,
