@@ -17,6 +17,8 @@ type RouteRegistrationProps = {
 	onDelete: (id: number) => Promise<void>;
 	/** 通知パーミッション要求 */
 	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
+	/** 現在の通知パーミッション（警告表示のために使用） */
+	notifyPermission?: NotificationPermission | "unsupported";
 };
 
 type FormState = {
@@ -41,6 +43,7 @@ export function RouteRegistration({
 	onUpdate,
 	onDelete,
 	onRequestNotificationPermission,
+	notifyPermission,
 }: RouteRegistrationProps) {
 	const stopNameMap = useMemo(() => {
 		const ids = new Set<string>();
@@ -273,6 +276,14 @@ export function RouteRegistration({
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
 						<h2 className="card-title">登録済み経路</h2>
+						{notifyPermission === "denied" && (
+							<div
+								className="alert alert-warning py-2 text-sm"
+								role="alert"
+							>
+								ブラウザの通知が拒否されています。通知 ON の経路でも発車前の通知は送信されません。ブラウザ設定で許可に変更してください。
+							</div>
+						)}
 						<div className="overflow-x-auto">
 							<table className="table">
 								<thead>
@@ -300,9 +311,10 @@ export function RouteRegistration({
 													className="toggle toggle-primary toggle-xs"
 													checked={route.notifyEnabled === true}
 													onChange={async () => {
+														// permission が "default" のときに許可プロンプトを促す。
+														// "denied" のときはユーザーの意図だけ保存し、発火側 (useNotification) で抑止する。
 														if (!route.notifyEnabled && onRequestNotificationPermission) {
-															const result = await onRequestNotificationPermission();
-															if (result === "denied") return;
+															await onRequestNotificationPermission();
 														}
 														setSubmitting(true);
 														try {

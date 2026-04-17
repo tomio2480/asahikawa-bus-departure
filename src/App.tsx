@@ -209,6 +209,7 @@ function App() {
 							onUpdate={update}
 							onDelete={remove}
 							onRequestNotificationPermission={requestPermission}
+							notifyPermission={notifyPermission}
 						/>
 					</>
 				)}
