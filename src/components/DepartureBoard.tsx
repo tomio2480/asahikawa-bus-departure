@@ -210,7 +210,7 @@ export function DepartureBoard({
 			{groups.length > 0 && (
 				<div className="card bg-base-100 shadow-sm">
 					<div className="card-body">
-						<div className="flex items-center gap-3">
+						<div className="flex flex-wrap items-center gap-3">
 							<h3 className="card-title text-lg">発車案内</h3>
 							{allNextDay && (
 								<span className="badge badge-outline badge-sm">

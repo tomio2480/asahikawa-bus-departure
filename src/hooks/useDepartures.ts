@@ -304,10 +304,18 @@ export function useDepartures(
 		return () => clearInterval(id);
 	}, [fetchDepartures]);
 
-	// db または routes の内容が変わったときに即時再取得する。
+	// db または routes の発車案内に影響するフィールドが変わったときに即時再取得する。
+	// notifyEnabled のような発車案内計算に無関係なフィールドは意図的に除外し、
+	// 通知トグル操作で不要な再フェッチ・再レンダーが連鎖するのを防ぐ。
 	// fetchDepartures は ref 経由で db/routes を参照するため、
 	// 依存配列に db と routesKey を含めて変更検知する。
-	const routesKey = JSON.stringify(routes);
+	const routesKey = JSON.stringify(
+		routes.map((r) => ({
+			fromStopId: r.fromStopId,
+			toStopId: r.toStopId,
+			walkMinutes: r.walkMinutes,
+		})),
+	);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: db と routesKey の変更で再取得を発火させる意図的な依存
 	useEffect(() => {
 		fetchDepartures();

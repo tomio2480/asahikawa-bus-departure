@@ -124,11 +124,14 @@ function App() {
 		[groups],
 	);
 
-	const { requestPermission } = useNotification({
+	const hasNotifyEnabledRoutes = routes.some((r) => r.notifyEnabled);
+
+	const { permission: notifyPermission, requestPermission } = useNotification({
+		db,
 		departures: allDeparturesForNotification,
 		routes,
 		notifyBeforeMinutes,
-		enabled: routes.some((r) => r.notifyEnabled),
+		enabled: hasNotifyEnabledRoutes,
 	});
 
 	return (
@@ -140,25 +143,6 @@ function App() {
 				<div className="flex-none">
 					<div className="flex items-center gap-1 sm:gap-2">
 						<RouteTransfer onImportComplete={reload} />
-						<label className="flex items-center gap-1 text-sm" htmlFor="notify-minutes">
-							<span className="hidden sm:inline">通知</span>
-							<input
-								id="notify-minutes"
-								type="number"
-								className="input input-bordered input-sm w-14"
-								min="1"
-								max="60"
-								value={notifyBeforeMinutes}
-								onChange={(e) => {
-									const v = Number(e.target.value);
-									if (Number.isFinite(v) && v > 0) {
-										setNotifyBeforeMinutes(v);
-									}
-								}}
-								aria-label="通知（分前）"
-							/>
-							<span>分前</span>
-						</label>
 						<select
 							aria-label="テーマ切り替え"
 							className="select select-sm select-bordered"
@@ -221,6 +205,10 @@ function App() {
 							onUpdate={update}
 							onDelete={remove}
 							onRequestNotificationPermission={requestPermission}
+							notifyPermission={notifyPermission}
+							hasNotifyEnabledRoutes={hasNotifyEnabledRoutes}
+							notifyBeforeMinutes={notifyBeforeMinutes}
+							onNotifyBeforeMinutesChange={setNotifyBeforeMinutes}
 						/>
 					</>
 				)}

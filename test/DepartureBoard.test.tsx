@@ -957,3 +957,19 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(screen.getByText(/100円引き/)).toBeInTheDocument();
 	});
 });
+
+describe("通知設定 UI（DepartureBoard からの排除）", () => {
+	it("通知設定入力は DepartureBoard に存在しない", () => {
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		expect(
+			screen.queryByRole("spinbutton", { name: /通知/ }),
+		).not.toBeInTheDocument();
+	});
+});

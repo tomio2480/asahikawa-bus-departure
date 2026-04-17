@@ -386,4 +386,33 @@ describe("useDepartures", () => {
 		);
 		expect(s002Groups).toHaveLength(1);
 	});
+
+	it("notifyEnabled の変更では groups の参照が変わらない（再フェッチされない）", () => {
+		const initialRoutes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		const { result, rerender } = renderHook(
+			({ routes }: { routes: RegisteredRouteEntry[] }) =>
+				useDepartures(db, routes),
+			{ initialProps: { routes: initialRoutes } },
+		);
+
+		const groupsBefore = result.current.groups;
+		expect(groupsBefore).toHaveLength(1);
+
+		// notifyEnabled のみ変更した新しい配列（別参照）を渡す
+		const toggledRoutes: RegisteredRouteEntry[] = [
+			{ ...initialRoutes[0], notifyEnabled: true },
+		];
+		rerender({ routes: toggledRoutes });
+
+		// 発車案内には影響しないフィールドなので groups の参照は不変
+		expect(result.current.groups).toBe(groupsBefore);
+	});
 });

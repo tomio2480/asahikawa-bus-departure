@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { Database } from "sql.js";
 import type { Departure } from "../lib/departure-query";
+import { getSiblingStopIds } from "../lib/stop-search";
 import type { RegisteredRouteEntry } from "../types/route-entry";
 
 type DepartureWithStop = Departure & {
@@ -8,6 +10,8 @@ type DepartureWithStop = Departure & {
 };
 
 type UseNotificationOptions = {
+	/** sql.js データベース（兄弟停留所の展開に使用。未指定時は直接 ID マッチにフォールバック） */
+	db?: Database | null;
 	departures: DepartureWithStop[];
 	routes: RegisteredRouteEntry[];
 	notifyBeforeMinutes: number;
@@ -74,6 +78,7 @@ function formatNotificationBody(dep: DepartureWithStop): string {
  * 通知済みの便は tripId + departureTime で追跡し、重複送信を防止する。
  */
 export function useNotification({
+	db,
 	departures,
 	routes,
 	notifyBeforeMinutes,
@@ -95,16 +100,30 @@ export function useNotification({
 		return result;
 	}, []);
 
-	// 通知が有効な経路の Map（routes 変更時のみ再構築）
-	const enabledRoutes = useMemo(
-		() =>
-			new Map(
-				routes
-					.filter((r) => r.notifyEnabled)
-					.map((r) => [`${r.fromStopId}-${r.toStopId}`, r]),
-			),
-		[routes],
-	);
+	// 通知が有効な経路の Map（routes 変更時のみ再構築）。
+	// Departure.fromStopId / toStopId は実際のバス停留所 ID（同一場所の別乗り場 = 兄弟
+	// 停留所）になり得る一方、登録経路の fromStopId / toStopId はユーザーが登録した
+	// 1 つの ID のみ。useDepartures と同じく getSiblingStopIds で兄弟展開した全組
+	// み合わせをキーに登録することで、登録 ID と異なる兄弟 ID からの departure でも
+	// マッチできる。
+	const enabledRoutes = useMemo(() => {
+		const map = new Map<string, RegisteredRouteEntry>();
+		for (const r of routes) {
+			if (!r.notifyEnabled) continue;
+			const fromSiblings = db
+				? getSiblingStopIds(db, r.fromStopId)
+				: [r.fromStopId];
+			const toSiblings = db
+				? getSiblingStopIds(db, r.toStopId)
+				: [r.toStopId];
+			for (const f of fromSiblings) {
+				for (const t of toSiblings) {
+					map.set(`${f}-${t}`, r);
+				}
+			}
+		}
+		return map;
+	}, [db, routes]);
 
 	useEffect(() => {
 		if (!enabled) return;
@@ -133,16 +152,20 @@ export function useNotification({
 			if (notifiedRef.current.has(key)) continue;
 
 			const routeKey = `${dep.fromStopId}-${dep.toStopId}`;
-			if (!enabledRoutes.has(routeKey)) continue;
+			const route = enabledRoutes.get(routeKey);
+			if (!route) continue;
 
+			// 徒歩時間を差し引いた自宅出発目安時刻を基準に通知タイミングを計算する
+			const walkMinutes = Math.max(0, Math.floor(route.walkMinutes));
 			const depMinutes = timeToMinutes(dep.departureTime);
-			let minutesUntil = depMinutes - currentMinutes;
+			const leaveMinutes = depMinutes - walkMinutes;
+			let minutesUntilLeave = leaveMinutes - currentMinutes;
 			// GTFS の 24 時超表記（例: 24:05）と 0 時過ぎの現在時刻の差を補正
-			if (minutesUntil > 1200) minutesUntil -= 1440;
+			if (minutesUntilLeave > 1200) minutesUntilLeave -= 1440;
 
-			if (minutesUntil > 0 && minutesUntil <= notifyBeforeMinutes) {
+			if (minutesUntilLeave > 0 && minutesUntilLeave <= notifyBeforeMinutes) {
 				notifiedRef.current.add(key);
-				new globalThis.Notification(`バス発車 ${minutesUntil}分前`, {
+				new globalThis.Notification(`出発 ${minutesUntilLeave}分前`, {
 					body: formatNotificationBody(dep),
 				});
 			}

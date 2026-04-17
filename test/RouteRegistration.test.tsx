@@ -262,6 +262,464 @@ describe("RouteRegistration コンポーネント", () => {
 		).toBeInTheDocument();
 	});
 
+	it("登録済み経路のトグルをクリックすると通知が ON になる", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		const onRequestPermission = vi.fn().mockResolvedValue("granted");
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+				onRequestNotificationPermission={onRequestPermission}
+			/>,
+		);
+
+		const toggle = screen.getByRole("checkbox", { name: "通知の切り替え" });
+		await userEvent.click(toggle);
+
+		expect(onUpdate).toHaveBeenCalledWith({
+			id: 1,
+			fromStopId: "test:S001",
+			toStopId: "test:S002",
+			walkMinutes: 5,
+			notifyEnabled: true,
+		});
+	});
+
+	it("permission が denied でもトグルは機能しユーザーの意図を保存する", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		const onRequestPermission = vi.fn().mockResolvedValue("denied");
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+				onRequestNotificationPermission={onRequestPermission}
+			/>,
+		);
+
+		const toggle = screen.getByRole("checkbox", { name: "通知の切り替え" });
+		await userEvent.click(toggle);
+
+		// permission が denied でも onUpdate は呼ばれる（意図を保存する）
+		expect(onUpdate).toHaveBeenCalledWith({
+			id: 1,
+			fromStopId: "test:S001",
+			toStopId: "test:S002",
+			walkMinutes: 5,
+			notifyEnabled: true,
+		});
+	});
+
+	it("permission が denied のとき警告メッセージが表示される", () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+				notifyPermission="denied"
+			/>,
+		);
+
+		expect(
+			screen.getByText(
+				/ブラウザの通知が拒否されています/,
+			),
+		).toBeInTheDocument();
+		// 本 PR で「発車」→「出発」に用語統一したため、警告文言も整合していることを確認する
+		expect(
+			screen.getByText(
+				/出発前の通知は送信されません/,
+			),
+		).toBeInTheDocument();
+	});
+
+	it("登録済み経路のトグルをクリックすると通知が OFF になる", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: true,
+			},
+		];
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+			/>,
+		);
+
+		const toggle = screen.getByRole("checkbox", { name: "通知の切り替え" });
+		await userEvent.click(toggle);
+
+		expect(onUpdate).toHaveBeenCalledWith({
+			id: 1,
+			fromStopId: "test:S001",
+			toStopId: "test:S002",
+			walkMinutes: 5,
+			notifyEnabled: false,
+		});
+	});
+
+	it("トグル操作中に onRequestNotificationPermission が reject した場合、エラーメッセージが表示され onUpdate は呼ばれない", async () => {
+		// permission 要求が reject した場合のエラーハンドリング検証。
+		// 以前は await が try/catch 外だったため rejection が未処理になり、
+		// ユーザーへのフィードバックも無かった。try 内に移動したことで捕捉される。
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		const onRequestPermission = vi
+			.fn()
+			.mockRejectedValue(new Error("permission 要求に失敗しました"));
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+				onRequestNotificationPermission={onRequestPermission}
+			/>,
+		);
+
+		const toggle = screen.getByRole("checkbox", { name: "通知の切り替え" });
+		await userEvent.click(toggle);
+
+		// エラーメッセージが表示される（rejection が catch で捕捉された証左）
+		expect(
+			await screen.findByText("permission 要求に失敗しました"),
+		).toBeInTheDocument();
+		// permission 要求段階で失敗したため onUpdate は呼ばれない
+		expect(onUpdate).not.toHaveBeenCalled();
+	});
+
+	it("フォーム登録時、permission が denied を返してもユーザー意図 (notifyEnabled=true) が保存される", async () => {
+		// 登録済みトグルは denied でも意図保存する一方、フォーム側も挙動を揃えるべき。
+		// permission はリクエストするが、結果で notifyEnabled を上書きしない。
+		const onRequestPermission = vi.fn().mockResolvedValue("denied");
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={[]}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+				onRequestNotificationPermission={onRequestPermission}
+			/>,
+		);
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// 通知トグルを ON にする
+		const notifyToggle = screen.getByRole("checkbox", { name: "通知" });
+		await userEvent.click(notifyToggle);
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onRequestPermission).toHaveBeenCalledOnce();
+		expect(onAdd).toHaveBeenCalledWith({
+			fromStopId: "test:S001",
+			toStopId: "test:S002",
+			walkMinutes: 10,
+			notifyEnabled: true,
+		});
+	});
+
+	describe("通知タイミング UI", () => {
+		const notifyEnabledRoutes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: true,
+			},
+		];
+
+		it("hasNotifyEnabledRoutes=true のとき現在値が明示表示される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			expect(screen.getByText(/現在、出発\s*5\s*分前に通知します/)).toBeInTheDocument();
+		});
+
+		it("hasNotifyEnabledRoutes=true のとき変更用の入力が表示される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			expect(
+				screen.getByRole("spinbutton", { name: "通知タイミング" }),
+			).toBeInTheDocument();
+		});
+
+		it("変更用入力には単位「分前」が accessible description として関連付けられている", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			expect(input).toHaveAccessibleDescription("分前");
+		});
+
+		it("hasNotifyEnabledRoutes=false のとき通知タイミング UI は表示されない", () => {
+			const routes: RegisteredRouteEntry[] = [
+				{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
+			];
+			render(
+				<RouteRegistration
+					db={db}
+					routes={routes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={false}
+					notifyBeforeMinutes={5}
+				/>,
+			);
+			expect(
+				screen.queryByRole("spinbutton", { name: "通知タイミング" }),
+			).not.toBeInTheDocument();
+			expect(screen.queryByText(/現在、出発/)).not.toBeInTheDocument();
+		});
+
+		it("notifyPermission が default のとき「通知を許可」ボタンが表示される", () => {
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					notifyPermission="default"
+					onRequestNotificationPermission={vi.fn().mockResolvedValue("granted")}
+				/>,
+			);
+			expect(
+				screen.getByRole("button", { name: "通知を許可" }),
+			).toBeInTheDocument();
+		});
+
+		it("blur で有効値が onNotifyBeforeMinutesChange に渡る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			fireEvent.blur(input);
+			expect(onChange).toHaveBeenCalledTimes(1);
+			expect(onChange).toHaveBeenCalledWith(15);
+		});
+
+		it("Enter キーで有効値が onNotifyBeforeMinutesChange に渡る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "20" } });
+			fireEvent.keyDown(input, { key: "Enter" });
+			expect(onChange).toHaveBeenCalledTimes(1);
+			expect(onChange).toHaveBeenCalledWith(20);
+		});
+
+		it("onChange 単体では onNotifyBeforeMinutesChange が呼ばれない", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "1" } });
+			fireEvent.change(input, { target: { value: "15" } });
+			expect(onChange).not.toHaveBeenCalled();
+		});
+
+		it("blur で 60 を超える値は反映されず表示が直前値に戻る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "100" } });
+			fireEvent.blur(input);
+			expect(onChange).not.toHaveBeenCalled();
+			expect(input).toHaveValue(5);
+		});
+
+		it("blur で小数は反映されず表示が直前値に戻る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "5.5" } });
+			fireEvent.blur(input);
+			expect(onChange).not.toHaveBeenCalled();
+			expect(input).toHaveValue(5);
+		});
+
+		it("blur で空値は反映されず表示が直前値に戻る", () => {
+			const onChange = vi.fn();
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "" } });
+			fireEvent.blur(input);
+			expect(onChange).not.toHaveBeenCalled();
+			expect(input).toHaveValue(5);
+		});
+	});
+
 	it("複数の経路が一覧に表示される", () => {
 		const routes: RegisteredRouteEntry[] = [
 			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },

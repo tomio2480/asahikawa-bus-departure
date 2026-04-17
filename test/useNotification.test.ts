@@ -1,7 +1,10 @@
 import { renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import initSqlJs from "sql.js";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { useNotification } from "../src/hooks/useNotification";
 import type { Departure } from "../src/lib/departure-query";
+import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
+import type { GtfsData } from "../src/types/gtfs";
 import type { RegisteredRouteEntry } from "../src/types/route-entry";
 
 const mockNotificationConstructor = vi.fn();
@@ -57,7 +60,9 @@ function makeRoute(overrides?: Partial<RegisteredRouteEntry>): RegisteredRouteEn
 
 describe("useNotification", () => {
 	it("通知が有効な経路の出発N分前に通知が送信される", () => {
-		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+		// departure 08:10 - walkMinutes 10 = leaveByTime 08:00
+		// notifyBeforeMinutes 5: 07:55 に通知が発火する
+		vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
 
 		renderHook(() =>
 			useNotification({
@@ -88,7 +93,7 @@ describe("useNotification", () => {
 	});
 
 	it("同じ便に対して重複通知しない", () => {
-		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+		vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
 		const departures = [makeDeparture()];
 		const routes = [makeRoute()];
 
@@ -157,7 +162,7 @@ describe("useNotification", () => {
 	});
 
 	it("通知の body に発車時刻、乗車バス停名、到着時刻、行先、運賃、路線名が含まれる", () => {
-		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+		vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
 
 		renderHook(() =>
 			useNotification({
@@ -223,5 +228,95 @@ describe("useNotification", () => {
 		);
 
 		expect(mockNotificationConstructor).not.toHaveBeenCalled();
+	});
+
+	describe("兄弟停留所マッチング", () => {
+		let SQL: Awaited<ReturnType<typeof initSqlJs>>;
+		let db: InstanceType<(typeof SQL)["Database"]>;
+
+		beforeAll(async () => {
+			SQL = await initSqlJs();
+		});
+
+		beforeEach(() => {
+			db = new SQL.Database();
+			createSchema(db);
+			// 同名・近距離の兄弟停留所 S001 / S001-alt を用意する。
+			// 遠距離の S002 は単独（兄弟は自分自身のみ）。
+			const gtfs: GtfsData = {
+				agency: [{ agency_id: "A001", agency_name: "テストバス" }],
+				stops: [
+					{
+						stop_id: "S001",
+						stop_name: "旭川医大病院前",
+						stop_lat: 43.7631,
+						stop_lon: 142.3582,
+					},
+					{
+						stop_id: "S001-alt",
+						stop_name: "旭川医大病院前",
+						stop_lat: 43.7631,
+						stop_lon: 142.3583,
+					},
+					{
+						stop_id: "S002",
+						stop_name: "旭川空港",
+						stop_lat: 43.6707,
+						stop_lon: 142.4476,
+					},
+				],
+				routes: [],
+				trips: [],
+				stop_times: [],
+				calendar: [],
+				calendar_dates: [],
+				shapes: [],
+				fare_attributes: [],
+				fare_rules: [],
+			};
+			loadGtfsData(db, gtfs, "test");
+		});
+
+		afterEach(() => {
+			db.close();
+		});
+
+		it("登録 stop_id と異なる兄弟 stop_id の departure でも通知が発火する", () => {
+			vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
+
+			// route は registered fromStopId "test:S001"、departure は兄弟 "test:S001-alt" から発車
+			renderHook(() =>
+				useNotification({
+					db,
+					departures: [
+						makeDeparture({ fromStopId: "test:S001-alt", toStopId: "test:S002" }),
+					],
+					routes: [makeRoute()],
+					notifyBeforeMinutes: 5,
+					enabled: true,
+				}),
+			);
+
+			expect(mockNotificationConstructor).toHaveBeenCalledOnce();
+		});
+
+		it("兄弟関係にない別停留所からの departure は通知されない", () => {
+			vi.setSystemTime(new Date("2026-04-17T07:55:00+09:00"));
+
+			renderHook(() =>
+				useNotification({
+					db,
+					// S002 は S001 の兄弟ではない（遠距離）
+					departures: [
+						makeDeparture({ fromStopId: "test:S002", toStopId: "test:S002" }),
+					],
+					routes: [makeRoute()],
+					notifyBeforeMinutes: 5,
+					enabled: true,
+				}),
+			);
+
+			expect(mockNotificationConstructor).not.toHaveBeenCalled();
+		});
 	});
 });
