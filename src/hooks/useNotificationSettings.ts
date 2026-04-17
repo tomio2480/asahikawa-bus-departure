@@ -9,7 +9,8 @@ export function useNotificationSettings() {
 		const stored = localStorage.getItem(STORAGE_KEY);
 		if (stored == null) return DEFAULT_MINUTES;
 		const n = Number(stored);
-		return Number.isFinite(n) && n > 0 ? n : DEFAULT_MINUTES;
+		if (!Number.isFinite(n) || n <= 0) return DEFAULT_MINUTES;
+		return Math.max(1, Math.min(60, Math.floor(n)));
 	});
 
 	const setMinutes = useCallback((value: number) => {

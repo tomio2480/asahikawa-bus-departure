@@ -149,7 +149,12 @@ function App() {
 								min="1"
 								max="60"
 								value={notifyBeforeMinutes}
-								onChange={(e) => setNotifyBeforeMinutes(Number(e.target.value))}
+								onChange={(e) => {
+									const v = Number(e.target.value);
+									if (Number.isFinite(v) && v > 0) {
+										setNotifyBeforeMinutes(v);
+									}
+								}}
 								aria-label="通知（分前）"
 							/>
 							<span>分前</span>

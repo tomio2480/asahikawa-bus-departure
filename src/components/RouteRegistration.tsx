@@ -103,8 +103,12 @@ export function RouteRegistration({
 				return;
 			}
 
-			if (form.notifyEnabled) {
-				await onRequestNotificationPermission?.();
+			let notifyEnabled = form.notifyEnabled;
+			if (notifyEnabled && onRequestNotificationPermission) {
+				const result = await onRequestNotificationPermission();
+				if (result === "denied") {
+					notifyEnabled = false;
+				}
 			}
 
 			setSubmitting(true);
@@ -113,7 +117,7 @@ export function RouteRegistration({
 					fromStopId: form.fromStop.stop_id,
 					toStopId: form.toStop.stop_id,
 					walkMinutes,
-					notifyEnabled: form.notifyEnabled,
+					notifyEnabled,
 				};
 				if (editingId != null) {
 					await onUpdate({ ...entry, id: editingId });
@@ -129,7 +133,7 @@ export function RouteRegistration({
 				setSubmitting(false);
 			}
 		},
-		[form, editingId, onAdd, onUpdate, resetForm],
+		[form, editingId, onAdd, onUpdate, resetForm, onRequestNotificationPermission],
 	);
 
 	const handleEdit = useCallback(
@@ -300,10 +304,16 @@ export function RouteRegistration({
 															const result = await onRequestNotificationPermission();
 															if (result === "denied") return;
 														}
-														onUpdate({
-															...route,
-															notifyEnabled: !route.notifyEnabled,
-														});
+														try {
+															await onUpdate({
+																...route,
+																notifyEnabled: !route.notifyEnabled,
+															});
+														} catch (err) {
+															setErrorMessage(
+																err instanceof Error ? err.message : "通知設定の更新に失敗しました",
+															);
+														}
 													}}
 													disabled={submitting}
 													aria-label="通知の切り替え"

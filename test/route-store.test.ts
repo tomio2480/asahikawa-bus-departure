@@ -144,7 +144,7 @@ describe("通知フラグ", () => {
 		expect(exported.routes[0].notifyEnabled).toBe(true);
 	});
 
-	it("notifyEnabled が false の場合はエクスポートに含まれない", async () => {
+	it("notifyEnabled が省略された場合はエクスポートに含まれない", async () => {
 		await addRoute({
 			fromStopId: "S001",
 			toStopId: "S002",
@@ -152,6 +152,17 @@ describe("通知フラグ", () => {
 		});
 		const exported = await exportRoutes();
 		expect("notifyEnabled" in exported.routes[0]).toBe(false);
+	});
+
+	it("notifyEnabled が false の場合はエクスポートに false として含まれる", async () => {
+		await addRoute({
+			fromStopId: "S001",
+			toStopId: "S002",
+			walkMinutes: 5,
+			notifyEnabled: false,
+		});
+		const exported = await exportRoutes();
+		expect(exported.routes[0].notifyEnabled).toBe(false);
 	});
 });
 
