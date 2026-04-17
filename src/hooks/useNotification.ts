@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Departure } from "../lib/departure-query";
 import type { RegisteredRouteEntry } from "../types/route-entry";
 
-type DepartureWithStop = Departure & { toStopName?: string };
+type DepartureWithStop = Departure & {
+	toStopName?: string;
+	isNextDay?: boolean;
+};
 
 type UseNotificationOptions = {
 	departures: DepartureWithStop[];
@@ -112,6 +115,9 @@ export function useNotification({
 		const currentMinutes = timeToMinutes(currentTime);
 
 		for (const dep of departures) {
+			// 翌日便は通知対象外（時刻計算が当日基準のため）
+			if (dep.isNextDay) continue;
+
 			const key = `${dep.tripId}-${dep.departureTime}`;
 			if (notifiedRef.current.has(key)) continue;
 

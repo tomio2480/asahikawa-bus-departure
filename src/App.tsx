@@ -115,7 +115,11 @@ function App() {
 	const allDeparturesForNotification = useMemo(
 		() =>
 			groups.flatMap((g) =>
-				g.departures.map((d) => ({ ...d, toStopName: g.toStopName })),
+				g.departures.map((d) => ({
+					...d,
+					toStopName: g.toStopName,
+					isNextDay: g.isNextDay,
+				})),
 			),
 		[groups],
 	);

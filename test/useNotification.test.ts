@@ -26,7 +26,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-function makeDeparture(overrides?: Partial<Departure & { toStopName: string }>): Departure & { toStopName: string } {
+function makeDeparture(overrides?: Partial<Departure & { toStopName: string; isNextDay?: boolean }>): Departure & { toStopName: string; isNextDay?: boolean } {
 	return {
 		tripId: "T001",
 		routeId: "R001",
@@ -192,6 +192,36 @@ describe("useNotification", () => {
 		);
 
 		expect(result.current.permission).toBe("unsupported");
+		expect(mockNotificationConstructor).not.toHaveBeenCalled();
+	});
+
+	it("notifyEnabled が undefined の経路は通知されない", () => {
+		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+
+		renderHook(() =>
+			useNotification({
+				departures: [makeDeparture()],
+				routes: [makeRoute({ notifyEnabled: undefined })],
+				notifyBeforeMinutes: 5,
+				enabled: true,
+			}),
+		);
+
+		expect(mockNotificationConstructor).not.toHaveBeenCalled();
+	});
+
+	it("翌日便（isNextDay）は通知対象外である", () => {
+		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
+
+		renderHook(() =>
+			useNotification({
+				departures: [makeDeparture({ isNextDay: true })],
+				routes: [makeRoute()],
+				notifyBeforeMinutes: 5,
+				enabled: true,
+			}),
+		);
+
 		expect(mockNotificationConstructor).not.toHaveBeenCalled();
 	});
 });

@@ -103,6 +103,10 @@ export function RouteRegistration({
 				return;
 			}
 
+			if (form.notifyEnabled) {
+				await onRequestNotificationPermission?.();
+			}
+
 			setSubmitting(true);
 			try {
 				const entry: Omit<RouteEntry, "id"> = {
@@ -292,8 +296,9 @@ export function RouteRegistration({
 													className="toggle toggle-primary toggle-xs"
 													checked={route.notifyEnabled === true}
 													onChange={async () => {
-														if (!route.notifyEnabled) {
-															await onRequestNotificationPermission?.();
+														if (!route.notifyEnabled && onRequestNotificationPermission) {
+															const result = await onRequestNotificationPermission();
+															if (result === "denied") return;
 														}
 														onUpdate({
 															...route,
