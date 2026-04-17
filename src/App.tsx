@@ -8,6 +8,8 @@ import { RouteRegistration } from "./components/RouteRegistration";
 import { RouteTransfer } from "./components/RouteTransfer";
 import { useDatabase } from "./hooks/useDatabase";
 import { useDepartures } from "./hooks/useDepartures";
+import { useNotification } from "./hooks/useNotification";
+import { useNotificationSettings } from "./hooks/useNotificationSettings";
 import { useRoutes } from "./hooks/useRoutes";
 import { type ThemePreference, useTheme } from "./hooks/useTheme";
 import { getDataExpiry } from "./lib/data-expiry";
@@ -105,6 +107,26 @@ function App() {
 
 	const { preference, changeTheme } = useTheme();
 
+	const {
+		minutes: notifyBeforeMinutes,
+		setMinutes: setNotifyBeforeMinutes,
+	} = useNotificationSettings();
+
+	const allDeparturesForNotification = useMemo(
+		() =>
+			groups.flatMap((g) =>
+				g.departures.map((d) => ({ ...d, toStopName: g.toStopName })),
+			),
+		[groups],
+	);
+
+	const { requestPermission } = useNotification({
+		departures: allDeparturesForNotification,
+		routes,
+		notifyBeforeMinutes,
+		enabled: routes.some((r) => r.notifyEnabled),
+	});
+
 	return (
 		<div className="flex flex-col min-h-screen bg-base-200">
 			<header className="navbar bg-base-100 flex-wrap gap-y-1">
@@ -114,6 +136,20 @@ function App() {
 				<div className="flex-none">
 					<div className="flex items-center gap-1 sm:gap-2">
 						<RouteTransfer onImportComplete={reload} />
+						<label className="flex items-center gap-1 text-sm" htmlFor="notify-minutes">
+							<span className="hidden sm:inline">通知</span>
+							<input
+								id="notify-minutes"
+								type="number"
+								className="input input-bordered input-sm w-14"
+								min="1"
+								max="60"
+								value={notifyBeforeMinutes}
+								onChange={(e) => setNotifyBeforeMinutes(Number(e.target.value))}
+								aria-label="通知（分前）"
+							/>
+							<span>分前</span>
+						</label>
 						<select
 							aria-label="テーマ切り替え"
 							className="select select-sm select-bordered"
@@ -175,6 +211,7 @@ function App() {
 							onAdd={add}
 							onUpdate={update}
 							onDelete={remove}
+							onRequestNotificationPermission={requestPermission}
 						/>
 					</>
 				)}

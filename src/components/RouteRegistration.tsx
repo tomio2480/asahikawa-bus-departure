@@ -15,6 +15,8 @@ type RouteRegistrationProps = {
 	onUpdate: (entry: RegisteredRouteEntry) => Promise<void>;
 	/** 経路削除コールバック */
 	onDelete: (id: number) => Promise<void>;
+	/** 通知パーミッション要求 */
+	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
 };
 
 type FormState = {
@@ -38,6 +40,7 @@ export function RouteRegistration({
 	onAdd,
 	onUpdate,
 	onDelete,
+	onRequestNotificationPermission,
 }: RouteRegistrationProps) {
 	const stopNameMap = useMemo(() => {
 		const ids = new Set<string>();
@@ -288,12 +291,15 @@ export function RouteRegistration({
 													type="checkbox"
 													className="toggle toggle-primary toggle-xs"
 													checked={route.notifyEnabled === true}
-													onChange={() =>
+													onChange={async () => {
+														if (!route.notifyEnabled) {
+															await onRequestNotificationPermission?.();
+														}
 														onUpdate({
 															...route,
 															notifyEnabled: !route.notifyEnabled,
-														})
-													}
+														});
+													}}
 													disabled={submitting}
 													aria-label="通知の切り替え"
 												/>
