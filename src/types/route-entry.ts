@@ -8,6 +8,8 @@ export type RouteEntry = {
 	toStopId: string;
 	/** 徒歩所要時間（分） */
 	walkMinutes: number;
+	/** 通知の有効/無効 */
+	notifyEnabled?: boolean;
 };
 
 /** IndexedDB に保存済みの経路情報（id 必須） */

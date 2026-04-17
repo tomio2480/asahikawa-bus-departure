@@ -111,6 +111,61 @@ describe("CRUD バリデーション", () => {
 	});
 });
 
+describe("通知フラグ", () => {
+	it("notifyEnabled が true の経路を追加・取得できる", async () => {
+		const id = await addRoute({
+			fromStopId: "S001",
+			toStopId: "S002",
+			walkMinutes: 5,
+			notifyEnabled: true,
+		});
+		const route = await getRoute(id);
+		expect(route?.notifyEnabled).toBe(true);
+	});
+
+	it("notifyEnabled が省略された経路は undefined として取得される", async () => {
+		const id = await addRoute({
+			fromStopId: "S001",
+			toStopId: "S002",
+			walkMinutes: 5,
+		});
+		const route = await getRoute(id);
+		expect(route?.notifyEnabled).toBeUndefined();
+	});
+
+	it("エクスポートに notifyEnabled が含まれる", async () => {
+		await addRoute({
+			fromStopId: "S001",
+			toStopId: "S002",
+			walkMinutes: 5,
+			notifyEnabled: true,
+		});
+		const exported = await exportRoutes();
+		expect(exported.routes[0].notifyEnabled).toBe(true);
+	});
+
+	it("notifyEnabled が省略された場合はエクスポートに含まれない", async () => {
+		await addRoute({
+			fromStopId: "S001",
+			toStopId: "S002",
+			walkMinutes: 5,
+		});
+		const exported = await exportRoutes();
+		expect("notifyEnabled" in exported.routes[0]).toBe(false);
+	});
+
+	it("notifyEnabled が false の場合はエクスポートに false として含まれる", async () => {
+		await addRoute({
+			fromStopId: "S001",
+			toStopId: "S002",
+			walkMinutes: 5,
+			notifyEnabled: false,
+		});
+		const exported = await exportRoutes();
+		expect(exported.routes[0].notifyEnabled).toBe(false);
+	});
+});
+
 describe("入力値のサニタイズ", () => {
 	it("walkMinutes の負値は 0 になる", async () => {
 		const id = await addRoute({
@@ -262,6 +317,35 @@ describe("インポートバリデーション", () => {
 		}));
 		const json = JSON.stringify({ version: 1, routes });
 		await expect(importRoutes(json)).rejects.toThrow("maximum is 1000");
+	});
+
+	it("notifyEnabled 付きの経路をインポートできる", async () => {
+		const json = JSON.stringify({
+			version: 1,
+			routes: [
+				{
+					fromStopId: "S001",
+					toStopId: "S002",
+					walkMinutes: 5,
+					notifyEnabled: true,
+				},
+			],
+		});
+		const count = await importRoutes(json);
+		expect(count).toBe(1);
+		const routes = await getAllRoutes();
+		expect(routes[0].notifyEnabled).toBe(true);
+	});
+
+	it("notifyEnabled のない既存データをインポートできる", async () => {
+		const json = JSON.stringify({
+			version: 1,
+			routes: [{ fromStopId: "S001", toStopId: "S002", walkMinutes: 5 }],
+		});
+		const count = await importRoutes(json);
+		expect(count).toBe(1);
+		const routes = await getAllRoutes();
+		expect(routes[0].notifyEnabled).toBeUndefined();
 	});
 
 	it("プロトタイプ汚染を防ぐ（__proto__ キーを持つオブジェクト）", async () => {

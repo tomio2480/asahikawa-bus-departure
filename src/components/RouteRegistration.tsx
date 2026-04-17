@@ -15,18 +15,22 @@ type RouteRegistrationProps = {
 	onUpdate: (entry: RegisteredRouteEntry) => Promise<void>;
 	/** 経路削除コールバック */
 	onDelete: (id: number) => Promise<void>;
+	/** 通知パーミッション要求 */
+	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
 };
 
 type FormState = {
 	fromStop: StopSearchResult | null;
 	toStop: StopSearchResult | null;
 	walkMinutes: string;
+	notifyEnabled: boolean;
 };
 
 const initialFormState: FormState = {
 	fromStop: null,
 	toStop: null,
-	walkMinutes: "",
+	walkMinutes: "10",
+	notifyEnabled: false,
 };
 
 /** 経路登録・編集・削除を行うコンポーネント */
@@ -36,6 +40,7 @@ export function RouteRegistration({
 	onAdd,
 	onUpdate,
 	onDelete,
+	onRequestNotificationPermission,
 }: RouteRegistrationProps) {
 	const stopNameMap = useMemo(() => {
 		const ids = new Set<string>();
@@ -84,8 +89,12 @@ export function RouteRegistration({
 				);
 				return;
 			}
-			const walkMinutes = Number(form.walkMinutes);
-			if (form.walkMinutes === "" || !Number.isFinite(walkMinutes)) {
+			const DEFAULT_WALK_MINUTES = 10;
+			const walkMinutes =
+				form.walkMinutes === ""
+					? DEFAULT_WALK_MINUTES
+					: Number(form.walkMinutes);
+			if (!Number.isFinite(walkMinutes)) {
 				setErrorMessage("徒歩所要時間を入力してください");
 				return;
 			}
@@ -94,12 +103,21 @@ export function RouteRegistration({
 				return;
 			}
 
+			let notifyEnabled = form.notifyEnabled;
+			if (notifyEnabled && onRequestNotificationPermission) {
+				const result = await onRequestNotificationPermission();
+				if (result === "denied") {
+					notifyEnabled = false;
+				}
+			}
+
 			setSubmitting(true);
 			try {
-				const entry = {
+				const entry: Omit<RouteEntry, "id"> = {
 					fromStopId: form.fromStop.stop_id,
 					toStopId: form.toStop.stop_id,
 					walkMinutes,
+					notifyEnabled,
 				};
 				if (editingId != null) {
 					await onUpdate({ ...entry, id: editingId });
@@ -115,7 +133,7 @@ export function RouteRegistration({
 				setSubmitting(false);
 			}
 		},
-		[form, editingId, onAdd, onUpdate, resetForm],
+		[form, editingId, onAdd, onUpdate, resetForm, onRequestNotificationPermission],
 	);
 
 	const handleEdit = useCallback(
@@ -132,6 +150,7 @@ export function RouteRegistration({
 					clusterStopIds: [route.toStopId],
 				},
 				walkMinutes: String(route.walkMinutes),
+				notifyEnabled: route.notifyEnabled === true,
 			});
 			setEditingId(route.id);
 			setErrorMessage(null);
@@ -204,8 +223,24 @@ export function RouteRegistration({
 									walkMinutes: e.target.value,
 								}))
 							}
-							placeholder="0"
+							placeholder="10"
 						/>
+					</div>
+					<div className="form-control">
+						<label className="label cursor-pointer gap-2 justify-start">
+							<input
+								type="checkbox"
+								className="toggle toggle-primary toggle-sm"
+								checked={form.notifyEnabled}
+								onChange={(e) =>
+									setForm((prev) => ({
+										...prev,
+										notifyEnabled: e.target.checked,
+									}))
+								}
+							/>
+							<span className="label-text">通知</span>
+						</label>
 					</div>
 					{errorMessage && (
 						<div className="text-error text-sm" role="alert">
@@ -245,6 +280,7 @@ export function RouteRegistration({
 										<th>乗車バス停</th>
 										<th>降車バス停</th>
 										<th>徒歩（分）</th>
+										<th>通知</th>
 										<th>操作</th>
 									</tr>
 								</thead>
@@ -258,6 +294,34 @@ export function RouteRegistration({
 												{stopNameMap.get(route.toStopId) ?? route.toStopId}
 											</td>
 											<td>{route.walkMinutes}</td>
+											<td>
+												<input
+													type="checkbox"
+													className="toggle toggle-primary toggle-xs"
+													checked={route.notifyEnabled === true}
+													onChange={async () => {
+														if (!route.notifyEnabled && onRequestNotificationPermission) {
+															const result = await onRequestNotificationPermission();
+															if (result === "denied") return;
+														}
+														setSubmitting(true);
+														try {
+															await onUpdate({
+																...route,
+																notifyEnabled: !route.notifyEnabled,
+															});
+														} catch (err) {
+															setErrorMessage(
+																err instanceof Error ? err.message : "通知設定の更新に失敗しました",
+															);
+														} finally {
+															setSubmitting(false);
+														}
+													}}
+													disabled={submitting}
+													aria-label="通知の切り替え"
+												/>
+											</td>
 											<td className="space-x-2">
 												<button
 													type="button"

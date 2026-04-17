@@ -159,11 +159,11 @@ export async function exportRoutes(): Promise<RouteEntryExport> {
 	const routes = await getAllRoutes();
 	return {
 		version: EXPORT_VERSION,
-		routes: routes.map(({ fromStopId, toStopId, walkMinutes }) => ({
-			fromStopId,
-			toStopId,
-			walkMinutes,
-		})),
+		routes: routes.map(({ fromStopId, toStopId, walkMinutes, notifyEnabled }) => {
+			const route: Omit<RouteEntry, "id"> = { fromStopId, toStopId, walkMinutes };
+			if (notifyEnabled != null) route.notifyEnabled = notifyEnabled;
+			return route;
+		}),
 	};
 }
 
@@ -233,11 +233,15 @@ export async function importRoutes(
 /** 入力値をバリデーションし正規化する */
 function sanitizeEntry(entry: Omit<RouteEntry, "id">): Omit<RouteEntry, "id"> {
 	validateRouteFields(entry);
-	return {
+	const result: Omit<RouteEntry, "id"> = {
 		fromStopId: entry.fromStopId,
 		toStopId: entry.toStopId,
 		walkMinutes: Math.max(0, Math.floor(entry.walkMinutes)),
 	};
+	if (entry.notifyEnabled != null) {
+		result.notifyEnabled = Boolean(entry.notifyEnabled);
+	}
+	return result;
 }
 
 /** エクスポート形式のバリデーション */
