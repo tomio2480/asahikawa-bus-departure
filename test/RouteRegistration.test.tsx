@@ -377,6 +377,128 @@ describe("RouteRegistration コンポーネント", () => {
 		).toBeInTheDocument();
 	});
 
+	it("トグル処理中は同一経路の編集ボタンが disabled になる（race 防止）", async () => {
+		// 同一経路のトグル onUpdate と編集フォーム submit の onUpdate が race して
+		// stale な notifyEnabled で上書きされる可能性があるため、トグル処理中は
+		// 編集ボタンも無効化する。
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		let resolveUpdate: () => void = () => {};
+		const onUpdate = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					resolveUpdate = r;
+				}),
+		);
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={onUpdate}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		const editButton = screen.getByRole("button", { name: "編集" });
+		expect(editButton).not.toBeDisabled();
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+		expect(editButton).toBeDisabled();
+
+		resolveUpdate();
+	});
+
+	it("トグル処理中は同一経路の削除ボタンが disabled になる（race 防止）", async () => {
+		// 同一経路のトグル onUpdate と onDelete が concurrent 発火する race を防ぐ。
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		let resolveUpdate: () => void = () => {};
+		const onUpdate = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					resolveUpdate = r;
+				}),
+		);
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={onUpdate}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		const deleteButton = screen.getByRole("button", { name: "削除" });
+		expect(deleteButton).not.toBeDisabled();
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+		expect(deleteButton).toBeDisabled();
+
+		resolveUpdate();
+	});
+
+	it("トグル処理中はキャンセルボタンも disabled になる（編集モード中）", async () => {
+		// 編集モード中にトグル処理が走ると、キャンセル操作で編集を抜けられると
+		// トグル対象の state が途中で失われる。状態の一貫性のため無効化する。
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		let resolveUpdate: () => void = () => {};
+		const onUpdate = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					resolveUpdate = r;
+				}),
+		);
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={onUpdate}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		// 編集モードへ遷移
+		await userEvent.click(screen.getByRole("button", { name: "編集" }));
+		const cancelButton = screen.getByRole("button", { name: "キャンセル" });
+		expect(cancelButton).not.toBeDisabled();
+
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+		expect(cancelButton).toBeDisabled();
+
+		resolveUpdate();
+	});
+
 	it("フォーム送信中（submitting=true 相当）は通知トグルも disabled になる", async () => {
 		// フォーム送信（登録/更新/削除）と通知トグルの onUpdate が同時進行すると
 		// 編集モード中の同一経路で race が発生し得るため、submitting 中はトグルも

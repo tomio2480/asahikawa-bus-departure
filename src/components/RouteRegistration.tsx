@@ -331,7 +331,7 @@ export function RouteRegistration({
 								type="button"
 								className="btn btn-ghost"
 								onClick={resetForm}
-								disabled={submitting}
+								disabled={submitting || togglingRouteId !== null}
 							>
 								キャンセル
 							</button>
@@ -507,7 +507,7 @@ export function RouteRegistration({
 													type="button"
 													className="btn btn-ghost btn-xs"
 													onClick={() => handleEdit(route)}
-													disabled={submitting}
+													disabled={submitting || togglingRouteId !== null}
 												>
 													編集
 												</button>
@@ -515,7 +515,7 @@ export function RouteRegistration({
 													type="button"
 													className="btn btn-ghost btn-xs text-error"
 													onClick={() => handleDelete(route.id)}
-													disabled={submitting}
+													disabled={submitting || togglingRouteId !== null}
 												>
 													削除
 												</button>
