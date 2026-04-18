@@ -612,7 +612,7 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(onAdd).not.toHaveBeenCalled();
 		const alert = screen.getByRole("alert");
 		expect(alert).toHaveTextContent(
-			"乗車バス停と降車バス停に同じバス停は指定できません",
+			"乗車バス停と降車バス停に同じバス停は指定できません。",
 		);
 		// 誤った「到達できません」分岐に落ちていないことを確認する。
 		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
@@ -632,7 +632,7 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(onAdd).not.toHaveBeenCalled();
 		const alert = screen.getByRole("alert");
 		expect(alert).toHaveTextContent(
-			"乗車バス停と降車バス停に同じバス停は指定できません",
+			"乗車バス停と降車バス停に同じバス停は指定できません。",
 		);
 		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
 	});
@@ -774,7 +774,7 @@ describe("RouteRegistration コンポーネント", () => {
 		// ユーザー指摘: 「異なるバス停を選択してください」より「同じバス停は
 		// 指定できません」のほうが禁止事項として直接的で読み解きが早い。
 		expect(
-			screen.getByText("乗車バス停と降車バス停に同じバス停は指定できません"),
+			screen.getByText("乗車バス停と降車バス停に同じバス停は指定できません。"),
 		).toBeInTheDocument();
 	});
 
