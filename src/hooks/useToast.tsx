@@ -18,6 +18,11 @@ export type Toast = {
 	message: string;
 	/** ビジュアル種別 */
 	variant: ToastVariant;
+	/**
+	 * 自動消去までのミリ秒。0 の場合は自動消去しない。
+	 * ToastItem 側の useEffect がこの値を元にタイマーを管理する。
+	 */
+	durationMs: number;
 };
 
 type ShowToastOptions = {
@@ -39,6 +44,10 @@ const DEFAULT_DURATION_MS = 3000;
 /**
  * トースト通知のプロバイダ。
  * 配下の useToast 呼び出しに対して toasts 配列と操作関数を提供する。
+ *
+ * 自動消去タイマーはここではスケジュールせず、各 ToastItem の
+ * useEffect に委譲する。アンマウント時・手動消去時のクリーンアップを
+ * コンポーネントライフサイクルに合わせて行うため。
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
 	const [toasts, setToasts] = useState<Toast[]>([]);
@@ -54,12 +63,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 			nextIdRef.current += 1;
 			const variant = options?.variant ?? "success";
 			const durationMs = options?.durationMs ?? DEFAULT_DURATION_MS;
-			setToasts((prev) => [...prev, { id, message, variant }]);
-			if (durationMs > 0) {
-				setTimeout(() => {
-					setToasts((prev) => prev.filter((t) => t.id !== id));
-				}, durationMs);
-			}
+			setToasts((prev) => [...prev, { id, message, variant, durationMs }]);
 		},
 		[],
 	);

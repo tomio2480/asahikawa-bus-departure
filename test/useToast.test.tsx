@@ -38,19 +38,9 @@ describe("useToast", () => {
 		expect(result.current.toasts[0].variant).toBe("success");
 	});
 
-	it("durationMs 経過後にトーストが自動消去される", () => {
-		const { result } = renderHook(() => useToast(), { wrapper });
-
-		act(() => {
-			result.current.showToast("消えるメッセージ", { durationMs: 1000 });
-		});
-		expect(result.current.toasts).toHaveLength(1);
-
-		act(() => {
-			vi.advanceTimersByTime(1000);
-		});
-		expect(result.current.toasts).toHaveLength(0);
-	});
+	// 自動消去の振る舞いは ToastItem 側（useEffect）で実装しており、
+	// ToastContainer をレンダリングしない renderHook だけでは検証できない。
+	// DOM から消えることは test/Toast.test.tsx でカバーしている。
 
 	it("同時に複数のトーストを追加できる", () => {
 		const { result } = renderHook(() => useToast(), { wrapper });

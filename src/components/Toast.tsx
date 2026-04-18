@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { type Toast, type ToastVariant, useToast } from "../hooks/useToast";
 
 const variantClass: Record<ToastVariant, string> = {
@@ -29,6 +30,15 @@ function ToastItem({
 	toast: Toast;
 	onDismiss: () => void;
 }) {
+	// 自動消去タイマーを ToastItem のライフサイクルに合わせて管理する。
+	// アンマウント・手動消去による再レンダリング時にクリーンアップで
+	// clearTimeout が呼ばれるため、pending タイマーの残留を防ぐ。
+	useEffect(() => {
+		if (toast.durationMs <= 0) return;
+		const timer = setTimeout(onDismiss, toast.durationMs);
+		return () => clearTimeout(timer);
+	}, [toast.durationMs, onDismiss]);
+
 	const isError = toast.variant === "error";
 	return (
 		<div

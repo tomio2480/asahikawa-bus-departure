@@ -94,6 +94,26 @@ describe("ToastContainer", () => {
 		expect(toast?.className).toMatch(/alert-success/);
 	});
 
+	it("ToastContainer アンマウント時に pending タイマーがクリアされる", () => {
+		// 自動消去用 setTimeout が ToastProvider レベルで発火すると、
+		// アンマウントされてもタイマーが残り続けメモリリーク・scheduling 累積の
+		// 原因になる。ToastItem の useEffect 内でスケジュールし、クリーンアップで
+		// clearTimeout するよう実装されている必要がある。
+		const { unmount } = render(
+			<ToastProvider>
+				<ToastContainer />
+				<Trigger message="クリア対象" durationMs={5000} />
+			</ToastProvider>,
+		);
+		expect(screen.getByText("クリア対象")).toBeInTheDocument();
+		// durationMs=5000 のタイマーが少なくとも 1 件スケジュールされている
+		expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+		unmount();
+		// アンマウント後は pending タイマーが残っていない
+		expect(vi.getTimerCount()).toBe(0);
+	});
+
 	it("閉じるボタンをクリックするとトーストが消える", async () => {
 		const { default: userEvent } = await import("@testing-library/user-event");
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
