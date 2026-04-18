@@ -38,7 +38,8 @@ type StopSearchProps = {
 	 * ユーザーのキー入力・候補選択・`selectedStop` prop 経由の同期の
 	 * いずれでも最新の query を親に通知する。親は「選択が無効だが
 	 * ユーザーは文字を入力している」状態を検出し、エラー文言の分岐
-	 * （「選択してください」vs「候補にありません」）に使う。
+	 * （「選択してください」/「存在しません」/「乗り換えなしで到達
+	 * できません」/「候補から選択してください」）に使う。
 	 */
 	onQueryChange?: (query: string) => void;
 	/** 選択済みのバス停（外部から制御する場合） */
@@ -228,8 +229,27 @@ export function StopSearch({
 				aria-activedescendant={
 					activeIndex >= 0 ? `stop-option-${id}-${activeIndex}` : undefined
 				}
+				aria-describedby={`stop-search-hint-${id}`}
 				autoComplete="off"
 			/>
+			{/*
+			 * ユーザー指摘対応: 正確なバス停名を手入力しても、候補から
+			 * クリック（または Enter 確定）しない限り選択は確定しない。
+			 * 従来は submit 後のエラー表示でしか気付けなかったため、
+			 * 入力中に選択必須であることが分かる永続ヒントを入力欄直下に
+			 * 常時表示する。`<label>` の子として置くと accessible name
+			 * に連結されて既存の `getByRole("combobox", { name })` を
+			 * 破壊するため、label の外に出し aria-describedby で
+			 * 支援技術にも適切な記述として結びつける。
+			 * エラー文言側の 3 分岐（存在しない / 到達不能 / 候補から選択）と
+			 * 合わせて、事前誘導と事後説明の両面でギャップを埋める。
+			 */}
+			<p
+				id={`stop-search-hint-${id}`}
+				className="text-xs text-base-content/60 mt-1"
+			>
+				候補から選択してください
+			</p>
 			{isListboxOpen && (
 				<div
 					id={`stop-search-listbox-${id}`}

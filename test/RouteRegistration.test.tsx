@@ -56,6 +56,17 @@ const testStops: GtfsData["stops"] = [
 		stop_lat: 43.7551,
 		stop_lon: 142.3612,
 	},
+	// Cycle 7: trip / stop_times に含めない孤立バス停。
+	// 「実在はするが他バス停から乗り換えなしで到達できない」ケースの
+	// エラー文言分岐（「乗り換えなしで到達できません」vs「存在しません」）
+	// を検証するために使う。地理的にも他バス停から十分離し、兄弟展開
+	// （getSiblingStopIds の近距離マージ）の対象に紛れ込ませない。
+	{
+		stop_id: "S004",
+		stop_name: "離れバス停",
+		stop_lat: 43.9,
+		stop_lon: 142.5,
+	},
 ];
 
 /**
@@ -385,18 +396,19 @@ describe("RouteRegistration コンポーネント", () => {
 		await userEvent.click(screen.getByRole("button", { name: "登録" }));
 
 		expect(onAdd).not.toHaveBeenCalled();
-		// ユーザーが文字を入力しているのに「選択してください」と表示されると
-		// 「入力されていない」と誤認させる。入力内容が候補になかった旨を
-		// 明示する文言に分岐させる（候補にない点を理由として伝える）。
-		// 文言の前半・後半いずれの退化も検出できるよう完全文字列で固定する。
+		// Cycle 7: ユーザー指摘を受け、候補にない理由を「存在しない」
+		// 「実在するが乗り換えなしで到達できない」で分岐する。
+		// 「旭川駅前xxx」は stop_name に部分一致する候補が存在しないため
+		// 「存在しません」に分岐する。文言の前半・後半いずれの退化も
+		// 検出できるよう完全文字列で固定する。
 		expect(screen.getByRole("alert")).toHaveTextContent(
-			"入力された乗車バス停「旭川駅前xxx」は候補にありません。候補から選択してください。",
+			"入力された乗車バス停「旭川駅前xxx」は存在しません。候補から選択してください。",
 		);
 	});
 
 	// 降車側でも同じ分岐が働くこと。ユーザー指摘の「降車バス停を選択して
 	// ください」という誤解を招く文言を防ぐ。
-	it("降車側で選択後に input を書き換えて submit すると「候補にありません」エラーが出る", async () => {
+	it("降車側で選択後に input を書き換えて submit すると「存在しません」エラーが出る", async () => {
 		const { onAdd } = renderComponent();
 
 		const comboboxes = screen.getAllByRole("combobox");
@@ -412,8 +424,85 @@ describe("RouteRegistration コンポーネント", () => {
 
 		expect(onAdd).not.toHaveBeenCalled();
 		expect(screen.getByRole("alert")).toHaveTextContent(
-			"入力された降車バス停「市役所前zzz」は候補にありません。候補から選択してください。",
+			"入力された降車バス停「市役所前zzz」は存在しません。候補から選択してください。",
 		);
+	});
+
+	// Cycle 7: 実在するが直通便で到達できないバス停名を入力した場合は、
+	// 「存在しません」ではなく「乗り換えなしで到達できません」に分岐する。
+	// S004「離れバス停」は fixture 上 trip / stop_times に含まれないため、
+	// S001 を乗車バス停として選択した状態で「離れバス停」を降車側に
+	// 手入力すると reachabilityFilter で候補から除外される。しかし
+	// searchStops の名前部分一致は成立するため、「存在する」と判定され、
+	// 不到達のほうのエラーに分岐する。
+	it("実在するが到達不能なバス停名を降車側に入力して submit すると「乗り換えなしで到達できません」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		// 降車側に存在するが到達不能なバス停名を手入力（候補選択しない）
+		await userEvent.type(comboboxes[1], "離れバス停");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された降車バス停「離れバス停」へは乗車バス停から乗り換えなしで到達できません。別のバス停を選択してください。",
+		);
+	});
+
+	// Cycle 7: 乗車側で到達不能なバス停名を入力する対称ケース。
+	// 降車バス停を選択済みの状態で、到達不能な乗車バス停名を手入力する。
+	it("実在するが到達不能なバス停名を乗車側に入力して submit すると「乗り換えなしで到達できません」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 先に降車バス停を選択
+		await userEvent.type(comboboxes[1], "旭川四条");
+		await userEvent.click(screen.getByText("旭川四条駅"));
+		// 乗車側に到達不能なバス停名を手入力
+		await userEvent.type(comboboxes[0], "離れバス停");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		// from / to どちらの側から到達不能エラーに入っても
+		// 「〜は乗り換えなしで到達できません」と末尾が揃うことを検証する
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「離れバス停」から降車バス停へは乗り換えなしで到達できません。別のバス停を選択してください。",
+		);
+	});
+
+	// Cycle 7: 正確に実在するバス停名を手入力したが候補から選択しなかった
+	// 場合のエラー。ユーザー指摘：「正確に入力したのにエラーが出る」体験を
+	// 和らげるため、「候補から選択してください」という促しに分岐する。
+	// 候補未選択のため reachabilityFilter 判定ができず、存在することだけが
+	// 分かる状態なので、存在しない・到達不能とは区別する。
+	it("正確なバス停名を乗車側に手入力しても候補から選択しないと「候補から選択してください」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 候補クリックはせず、完全な stop_name を手入力だけする
+		await userEvent.type(comboboxes[0], "旭川駅前");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前」は候補から選択してください。",
+		);
+	});
+
+	// Cycle 7（予防的 UI）: ユーザーが submit 前に選択必須であることに
+	// 気付けるよう、入力欄の label 付近に「候補から選択してください」の
+	// 永続ヒントを表示する。エラーによる事後通知だけでなく、入力中に
+	// 期待動作が見えることで誤操作を予防する。
+	it("バス停検索の入力欄には『候補から選択してください』という事前ヒントが表示される", () => {
+		renderComponent();
+		// 乗車・降車それぞれの入力欄にヒントが表示されている
+		const hints = screen.getAllByText("候補から選択してください");
+		expect(hints.length).toBeGreaterThanOrEqual(2);
 	});
 
 	// 入力が空の場合は従来の「選択してください」文言を維持する

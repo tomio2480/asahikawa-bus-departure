@@ -8,9 +8,11 @@ import { useNotifyBeforeMinutesInput } from "../hooks/useNotifyBeforeMinutesInpu
 import { useToast } from "../hooks/useToast";
 import { isReachable } from "../lib/stop-reachability";
 import {
+	type ReachabilityFilter,
 	type StopSearchResult,
 	getSiblingStopIds,
 	getStopName,
+	searchStops,
 } from "../lib/stop-search";
 import type { RegisteredRouteEntry, RouteEntry } from "../types/route-entry";
 import { StopSearch } from "./StopSearch";
@@ -69,6 +71,67 @@ const initialFormState: FormState = {
 	walkMinutes: "10",
 	notifyEnabled: false,
 };
+
+/**
+ * 乗車または降車のバス停が未選択な状態で submit された際のエラー文言を決定する。
+ *
+ * 分岐の意図（ユーザー指摘対応）:
+ * - query が空：従来通り「選択してください」（入力されていないことが原因なので
+ *   原因と解決策が一致）
+ * - query が非空だが stop_name に部分一致する候補が存在しない：「存在しません」
+ *   （誤記・地名の勘違いが原因なのでその旨を明示）
+ * - 存在はするが相手バス停から乗り換えなしで到達できない：「到達できません」
+ *   （reachabilityFilter で候補リストから除外されているため、ユーザーからは
+ *   「候補に出てこない」ように見えるが、理由は存在ではなく到達可能性）
+ * - 存在し到達可能でもあるが候補選択が完了していない：「候補から選択してください」
+ *   （正確に名前を手入力しても、候補クリックまたは Enter 選択が必要である点を
+ *   明示し、入力欄の永続ヒントと一貫した文言で事後説明する）
+ */
+function describeUnselectedStopError(params: {
+	side: "from" | "to";
+	query: string;
+	db: Database;
+	partnerFilter: ReachabilityFilter | undefined;
+}): string {
+	const { side, query, db, partnerFilter } = params;
+	const trimmed = query.trim();
+	const sideLabel = side === "from" ? "乗車バス停" : "降車バス停";
+	const partnerLabel = side === "from" ? "降車バス停" : "乗車バス停";
+
+	if (trimmed === "") {
+		return `${sideLabel}を選択してください`;
+	}
+
+	// 存在判定：reachabilityFilter なしで検索して 1 件以上あれば「存在する」。
+	// searchStops は名前部分一致 + クラスタリング済みなので、ここでは 1 件
+	// 取得できるかだけを判定する（クラスタ数を意味的に扱うわけではない）。
+	const existsHits = searchStops(db, trimmed, 1);
+	if (existsHits.length === 0) {
+		return `入力された${sideLabel}「${query}」は存在しません。候補から選択してください。`;
+	}
+
+	// 相手バス停が未選択なら到達可能性は判定できない。存在することは
+	// 分かっているので「候補から選択してください」に誘導する。
+	if (!partnerFilter) {
+		return `入力された${sideLabel}「${query}」は候補から選択してください。`;
+	}
+
+	// 相手バス停が選択済みで、到達可能性フィルタ下で候補が無い場合は
+	// 「乗り換えなしで到達できない」と断定できる。from / to どちらから
+	// 呼ばれても冒頭「入力された◯車バス停「query」」→ 方向助詞 →
+	// 「乗り換えなしで到達できません」の共通リズムで読めるよう、
+	// from 側は「...から降車バス停へは」、to 側は「...へは乗車バス停から」
+	// と起点→終点の語順で助詞だけを入れ替える。
+	const reachableHits = searchStops(db, trimmed, 1, partnerFilter);
+	if (reachableHits.length === 0) {
+		const directionalClause =
+			side === "from" ? `から${partnerLabel}へは` : `へは${partnerLabel}から`;
+		return `入力された${sideLabel}「${query}」${directionalClause}乗り換えなしで到達できません。別のバス停を選択してください。`;
+	}
+
+	// 存在し到達可能でもあるが候補選択されていないケース。
+	return `入力された${sideLabel}「${query}」は候補から選択してください。`;
+}
 
 type NotifySettingsProps = {
 	/** 通知する出発目安の何分前（確定値） */
@@ -291,26 +354,25 @@ export function RouteRegistration({
 			setErrorMessage(null);
 
 			if (!form.fromStop) {
-				// ユーザーが文字を入力済みの場合は、「選択してください」では
-				// 入力が無視されているような誤解を招く。query が非空なら
-				// 「入力された名称は候補にない」旨を明示する文言に分岐する。
-				if (form.fromStopQuery.trim() !== "") {
-					setErrorMessage(
-						`入力された乗車バス停「${form.fromStopQuery}」は候補にありません。候補から選択してください。`,
-					);
-				} else {
-					setErrorMessage("乗車バス停を選択してください");
-				}
+				setErrorMessage(
+					describeUnselectedStopError({
+						side: "from",
+						query: form.fromStopQuery,
+						db,
+						partnerFilter: fromStopFilter,
+					}),
+				);
 				return;
 			}
 			if (!form.toStop) {
-				if (form.toStopQuery.trim() !== "") {
-					setErrorMessage(
-						`入力された降車バス停「${form.toStopQuery}」は候補にありません。候補から選択してください。`,
-					);
-				} else {
-					setErrorMessage("降車バス停を選択してください");
-				}
+				setErrorMessage(
+					describeUnselectedStopError({
+						side: "to",
+						query: form.toStopQuery,
+						db,
+						partnerFilter: toStopFilter,
+					}),
+				);
 				return;
 			}
 			if (form.fromStop.stop_id === form.toStop.stop_id) {
@@ -397,6 +459,8 @@ export function RouteRegistration({
 			form,
 			fromStopSiblings,
 			toStopSiblings,
+			fromStopFilter,
+			toStopFilter,
 			editingId,
 			onAdd,
 			onUpdate,
