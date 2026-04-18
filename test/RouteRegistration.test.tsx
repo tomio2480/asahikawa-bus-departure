@@ -56,6 +56,17 @@ const testStops: GtfsData["stops"] = [
 		stop_lat: 43.7551,
 		stop_lon: 142.3612,
 	},
+	// Cycle 7: trip / stop_times に含めない孤立バス停。
+	// 「実在はするが他バス停から乗り換えなしで到達できない」ケースの
+	// エラー文言分岐（「乗り換えなしで到達できません」vs「存在しません」）
+	// を検証するために使う。地理的にも他バス停から十分離し、兄弟展開
+	// （getSiblingStopIds の近距離マージ）の対象に紛れ込ませない。
+	{
+		stop_id: "S004",
+		stop_name: "離れバス停",
+		stop_lat: 43.9,
+		stop_lon: 142.5,
+	},
 ];
 
 /**
@@ -250,6 +261,19 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(screen.getByRole("button", { name: "登録" })).toBeInTheDocument();
 	});
 
+	// Issue #90 派生：到達可能性フィルタにより「実在するのに候補に出ない」が
+	// 起こり得るため，ユーザーに理由を事前告知する補足文言を検証する。
+	// 文言は errorMessage（要望 2）と用語を揃え，「乗り換えなしで到達」の
+	// キーワードを共通化して UX の一貫性を担保する。
+	it("入力欄の近くに到達可能性の補足文言が表示される", () => {
+		renderComponent();
+		expect(
+			screen.getByText(
+				/実在するバス停が選択候補に出ない場合.*乗り換えなしで到達できない組み合わせ/,
+			),
+		).toBeInTheDocument();
+	});
+
 	it("経路一覧が空の場合は一覧テーブルが表示されない", () => {
 		renderComponent([]);
 		expect(screen.queryByText("登録済み経路")).not.toBeInTheDocument();
@@ -272,9 +296,12 @@ describe("RouteRegistration コンポーネント", () => {
 		const submitButton = screen.getByRole("button", { name: "登録" });
 		await userEvent.click(submitButton);
 
-		expect(
-			screen.getByText("乗車バス停を選択してください"),
-		).toBeInTheDocument();
+		// Cycle 9 以降: 両側未選択なら両方のメッセージが同じ alert に
+		// 改行で並ぶ。乗車側が指摘されていることは toHaveTextContent で
+		// 部分一致確認する（getByText は完全一致を要求するため不向き）。
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"乗車バス停を選択してください",
+		);
 	});
 
 	it("バス停を選択して登録できる", async () => {
@@ -306,6 +333,369 @@ describe("RouteRegistration コンポーネント", () => {
 			walkMinutes: 5,
 			notifyEnabled: false,
 		});
+	});
+
+	// 登録成功をトーストでフィードバックし、どの経路が登録されたかを
+	// バス停名で明示する。既存の通知トグルトースト（「... の通知を ON に
+	// しました」）と様式を揃える（coderabbitai #95 の「ユーザー向け文言の
+	// 揺れを避ける」指摘に沿う）。
+	it("登録成功時に登録経路を示すトーストが表示される", async () => {
+		renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(
+			await screen.findByText(/旭川駅前 → 市役所前 を登録しました/),
+		).toBeInTheDocument();
+	});
+
+	// 編集→更新経路でも成功トーストを出す。文言だけ「登録しました」→
+	// 「更新しました」に切り替わる点を固定文字列で検証し、文言退化を
+	// 検出できるようにする。
+	it("更新成功時に更新経路を示すトーストが表示される", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
+		];
+		const { onUpdate } = renderComponent(routes);
+
+		await userEvent.click(screen.getByRole("button", { name: "編集" }));
+		await userEvent.click(screen.getByRole("button", { name: "更新" }));
+
+		expect(
+			await screen.findByText(/旭川駅前 → 市役所前 を更新しました/),
+		).toBeInTheDocument();
+		expect(onUpdate).toHaveBeenCalled();
+	});
+
+	// 動画で報告されたバグの回帰テスト：
+	// 一度バス停を選択したあと、input を別の文字列（存在しない名称や
+	// 到達不能な名称を想定）に書き換えて submit すると、最初に選択した
+	// 経路が登録されてしまっていた。StopSearch 側で入力値が選択 stop_name と
+	// 乖離したら onSelect(null) を呼ぶ契約に変更したため、親の form.fromStop
+	// は null に戻り、既存の submit ガード（「乗車バス停を選択してください」）
+	// が作動して onAdd は呼ばれない。
+	it("選択後に input を書き換えて submit しても onAdd は呼ばれずエラーが表示される", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// 選択後、乗車バス停の input を「存在しない名称」に書き換える。
+		// ユーザーが実際に入力した文字が残っていることも検証する
+		// （selectedStop が null に戻った際の useEffect で query が空に
+		// 吹き飛ぶ再発を検出するため）。
+		await userEvent.type(comboboxes[0], "xxx");
+		expect(comboboxes[0]).toHaveValue("旭川駅前xxx");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		// Cycle 7: ユーザー指摘を受け、候補にない理由を「存在しない」
+		// 「実在するが乗り換えなしで到達できない」で分岐する。
+		// 「旭川駅前xxx」は stop_name に部分一致する候補が存在しないため
+		// 「存在しません」に分岐する。文言の前半・後半いずれの退化も
+		// 検出できるよう完全文字列で固定する。
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前xxx」は存在しません。候補から選択してください。",
+		);
+	});
+
+	// 降車側でも同じ分岐が働くこと。ユーザー指摘の「降車バス停を選択して
+	// ください」という誤解を招く文言を防ぐ。
+	it("降車側で選択後に input を書き換えて submit すると「存在しません」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// 降車バス停を選択後に存在しない名称を追加入力
+		await userEvent.type(comboboxes[1], "zzz");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された降車バス停「市役所前zzz」は存在しません。候補から選択してください。",
+		);
+	});
+
+	// Cycle 7: 実在するが直通便で到達できないバス停名を入力した場合は、
+	// 「存在しません」ではなく「乗り換えなしで到達できません」に分岐する。
+	// S004「離れバス停」は fixture 上 trip / stop_times に含まれないため、
+	// S001 を乗車バス停として選択した状態で「離れバス停」を降車側に
+	// 手入力すると reachabilityFilter で候補から除外される。しかし
+	// searchStops の名前部分一致は成立するため、「存在する」と判定され、
+	// 不到達のほうのエラーに分岐する。
+	it("実在するが到達不能なバス停名を降車側に入力して submit すると「乗り換えなしで到達できません」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		// 降車側に存在するが到達不能なバス停名を手入力（候補選択しない）
+		await userEvent.type(comboboxes[1], "離れバス停");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された降車バス停「離れバス停」へは乗車バス停から乗り換えなしで到達できません。別のバス停を選択してください。",
+		);
+	});
+
+	// Cycle 7: 乗車側で到達不能なバス停名を入力する対称ケース。
+	// 降車バス停を選択済みの状態で、到達不能な乗車バス停名を手入力する。
+	it("実在するが到達不能なバス停名を乗車側に入力して submit すると「乗り換えなしで到達できません」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 先に降車バス停を選択
+		await userEvent.type(comboboxes[1], "旭川四条");
+		await userEvent.click(screen.getByText("旭川四条駅"));
+		// 乗車側に到達不能なバス停名を手入力
+		await userEvent.type(comboboxes[0], "離れバス停");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		// from / to どちらの側から到達不能エラーに入っても
+		// 「〜は乗り換えなしで到達できません」と末尾が揃うことを検証する
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「離れバス停」から降車バス停へは乗り換えなしで到達できません。別のバス停を選択してください。",
+		);
+	});
+
+	// Cycle 7: 正確に実在するバス停名を手入力したが候補から選択しなかった
+	// 場合のエラー。ユーザー指摘：「正確に入力したのにエラーが出る」体験を
+	// 和らげるため、「候補から選択してください」という促しに分岐する。
+	// 候補未選択のため reachabilityFilter 判定ができず、存在することだけが
+	// 分かる状態なので、存在しない・到達不能とは区別する。
+	it("正確なバス停名を乗車側に手入力しても候補から選択しないと「候補から選択してください」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 候補クリックはせず、完全な stop_name を手入力だけする
+		await userEvent.type(comboboxes[0], "旭川駅前");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前」は候補から選択してください。",
+		);
+	});
+
+	// Cycle 7 追加（ユーザー報告「『富良野』は存在しないのに存在する扱いになる」）：
+	// searchStops の SQL は LIKE '%query%' で部分一致するため、「旭川駅」と
+	// 入力すると「旭川駅前」にヒットしてしまい、厳密にその名前のバス停が
+	// 存在するわけではない。エラー文言は「存在しません」と「候補から選択
+	// してください」の間に、部分一致はあるが厳密一致はない中間状態として
+	// 「一致するバス停が見つかりません」を分岐として持たせる。
+	it("部分一致するが厳密一致しない名前を入力すると『一致するバス停が見つかりません』エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 「旭川駅」は fixture の「旭川駅前」「旭川四条駅」に LIKE 部分一致
+		// するが、stop_name と完全一致する行は存在しない。
+		await userEvent.type(comboboxes[0], "旭川駅");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「旭川駅」に一致するバス停が見つかりません。候補から選択してください。",
+		);
+	});
+
+	// Cycle 7（予防的 UI）: ユーザーが submit 前に選択必須であることに
+	// 気付けるよう、入力欄の label 付近に「候補から選択してください」の
+	// 永続ヒントを表示する。エラーによる事後通知だけでなく、入力中に
+	// 期待動作が見えることで誤操作を予防する。
+	it("バス停検索の入力欄には『候補から選択してください』という事前ヒントが表示される", () => {
+		renderComponent();
+		// 乗車・降車それぞれの入力欄にヒントが表示されている
+		const hints = screen.getAllByText("候補から選択してください");
+		expect(hints.length).toBeGreaterThanOrEqual(2);
+	});
+
+	// 入力が空の場合は従来の「選択してください」文言を維持する
+	// （新分岐の追加で全てのエラーが置き換わらないことの回帰防止）。
+	// ユーザー指摘に合わせ、両方が未入力なら両方の指摘が同時に出る。
+	it("入力が空のまま submit した場合は従来どおり「選択してください」が表示される", async () => {
+		renderComponent();
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent("乗車バス停を選択してください");
+		expect(alert).toHaveTextContent("降車バス停を選択してください");
+	});
+
+	// Cycle 9（ユーザー指摘）: 乗車・降車の両方に問題があれば一度に
+	// 指摘する。従来は乗車側で early return していたため、降車側の問題は
+	// 乗車を直すまで見えなかった。テストでは存在しない名称を両方に入力し、
+	// 両方のメッセージが同じ alert 内に含まれることを確認する。
+	it("乗車と降車の両方に問題がある場合は一度に両方のエラーが表示される", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 両方とも LIKE 部分一致すらしない名称を入力する（「存在しません」分岐）。
+		await userEvent.type(comboboxes[0], "旭川駅前xxx");
+		await userEvent.type(comboboxes[1], "市役所前zzz");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前xxx」は存在しません。候補から選択してください。",
+		);
+		expect(alert).toHaveTextContent(
+			"入力された降車バス停「市役所前zzz」は存在しません。候補から選択してください。",
+		);
+	});
+
+	// Cycle 9: 片方だけに問題があればその片方のみ指摘する（無関係な側を
+	// 巻き込んで誤解を与えない）。既存の単独分岐テストを補強する回帰検証。
+	it("乗車のみ問題がある場合は乗車側のエラーだけが表示される", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 降車側は正しく選択する
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+		// 乗車側だけ存在しない名称を入力
+		await userEvent.type(comboboxes[0], "旭川駅前xxx");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前xxx」は存在しません。候補から選択してください。",
+		);
+		// 降車側は正しく選択済みなので、降車の指摘は現れない
+		expect(alert).not.toHaveTextContent("降車バス停を選択してください");
+		expect(alert).not.toHaveTextContent("降車バス停「");
+	});
+
+	// Cycle 10（ユーザー指摘）: 候補選択 UI では相手バス停が除外される
+	// ため、同名バス停を「選択」経由で指定する経路は塞がれている。
+	// しかしユーザーがキーボードで相手と同じ名前を手入力した場合、
+	// partnerFilter 下の searchStops は自分自身（相手バス停）を候補から
+	// 除外するため、厳密一致があっても「到達不能」分岐に落ちてしまい、
+	// 「乗り換えなしで到達できません」という誤ったエラー文言が出ていた。
+	// 問題の本質（同一バス停）を直接伝えるため、同名手入力の場合は
+	// 「同じバス停は指定できません」分岐に振り分ける。
+	it("降車側で乗車と同名のバス停を手入力した場合は「同じバス停は指定できません」エラーになる", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		// 降車側に乗車と同じ「旭川駅前」を手入力。候補 UI からは除外
+		// されているため、ユーザーはクリックで確定できない（= form.toStop は null）。
+		await userEvent.type(comboboxes[1], "旭川駅前");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"乗車バス停と降車バス停に同じバス停は指定できません。",
+		);
+		// describeUnselectedStopError の他 5 分岐（存在しない / 一致する
+		// バス停が見つかりません / 到達できません / 候補から選択してください /
+		// 空の「選択してください」）のいずれにも fall-through していない
+		// ことを確認する。分岐順序が崩れて「同名検出」優先が効かなくなる
+		// リグレッションを検出可能にする（self-review Test-Quality S1 対応）。
+		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
+		expect(alert).not.toHaveTextContent("存在しません");
+		expect(alert).not.toHaveTextContent("一致するバス停が見つかりません");
+		expect(alert).not.toHaveTextContent("候補から選択してください");
+	});
+
+	it("乗車側で降車と同名のバス停を手入力した場合は「同じバス停は指定できません」エラーになる", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 降車側を先に選択し、乗車側に同名手入力する対称ケース。
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+		await userEvent.type(comboboxes[0], "市役所前");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"乗車バス停と降車バス停に同じバス停は指定できません。",
+		);
+		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
+		expect(alert).not.toHaveTextContent("存在しません");
+		expect(alert).not.toHaveTextContent("一致するバス停が見つかりません");
+		expect(alert).not.toHaveTextContent("候補から選択してください");
+	});
+
+	// ユーザー指摘：エラー文言が出ている状態で入力欄を改めてもエラーが
+	// 残り続けると、問題が解消していないかのように見える。入力を書き
+	// 換えた時点でエラー表示を消し、ユーザーに「入力が受理されている」
+	// フィードバックを返す。
+	it("エラー表示後に乗車バス停の入力を書き換えるとエラーが消える", async () => {
+		renderComponent();
+
+		// 空 submit で「乗車バス停を選択してください」を発生させる
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		expect(screen.queryByRole("alert")).toBeInTheDocument();
+
+		// 乗車入力に 1 文字打鍵するだけでエラーが消える
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭");
+
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
+
+	it("エラー表示後に降車バス停の入力を書き換えるとエラーが消える", async () => {
+		const { onAdd } = renderComponent();
+
+		// 乗車だけ選択して submit すると「降車バス停を選択してください」が出る
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.queryByRole("alert")).toBeInTheDocument();
+
+		// 降車入力に打鍵するだけでエラーが消える
+		await userEvent.type(comboboxes[1], "市");
+
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
+
+	// 徒歩所要時間や通知トグルの変更でもエラーが残り続ける UX は避けたい。
+	// form 側の入力操作全般でエラーをクリアする方針を固定化する。
+	it("エラー表示後に徒歩所要時間を書き換えるとエラーが消える", async () => {
+		renderComponent();
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		expect(screen.queryByRole("alert")).toBeInTheDocument();
+
+		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
+		await userEvent.clear(walkInput);
+		await userEvent.type(walkInput, "5");
+
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 	});
 
 	it("徒歩所要時間のデフォルト値が10である", () => {
@@ -391,10 +781,10 @@ describe("RouteRegistration コンポーネント", () => {
 		await userEvent.click(screen.getByRole("button", { name: "編集" }));
 		await userEvent.click(screen.getByRole("button", { name: "更新" }));
 
+		// ユーザー指摘: 「異なるバス停を選択してください」より「同じバス停は
+		// 指定できません」のほうが禁止事項として直接的で読み解きが早い。
 		expect(
-			screen.getByText(
-				"乗車バス停と降車バス停には異なるバス停を選択してください",
-			),
+			screen.getByText("乗車バス停と降車バス停に同じバス停は指定できません。"),
 		).toBeInTheDocument();
 	});
 
@@ -1937,10 +2327,13 @@ describe("RouteRegistration（到達可能性フィルタ）", () => {
 		await userEvent.click(screen.getByRole("button", { name: "更新" }));
 
 		// UX 文言の意図しない退化を検出できるよう、実装側の実文言
-		// 「選択したバス停間に直通便がありません。別の組み合わせを選んでください」の
+		// 「乗り換えなしで到達できる便が見つかりませんでした。」の
 		// 冒頭フレーズにマッチさせる（coderabbitai #96 nitpick）。
+		// 注意書き（サイクル 1）と同じ「乗り換えなしで到達」という
+		// 語彙を共有することで UX 上の用語統一を図る
+		// （coderabbitai #95 の「ユーザー向け文言の揺れを避ける」指摘）。
 		expect(screen.getByRole("alert")).toHaveTextContent(
-			/選択したバス停間に直通便がありません/,
+			/乗り換えなしで到達できる便が見つかりませんでした/,
 		);
 		expect(onUpdate).not.toHaveBeenCalled();
 	});

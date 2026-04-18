@@ -8,9 +8,11 @@ import { useNotifyBeforeMinutesInput } from "../hooks/useNotifyBeforeMinutesInpu
 import { useToast } from "../hooks/useToast";
 import { isReachable } from "../lib/stop-reachability";
 import {
+	type ReachabilityFilter,
 	type StopSearchResult,
 	getSiblingStopIds,
 	getStopName,
+	searchStops,
 } from "../lib/stop-search";
 import type { RegisteredRouteEntry, RouteEntry } from "../types/route-entry";
 import { StopSearch } from "./StopSearch";
@@ -45,6 +47,18 @@ type RouteRegistrationProps = {
 type FormState = {
 	fromStop: StopSearchResult | null;
 	toStop: StopSearchResult | null;
+	/**
+	 * 乗車バス停の入力欄に現在入っている文字列。
+	 *
+	 * `fromStop` が null でも query が非空のときは「ユーザーは文字を
+	 * 入力したが有効な候補を選択していない」状態であり、submit 時の
+	 * エラー文言を「選択してください」ではなく「入力された ... は候補に
+	 * ありません」に分岐させるために使う。StopSearch からは
+	 * onQueryChange 経由で同期する。
+	 */
+	fromStopQuery: string;
+	/** 降車バス停の入力欄に現在入っている文字列（用途は fromStopQuery と同じ）。 */
+	toStopQuery: string;
 	walkMinutes: string;
 	notifyEnabled: boolean;
 };
@@ -52,9 +66,143 @@ type FormState = {
 const initialFormState: FormState = {
 	fromStop: null,
 	toStop: null,
+	fromStopQuery: "",
+	toStopQuery: "",
 	walkMinutes: "10",
 	notifyEnabled: false,
 };
+
+/**
+ * 乗車・降車に同一バス停が指定された場合のエラーメッセージ。
+ * describeUnselectedStopError 内（手入力で相手と同名を指定した経路）と
+ * handleSubmit の stop_id 比較（選択経由で同一 ID になる経路）の 2 箇所で
+ * 使う。文言が片方だけ変わるとテストの完全一致 assert が破綻するため、
+ * 単一の定数として一元化する（self-review Code-Quality S1 対応）。
+ */
+const SAME_STOP_ERROR_MESSAGE =
+	"乗車バス停と降車バス停に同じバス停は指定できません。";
+
+/**
+ * `StopSearchResult` の stop_name が query と NFKC 正規化で厳密一致するか判定する。
+ *
+ * `searchStops` は SQL `LIKE '%query%'` による部分一致で候補を広く取得する
+ * ため、存在判定には使えない（例: 「富良野」と入力すると「上富良野」に
+ * ヒットするが、ユーザー認識では「富良野というバス停は無い」）。
+ * クラスタ統合によって stop_name が "短い名/長い名" の結合表現になる
+ * ケースも考慮し、スラッシュで分割した各名称のいずれかが一致するかを確認する。
+ */
+function isExactStopNameMatch(
+	result: StopSearchResult,
+	query: string,
+): boolean {
+	const normalizedQuery = query.normalize("NFKC");
+	return result.stop_name
+		.split("/")
+		.some((name) => name.normalize("NFKC") === normalizedQuery);
+}
+
+/**
+ * 乗車または降車のバス停が未選択な状態で submit された際のエラー文言を決定する。
+ *
+ * `searchStops` は SQL `LIKE '%query%'` で部分一致する候補を返すため、
+ * 「部分一致 hits が空か」と「厳密一致 hits が空か」を二段で判定する。
+ *
+ * 分岐の意図（ユーザー指摘対応）:
+ * - query が空：従来通り「選択してください」
+ * - 相手バス停と同名の手入力：「同じバス停は指定できません」
+ *   （Cycle 10 追加。候補 UI は相手を除外するため「選択」経路では
+ *   同名指定が発生しないが、キーボードで相手と全く同じ名称を手入力
+ *   された場合、以降の reachabilityFilter 付き searchStops は自分
+ *   自身を候補から除外するため「到達できません」分岐に誤誘導される。
+ *   問題の本質＝同一バス停指定をそのまま伝えるため最優先で分岐する）
+ * - 部分一致も 0 件：「存在しません」（誤記・地名の勘違い）
+ * - 部分一致はあるが厳密一致 0 件：「一致するバス停が見つかりません」
+ *   （例: 「富良野」で「上富良野」がヒットする状況。候補はあるがユーザーの
+ *   認識どおり該当名称のバス停は存在しない旨を伝える）
+ * - 厳密一致あり、相手バス停未選択：「候補から選択してください」
+ * - 厳密一致あり、相手から乗り換えなしで到達できない：「到達できません」
+ * - 厳密一致あり、到達可能でもあるが候補選択未実行：「候補から選択してください」
+ */
+function describeUnselectedStopError(params: {
+	side: "from" | "to";
+	query: string;
+	db: Database;
+	partnerFilter: ReachabilityFilter | undefined;
+	/**
+	 * 相手バス停の stop_name（選択済みの場合のみ非 undefined）。
+	 * クラスタで結合された「短い名/長い名」形式もそのまま渡す前提で、
+	 * 内部で "/" で分割して NFKC 正規化のうえ厳密一致を判定する。
+	 */
+	partnerStopName: string | undefined;
+}): string {
+	const { side, query, db, partnerFilter, partnerStopName } = params;
+	const trimmed = query.trim();
+	const sideLabel = side === "from" ? "乗車バス停" : "降車バス停";
+	const partnerLabel = side === "from" ? "降車バス停" : "乗車バス停";
+
+	if (trimmed === "") {
+		return `${sideLabel}を選択してください。`;
+	}
+
+	// 相手バス停と同名を手入力しているケースは、以降の partialHits / exactHits /
+	// reachableExactHits による分岐よりも優先して「同じバス停は指定できません」
+	// に振り分ける。handleSubmit 本体の stop_id 比較と同じ禁止事項を、
+	// 「候補未選択だが入力だけは完了している」状態でも同一文言で伝える。
+	if (partnerStopName) {
+		const normalizedQuery = trimmed.normalize("NFKC");
+		const partnerMatches = partnerStopName
+			.split("/")
+			.some((name) => name.normalize("NFKC") === normalizedQuery);
+		if (partnerMatches) {
+			return SAME_STOP_ERROR_MESSAGE;
+		}
+	}
+
+	// 部分一致すら無ければ「存在しません」。
+	// バリデーション用途のため limit はデフォルト 20 ではなく、searchStops が
+	// 許容するハードキャップ上限の 100 を明示する。「前」「中央」等の汎用語で
+	// 部分一致が 21 件以上出た場合に厳密一致が上位 20 件から落ち、実在するのに
+	// 「存在しません」と誤判定される事象を防ぐため（gemini #3105538652）。
+	const partialHits = searchStops(db, trimmed, 100);
+	if (partialHits.length === 0) {
+		return `入力された${sideLabel}「${query}」は存在しません。候補から選択してください。`;
+	}
+
+	// 部分一致はあるが stop_name 厳密一致が無ければ「該当するバス停はない」。
+	// 候補リストに部分一致結果が並んでいる状態で「存在しません」と断定すると
+	// 「候補に出ているのに？」という違和感を招くため、独立した文言に分岐する。
+	const exactHits = partialHits.filter((h) => isExactStopNameMatch(h, trimmed));
+	if (exactHits.length === 0) {
+		return `入力された${sideLabel}「${query}」に一致するバス停が見つかりません。候補から選択してください。`;
+	}
+
+	// 相手バス停が未選択なら到達可能性は判定できない。厳密一致の存在は
+	// 分かっているので「候補から選択してください」に誘導する。
+	if (!partnerFilter) {
+		return `入力された${sideLabel}「${query}」は候補から選択してください。`;
+	}
+
+	// 相手バス停が選択済みで、到達可能性フィルタ下でも厳密一致が残るかを判定。
+	// partialHits と異なり reachabilityFilter を通した検索結果を再取得し、
+	// 同じ厳密一致条件で再フィルタする。partialHits と同じ理由で limit=100 を
+	// 明示する（gemini #3105538658）。
+	const reachableExactHits = searchStops(
+		db,
+		trimmed,
+		100,
+		partnerFilter,
+	).filter((h) => isExactStopNameMatch(h, trimmed));
+	if (reachableExactHits.length === 0) {
+		// 「起点から終点へは乗り換えなしで到達できません」の語順で統一し、
+		// from / to どちらから呼ばれても末尾が揃うよう助詞だけ切り替える。
+		const directionalClause =
+			side === "from" ? `から${partnerLabel}へは` : `へは${partnerLabel}から`;
+		return `入力された${sideLabel}「${query}」${directionalClause}乗り換えなしで到達できません。別のバス停を選択してください。`;
+	}
+
+	// 厳密一致あり・到達可能でもあるが候補選択されていないケース。
+	return `入力された${sideLabel}「${query}」は候補から選択してください。`;
+}
 
 type NotifySettingsProps = {
 	/** 通知する出発目安の何分前（確定値） */
@@ -256,23 +404,59 @@ export function RouteRegistration({
 		setErrorMessage(null);
 	}, []);
 
+	/**
+	 * フォーム state を更新すると同時に表示中のエラー文言をクリアする。
+	 *
+	 * エラー表示後にユーザーが入力を書き直してもメッセージが残り続けると、
+	 * 「まだ問題が解消していない」と誤解させる（ユーザー指摘）。form state
+	 * を変更する全操作（バス停選択・入力・徒歩時間・通知トグル）で errorMessage
+	 * を null に戻し、ユーザーに「入力が受理された」というフィードバックを返す。
+	 * 送信失敗時は handleSubmit が再度 setErrorMessage を呼ぶため、
+	 * クリア → 次 submit で再表示、のサイクルで整合する。
+	 */
+	const updateForm = useCallback((updater: (prev: FormState) => FormState) => {
+		setForm(updater);
+		setErrorMessage(null);
+	}, []);
+
 	const handleSubmit = useCallback(
 		async (e: React.FormEvent) => {
 			e.preventDefault();
 			setErrorMessage(null);
 
-			if (!form.fromStop) {
-				setErrorMessage("乗車バス停を選択してください");
-				return;
-			}
-			if (!form.toStop) {
-				setErrorMessage("降車バス停を選択してください");
+			// 乗車・降車の未選択エラーは両側で独立に評価し、問題があれば両方を
+			// 同じ alert にまとめて表示する（ユーザー指摘: 片方ずつ出すと
+			// 「乗車を直してから再送信するとまだ降車も問題だった」という
+			// 二度手間になる）。外側の if で「少なくとも一方が未選択」を
+			// 判定に入れることで、以降のコードでは form.fromStop / form.toStop が
+			// ともに non-null であることを TypeScript の narrowing が認識する。
+			if (!form.fromStop || !form.toStop) {
+				const fromError = !form.fromStop
+					? describeUnselectedStopError({
+							side: "from",
+							query: form.fromStopQuery,
+							db,
+							partnerFilter: fromStopFilter,
+							partnerStopName: form.toStop?.stop_name,
+						})
+					: null;
+				const toError = !form.toStop
+					? describeUnselectedStopError({
+							side: "to",
+							query: form.toStopQuery,
+							db,
+							partnerFilter: toStopFilter,
+							partnerStopName: form.fromStop?.stop_name,
+						})
+					: null;
+				setErrorMessage([fromError, toError].filter(Boolean).join("\n"));
 				return;
 			}
 			if (form.fromStop.stop_id === form.toStop.stop_id) {
-				setErrorMessage(
-					"乗車バス停と降車バス停には異なるバス停を選択してください",
-				);
+				// ユーザー指摘: 禁止事項として「同じバス停は指定できません」の
+				// 否定形のほうが「異なるバス停を選択してください」の間接表現
+				// よりも即座に問題を把握できる。文言だけの変更で挙動は不変。
+				setErrorMessage(SAME_STOP_ERROR_MESSAGE);
 				return;
 			}
 
@@ -288,8 +472,12 @@ export function RouteRegistration({
 			const toIds =
 				toStopSiblings ?? getSiblingStopIds(db, form.toStop.stop_id);
 			if (!isReachable(db, fromIds, toIds)) {
+				// 文言はユーザー向けに「直通便」等の運行用語を避け、
+				// 注意書き（到達可能性フィルタの予告）と用語を揃えて
+				// 「乗り換えなしで到達」で統一する（coderabbitai #95 の
+				// 「ユーザー向け文言の揺れを避ける」指摘を踏襲）。
 				setErrorMessage(
-					"選択したバス停間に直通便がありません。別の組み合わせを選んでください",
+					"乗り換えなしで到達できる便が見つかりませんでした。別の組み合わせを選んでください。",
 				);
 				return;
 			}
@@ -324,10 +512,16 @@ export function RouteRegistration({
 					walkMinutes,
 					notifyEnabled,
 				};
+				// 成功トーストで「どの経路が登録されたか」を示す。既存の通知トグル
+				// トースト（`... の通知を ON にしました`）と様式を揃え、
+				// 文言退化を避けるため resetForm 前に stop_name を読み出しておく。
+				const routeLabel = `${form.fromStop.stop_name} → ${form.toStop.stop_name}`;
 				if (editingId != null) {
 					await onUpdate({ ...entry, id: editingId });
+					showToast(`${routeLabel} を更新しました`, { variant: "success" });
 				} else {
 					await onAdd(entry);
+					showToast(`${routeLabel} を登録しました`, { variant: "success" });
 				}
 				resetForm();
 			} catch (err) {
@@ -343,27 +537,37 @@ export function RouteRegistration({
 			form,
 			fromStopSiblings,
 			toStopSiblings,
+			fromStopFilter,
+			toStopFilter,
 			editingId,
 			onAdd,
 			onUpdate,
 			resetForm,
 			onRequestNotificationPermission,
+			showToast,
 		],
 	);
 
 	const handleEdit = useCallback(
 		(route: RegisteredRouteEntry) => {
+			const fromName = stopNameMap.get(route.fromStopId) ?? route.fromStopId;
+			const toName = stopNameMap.get(route.toStopId) ?? route.toStopId;
 			setForm({
 				fromStop: {
 					stop_id: route.fromStopId,
-					stop_name: stopNameMap.get(route.fromStopId) ?? route.fromStopId,
+					stop_name: fromName,
 					clusterStopIds: [route.fromStopId],
 				},
 				toStop: {
 					stop_id: route.toStopId,
-					stop_name: stopNameMap.get(route.toStopId) ?? route.toStopId,
+					stop_name: toName,
 					clusterStopIds: [route.toStopId],
 				},
+				// 編集開始時は入力欄にも stop_name が入るため、query も同じ値で
+				// 初期化する（StopSearch からの onQueryChange 同期を待つ間の
+				// 整合性を保つ）。
+				fromStopQuery: fromName,
+				toStopQuery: toName,
 				walkMinutes: String(route.walkMinutes),
 				notifyEnabled: route.notifyEnabled === true,
 			});
@@ -408,7 +612,10 @@ export function RouteRegistration({
 							db={db}
 							label="乗車バス停"
 							onSelect={(stop) =>
-								setForm((prev) => ({ ...prev, fromStop: stop }))
+								updateForm((prev) => ({ ...prev, fromStop: stop }))
+							}
+							onQueryChange={(q) =>
+								updateForm((prev) => ({ ...prev, fromStopQuery: q }))
 							}
 							selectedStop={form.fromStop}
 							reachabilityFilter={fromStopFilter}
@@ -417,12 +624,25 @@ export function RouteRegistration({
 							db={db}
 							label="降車バス停"
 							onSelect={(stop) =>
-								setForm((prev) => ({ ...prev, toStop: stop }))
+								updateForm((prev) => ({ ...prev, toStop: stop }))
+							}
+							onQueryChange={(q) =>
+								updateForm((prev) => ({ ...prev, toStopQuery: q }))
 							}
 							selectedStop={form.toStop}
 							reachabilityFilter={toStopFilter}
 						/>
 					</div>
+					{/*
+					 * Issue #90 派生：到達可能性フィルタ（#96）により、片方のバス停を
+					 * 選択すると乗り換えなしで到達できない候補は自動的に除外される。
+					 * 「実在する地名を入力しても候補に出てこない」現象をユーザーが
+					 * 故障と誤認しないよう、submit 時のエラーメッセージと同じ
+					 * 「乗り換えなしで到達できない」というキーワードで予告する。
+					 */}
+					<p className="text-xs text-base-content/60">
+						実在するバス停が選択候補に出ない場合、乗り換えなしで到達できない組み合わせのため、候補に出てこない可能性があります。
+					</p>
 					<div className="form-control w-full max-w-xs">
 						<label className="label" htmlFor="walk-minutes">
 							<span className="label-text">徒歩所要時間（分）</span>
@@ -435,7 +655,7 @@ export function RouteRegistration({
 							step="1"
 							value={form.walkMinutes}
 							onChange={(e) =>
-								setForm((prev) => ({
+								updateForm((prev) => ({
 									...prev,
 									walkMinutes: e.target.value,
 								}))
@@ -450,7 +670,7 @@ export function RouteRegistration({
 								className="toggle toggle-primary toggle-sm"
 								checked={form.notifyEnabled}
 								onChange={(e) =>
-									setForm((prev) => ({
+									updateForm((prev) => ({
 										...prev,
 										notifyEnabled: e.target.checked,
 									}))
@@ -460,7 +680,13 @@ export function RouteRegistration({
 						</label>
 					</div>
 					{errorMessage && (
-						<div className="text-error text-sm" role="alert">
+						// 乗車・降車両側のエラーを 1 つの alert にまとめて表示するため、
+						// 改行文字を視覚的改行として反映する。role="alert" を 1 つに
+						// 保つことでスクリーンリーダーの読み上げ順も一貫させる。
+						<div
+							className="text-error text-sm whitespace-pre-line"
+							role="alert"
+						>
 							{errorMessage}
 						</div>
 					)}

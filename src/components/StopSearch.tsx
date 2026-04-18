@@ -19,8 +19,29 @@ type StopSearchProps = {
 	db: Database;
 	/** 入力欄のラベル */
 	label: string;
-	/** バス停が選択されたときのコールバック */
-	onSelect: (stop: StopSearchResult) => void;
+	/**
+	 * バス停の選択状態が変化したときのコールバック。
+	 *
+	 * - 候補クリック / Enter 押下 / selectedStop prop からの初期化時は
+	 *   `StopSearchResult` で呼び出す。
+	 * - 選択済みの状態で入力値が `selectedStop.stop_name` と乖離した場合は
+	 *   `null` で呼び出し、親側の選択状態を無効化することを依頼する。
+	 *
+	 * 親が form state と query state の乖離による誤登録（選択済みのまま
+	 * 入力を書き換えて submit すると最初の選択が登録される問題）を防ぐため、
+	 * 選択の有効/無効は常に本コールバックの契約で一元化する。
+	 */
+	onSelect: (stop: StopSearchResult | null) => void;
+	/**
+	 * 入力欄の query 文字列が変化したときのコールバック。
+	 *
+	 * ユーザーのキー入力・候補選択・`selectedStop` prop 経由の同期の
+	 * いずれでも最新の query を親に通知する。親は「選択が無効だが
+	 * ユーザーは文字を入力している」状態を検出し、エラー文言の分岐
+	 * （「選択してください」/「存在しません」/「乗り換えなしで到達
+	 * できません」/「候補から選択してください」）に使う。
+	 */
+	onQueryChange?: (query: string) => void;
 	/** 選択済みのバス停（外部から制御する場合） */
 	selectedStop?: StopSearchResult | null;
 	/** placeholder テキスト */
@@ -38,6 +59,7 @@ export function StopSearch({
 	db,
 	label,
 	onSelect,
+	onQueryChange,
 	selectedStop = null,
 	placeholder = "バス停名を入力",
 	reachabilityFilter,
@@ -65,30 +87,79 @@ export function StopSearch({
 	// （coderabbitai #96 指摘）。
 	const isListboxOpen = isOpen && results.length > 0;
 
-	// 外部から selectedStop が変更された場合に入力欄を同期する
-	useEffect(() => {
-		setQuery(selectedStop?.stop_name ?? "");
-	}, [selectedStop]);
+	// 本コンポーネント自身が発する onSelect(null) による selectedStop=null
+	// への遷移と、外部起因の selectedStop 変更（handleEdit / resetForm 等）を
+	// 区別するためのフラグ。前者では query を空に戻したくないが、後者では
+	// query を新しい値に同期したい。
+	//
+	// 内部起因（ユーザーが選択済みの入力を書き換えた）の場合だけこのフラグを
+	// 立て、直後に発火する selectedStop 同期 useEffect でスキップさせる。
+	// これにより、選択後に input を書き換えたときユーザーの打鍵がそのまま
+	// 残り、到達不能・存在しないバス停で submit したときの再検証ガードも
+	// 正しく働くようになる。
+	const suppressNextSelectedSyncRef = useRef(false);
 
-	const handleSearch = useCallback((value: string) => {
-		setQuery(value);
-		setActiveIndex(-1);
-		if (value.trim() === "") {
-			setIsOpen(false);
+	// 親が渡す onQueryChange は毎レンダ新規生成されるケースが多いため、
+	// 依存配列に直接入れると useEffect / useCallback が毎レンダ再実行・
+	// 再生成されてしまう（REVIEW_LESSONS #1 の派生値同期アンチパターンに
+	// 似た無駄を生む）。ref で最新関数を保持し、依存配列からは除外する
+	// useEventCallback パターンで切り離す。
+	const onQueryChangeRef = useRef(onQueryChange);
+	useEffect(() => {
+		onQueryChangeRef.current = onQueryChange;
+	}, [onQueryChange]);
+
+	// query を更新すると同時に親の onQueryChange にも通知するヘルパー。
+	// 空の依存配列で identity を固定し、handleSearch / handleSelect /
+	// selectedStop 同期 effect いずれから呼ばれても無駄な再生成を避ける。
+	const updateQuery = useCallback((newQuery: string) => {
+		setQuery(newQuery);
+		onQueryChangeRef.current?.(newQuery);
+	}, []);
+
+	// 外部から selectedStop が変更された場合に入力欄を同期する。
+	// 内部起因（handleSearch の onSelect(null)）経由の selectedStop=null
+	// 遷移ではスキップし、ユーザーが打鍵した中間状態の query を保持する。
+	useEffect(() => {
+		if (suppressNextSelectedSyncRef.current) {
+			suppressNextSelectedSyncRef.current = false;
 			return;
 		}
-		// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
-		setIsOpen(true);
-	}, []);
+		updateQuery(selectedStop?.stop_name ?? "");
+	}, [selectedStop, updateQuery]);
+
+	const handleSearch = useCallback(
+		(value: string) => {
+			updateQuery(value);
+			setActiveIndex(-1);
+			// 選択済み状態で入力値が選択 stop の名称と乖離したら、親側の
+			// 選択状態を無効化する。これにより「選択後に入力だけ書き換えて
+			// submit」された場合でも、親の form state が null に戻り、
+			// 実在性・到達可能性の再検証（= submit ガード）が正しく走る。
+			// 直後の useEffect が selectedStop=null を受けて query を空に
+			// 戻さないよう、suppress フラグを立ててから onSelect(null) を呼ぶ。
+			if (selectedStop && value !== selectedStop.stop_name) {
+				suppressNextSelectedSyncRef.current = true;
+				onSelect(null);
+			}
+			if (value.trim() === "") {
+				setIsOpen(false);
+				return;
+			}
+			// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
+			setIsOpen(true);
+		},
+		[selectedStop, onSelect, updateQuery],
+	);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {
-			setQuery(stop.stop_name);
+			updateQuery(stop.stop_name);
 			setIsOpen(false);
 			setActiveIndex(-1);
 			onSelect(stop);
 		},
-		[onSelect],
+		[onSelect, updateQuery],
 	);
 
 	const handleKeyDown = useCallback(
@@ -158,14 +229,38 @@ export function StopSearch({
 				aria-activedescendant={
 					activeIndex >= 0 ? `stop-option-${id}-${activeIndex}` : undefined
 				}
+				aria-describedby={`stop-search-hint-${id}`}
 				autoComplete="off"
 			/>
+			{/*
+			 * ユーザー指摘対応: 正確なバス停名を手入力しても、候補から
+			 * クリック（または Enter 確定）しない限り選択は確定しない。
+			 * 従来は submit 後のエラー表示でしか気付けなかったため、
+			 * 入力中に選択必須であることが分かる永続ヒントを入力欄直下に
+			 * 常時表示する。`<label>` の子として置くと accessible name
+			 * に連結されて既存の `getByRole("combobox", { name })` を
+			 * 破壊するため、label の外に出し aria-describedby で
+			 * 支援技術にも適切な記述として結びつける。
+			 * エラー文言側の 3 分岐（存在しない / 到達不能 / 候補から選択）と
+			 * 合わせて、事前誘導と事後説明の両面でギャップを埋める。
+			 */}
+			<p
+				id={`stop-search-hint-${id}`}
+				className="text-xs text-base-content/60 mt-1"
+			>
+				候補から選択してください
+			</p>
 			{isListboxOpen && (
 				<div
 					id={`stop-search-listbox-${id}`}
 					className="menu dropdown-content bg-base-100 rounded-box z-10 mt-1 max-h-60 w-full overflow-y-auto shadow-lg"
 					// biome-ignore lint/a11y/useSemanticElements: WAI-ARIA combobox パターンでは div + role="listbox" が標準
 					role="listbox"
+					// WAI-ARIA 1.2: composite widget は accessible name を持つべき。
+					// 親 input の label (`乗車バス停` / `降車バス停`) を文脈として
+					// 「候補」と組み合わせ、NVDA/VoiceOver 等で listbox にフォーカス
+					// が映ったときに用途が曖昧にならないようにする。
+					aria-label={`${label}の候補`}
 					tabIndex={-1}
 				>
 					{results.map((stop, index) => (
