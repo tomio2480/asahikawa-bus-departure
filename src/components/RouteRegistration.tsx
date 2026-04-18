@@ -103,7 +103,7 @@ function NotifySettings({
 		const result = internalCommit();
 		if (result.ok) {
 			showToast(
-				`発車の ${result.committedMinutes} 分前に通知するように設定しました`,
+				`出発の ${result.committedMinutes} 分前に通知するように設定しました`,
 				{ variant: "success" },
 			);
 			return;
