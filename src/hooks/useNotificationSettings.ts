@@ -15,8 +15,12 @@ export function useNotificationSettings() {
 
 	const setMinutes = useCallback((value: number) => {
 		const clamped = Math.max(1, Math.min(60, Math.floor(value)));
-		setMinutesState(clamped);
+		// 永続化を先に試行し、成功した場合のみ state を更新する。
+		// localStorage の書き込み失敗時（QuotaExceededError 等）に
+		// 画面表示と保存値が乖離しないようにする。失敗時は throw して
+		// 呼び出し側にエラー通知を委ねる。
 		localStorage.setItem(STORAGE_KEY, String(clamped));
+		setMinutesState(clamped);
 	}, []);
 
 	return { minutes, setMinutes } as const;

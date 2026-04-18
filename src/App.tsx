@@ -6,12 +6,14 @@ import { LoadingSpinner } from "./components/LoadingSpinner";
 import { type MapRoute, MapView } from "./components/MapView";
 import { RouteRegistration } from "./components/RouteRegistration";
 import { RouteTransfer } from "./components/RouteTransfer";
+import { ToastContainer } from "./components/Toast";
 import { useDatabase } from "./hooks/useDatabase";
 import { useDepartures } from "./hooks/useDepartures";
 import { useNotification } from "./hooks/useNotification";
 import { useNotificationSettings } from "./hooks/useNotificationSettings";
 import { useRoutes } from "./hooks/useRoutes";
 import { type ThemePreference, useTheme } from "./hooks/useTheme";
+import { ToastProvider } from "./hooks/useToast";
 import { getDataExpiry } from "./lib/data-expiry";
 
 /** 現在日付を YYYYMMDD 形式で返す（ローカル） */
@@ -19,7 +21,7 @@ function getCurrentDateStr(): string {
 	return new Date().toLocaleDateString("sv-SE").replace(/-/g, "");
 }
 
-function App() {
+function AppContent() {
 	const { db, error: dbError, loading: dbLoading } = useDatabase();
 	const {
 		routes,
@@ -53,10 +55,9 @@ function App() {
 		setPinnedRouteKey((prev) => (prev === key ? null : key));
 	}, []);
 
-
-	const [selectedDestinations, setSelectedDestinations] = useState<
-		Set<string>
-	>(new Set());
+	const [selectedDestinations, setSelectedDestinations] = useState<Set<string>>(
+		new Set(),
+	);
 	const effectiveDestinations = useMemo(() => {
 		if (selectedDestinations.size === 0) return new Set<string>();
 		const valid = new Set<string>();
@@ -107,10 +108,8 @@ function App() {
 
 	const { preference, changeTheme } = useTheme();
 
-	const {
-		minutes: notifyBeforeMinutes,
-		setMinutes: setNotifyBeforeMinutes,
-	} = useNotificationSettings();
+	const { minutes: notifyBeforeMinutes, setMinutes: setNotifyBeforeMinutes } =
+		useNotificationSettings();
 
 	const allDeparturesForNotification = useMemo(
 		() =>
@@ -147,9 +146,7 @@ function App() {
 							aria-label="テーマ切り替え"
 							className="select select-sm select-bordered"
 							value={preference}
-							onChange={(e) =>
-								changeTheme(e.target.value as ThemePreference)
-							}
+							onChange={(e) => changeTheme(e.target.value as ThemePreference)}
 						>
 							<option value="system">デバイス設定</option>
 							<option value="light">ライト</option>
@@ -214,7 +211,21 @@ function App() {
 				)}
 			</main>
 			<Footer />
+			<ToastContainer />
 		</div>
+	);
+}
+
+/**
+ * アプリのルートコンポーネント。
+ * ToastProvider で AppContent を包み、配下の useToast 呼び出し
+ * (RouteRegistration 等) が常に有効な Context を得られるようにする。
+ */
+function App() {
+	return (
+		<ToastProvider>
+			<AppContent />
+		</ToastProvider>
 	);
 }
 

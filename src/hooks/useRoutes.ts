@@ -30,10 +30,19 @@ export function useRoutes(): UseRoutesReturn {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<Error | null>(null);
 	const reloadSeqRef = useRef(0);
+	// 初回ロード完了後は setLoading(true) を呼ばない。
+	// add/update/remove 後の reload で loading が true に戻ると
+	// App.tsx の `{db && !loading && !error && (...)}` ブロックが
+	// 一時的にアンマウントされ、ページのスクロール位置が先頭に戻る
+	// （MapView/DepartureBoard/RouteRegistration が再マウントされる）。
+	// 画面ちらつきとスクロール飛びを防ぐため、リロードは静かに行う。
+	const hasLoadedOnceRef = useRef(false);
 
 	const reload = useCallback(async () => {
 		const seq = ++reloadSeqRef.current;
-		setLoading(true);
+		if (!hasLoadedOnceRef.current) {
+			setLoading(true);
+		}
 		try {
 			const all = await getAllRoutes();
 			const registered = all.filter(
@@ -42,6 +51,10 @@ export function useRoutes(): UseRoutesReturn {
 			if (seq !== reloadSeqRef.current) return;
 			setRoutes(registered);
 			setError(null);
+			// 読み込み成功時のみ「初回ロード済み」フラグを立てる。
+			// finally で立てると初回が失敗しても true になり、以降の再試行で
+			// setLoading(true) が呼ばれず LoadingSpinner が表示されなくなる。
+			hasLoadedOnceRef.current = true;
 		} catch (e) {
 			if (seq !== reloadSeqRef.current) return;
 			setError(e instanceof Error ? e : new Error(String(e)));
