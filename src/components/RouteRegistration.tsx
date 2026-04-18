@@ -400,7 +400,11 @@ export function RouteRegistration({
 										type="button"
 										className="btn btn-xs btn-primary"
 										onClick={commitNotifyInput}
-										disabled={!canCommitNotifyInput}
+										disabled={
+											!canCommitNotifyInput ||
+											submitting ||
+											togglingRouteId !== null
+										}
 										aria-label="通知タイミングを設定"
 									>
 										設定
@@ -494,7 +498,7 @@ export function RouteRegistration({
 															setTogglingRouteId(null);
 														}
 													}}
-													disabled={togglingRouteId !== null}
+													disabled={submitting || togglingRouteId !== null}
 													aria-label="通知の切り替え"
 												/>
 											</td>

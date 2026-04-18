@@ -377,6 +377,49 @@ describe("RouteRegistration コンポーネント", () => {
 		).toBeInTheDocument();
 	});
 
+	it("フォーム送信中（submitting=true 相当）は通知トグルも disabled になる", async () => {
+		// フォーム送信（登録/更新/削除）と通知トグルの onUpdate が同時進行すると
+		// 編集モード中の同一経路で race が発生し得るため、submitting 中はトグルも
+		// 排他的に無効化する。
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+		];
+		// 削除ボタンを押して onDelete を保留させると submitting=true の状態を作れる
+		let resolveDelete: () => void = () => {};
+		const onDelete = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					resolveDelete = r;
+				}),
+		);
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={vi.fn().mockResolvedValue(undefined)}
+				onDelete={onDelete}
+			/>,
+		);
+
+		const toggle = screen.getByRole("checkbox", { name: "通知の切り替え" });
+		expect(toggle).not.toBeDisabled();
+
+		// 削除をクリック（onDelete は保留 → submitting=true のまま）
+		await userEvent.click(screen.getByRole("button", { name: "削除" }));
+
+		// submitting 中はトグルも disabled になる
+		expect(toggle).toBeDisabled();
+
+		resolveDelete();
+	});
+
 	it("トグル処理中は他の経路のトグルも disabled になる（重複サブミッション防止）", async () => {
 		// 経路 A 処理中に経路 B をクリックすると togglingRouteId が B で上書きされ
 		// A のトグルが処理中に再有効化される問題を防ぐため、処理中は全トグルを
@@ -1098,6 +1141,79 @@ describe("RouteRegistration コンポーネント", () => {
 			expect(
 				await screen.findByText(/通知タイミング.*設定できませんでした/),
 			).toBeInTheDocument();
+		});
+
+		it("フォーム送信中（submitting=true 相当）は設定ボタンが disabled になる", async () => {
+			// 通知タイミング確定と他の非同期処理（フォーム送信・トグル）が同時進行すると
+			// UI フィードバックに齟齬が出るため、submitting 中は設定ボタンも無効化する。
+			let resolveDelete: () => void = () => {};
+			const onDelete = vi.fn(
+				() =>
+					new Promise<void>((r) => {
+						resolveDelete = r;
+					}),
+			);
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={onDelete}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={vi.fn()}
+				/>,
+			);
+			// 入力値を変更して canCommitNotifyInput=true にしておく
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			const setButton = screen.getByRole("button", {
+				name: "通知タイミングを設定",
+			});
+			expect(setButton).not.toBeDisabled();
+
+			// 削除をクリックして submitting=true の状態を作る
+			await userEvent.click(screen.getByRole("button", { name: "削除" }));
+			expect(setButton).toBeDisabled();
+
+			resolveDelete();
+		});
+
+		it("トグル処理中（togglingRouteId !== null）は設定ボタンが disabled になる", async () => {
+			let resolveUpdate: () => void = () => {};
+			const onUpdate = vi.fn(
+				() =>
+					new Promise<void>((r) => {
+						resolveUpdate = r;
+					}),
+			);
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={onUpdate}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={vi.fn()}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			const setButton = screen.getByRole("button", {
+				name: "通知タイミングを設定",
+			});
+			expect(setButton).not.toBeDisabled();
+
+			// トグルをクリックして togglingRouteId !== null の状態を作る
+			await userEvent.click(
+				screen.getByRole("checkbox", { name: "通知の切り替え" }),
+			);
+			expect(setButton).toBeDisabled();
+
+			resolveUpdate();
 		});
 
 		it("onNotifyBeforeMinutesChange が throw したら入力欄の表示が元の値に戻る", async () => {
