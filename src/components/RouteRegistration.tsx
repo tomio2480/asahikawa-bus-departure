@@ -98,17 +98,21 @@ export function RouteRegistration({
 	 * Enter キー押下 / 設定ボタンクリック時に呼び出され、
 	 * onCommitNotifyInput（親フックの commit）に委譲する。
 	 *
-	 * 設定ボタンは `disabled` 属性でガードされているが、Enter キー経路は
-	 * 無条件で呼び出されるため、canCommit=false のまま commit すると
-	 * 親フックから `invalid-or-unchanged` エラーが返ってエラートーストが
-	 * 誤表示される。そのため呼び出し側でも canCommitNotifyInput を
-	 * 明示ガードする。
+	 * 設定ボタンは `disabled` 属性で
+	 *   (!canCommit || submitting || togglingRouteId !== null)
+	 * をガードしているが、Enter キー経路は無条件で呼び出されるため、
+	 * 呼び出し側でも同じ busy / validity 条件を明示ガードする。これは
+	 * 「busy 中は全確定経路を塞ぐ」という UI invariant と、
+	 * `invalid-or-unchanged` エラーがエラートーストとして誤表示されるのを
+	 * 防ぐためである。
 	 *
 	 * コールバック未指定時は「設定しました」トーストの誤表示を防ぐため
 	 * 明示的に no-op。入力値・確定値・ロールバックは親フック側の責務で、
 	 * ここでは commit 結果に応じたトースト出力のみを担当する。
 	 */
 	const commitNotifyInput = () => {
+		// ボタン側の disabled 条件と対称に busy 状態を先にガードする
+		if (submitting || togglingRouteId !== null) return;
 		if (!canCommitNotifyInput) return;
 		if (!onCommitNotifyInput) return;
 		const result = onCommitNotifyInput();

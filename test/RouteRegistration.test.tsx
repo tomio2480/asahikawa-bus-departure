@@ -1422,6 +1422,86 @@ describe("RouteRegistration コンポーネント", () => {
 			resolveDelete();
 		});
 
+		it("submitting=true 中は Enter キーを押しても commit が呼ばれない", async () => {
+			// 設定ボタンは disabled でガードされているが、Enter キー経路も
+			// ボタンと同じ busy 条件でガードされないと「busy 中は全確定経路を塞ぐ」
+			// という UI invariant が崩れる（PR #92 CodeRabbit 指摘）。
+			let resolveDelete: () => void = () => {};
+			const onDelete = vi.fn(
+				() =>
+					new Promise<void>((r) => {
+						resolveDelete = r;
+					}),
+			);
+			const onCommitSpy = vi.fn();
+			render(
+				<NotifyHarness
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={onDelete}
+					hasNotifyEnabledRoutes={true}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+
+			// 削除をクリックして submitting=true を作る
+			await userEvent.click(screen.getByRole("button", { name: "削除" }));
+
+			// busy 中に Enter を押しても commit は呼ばれない
+			fireEvent.keyDown(input, { key: "Enter" });
+			expect(onCommitSpy).not.toHaveBeenCalled();
+			// トーストも出ない
+			expect(
+				screen.queryByText(/発車の.*分前に通知するように設定しました/),
+			).not.toBeInTheDocument();
+
+			resolveDelete();
+		});
+
+		it("togglingRouteId !== null 中は Enter キーを押しても commit が呼ばれない", async () => {
+			let resolveUpdate: () => void = () => {};
+			const onUpdate = vi.fn(
+				() =>
+					new Promise<void>((r) => {
+						resolveUpdate = r;
+					}),
+			);
+			const onCommitSpy = vi.fn();
+			render(
+				<NotifyHarness
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={onUpdate}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+
+			// トグルをクリックして togglingRouteId !== null を作る
+			await userEvent.click(
+				screen.getByRole("checkbox", { name: "通知の切り替え" }),
+			);
+
+			// busy 中に Enter を押しても commit は呼ばれない
+			fireEvent.keyDown(input, { key: "Enter" });
+			expect(onCommitSpy).not.toHaveBeenCalled();
+			expect(
+				screen.queryByText(/発車の.*分前に通知するように設定しました/),
+			).not.toBeInTheDocument();
+
+			resolveUpdate();
+		});
+
 		it("トグル処理中（togglingRouteId !== null）は設定ボタンが disabled になる", async () => {
 			let resolveUpdate: () => void = () => {};
 			const onUpdate = vi.fn(
