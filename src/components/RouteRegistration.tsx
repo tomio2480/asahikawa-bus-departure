@@ -141,7 +141,7 @@ function describeUnselectedStopError(params: {
 	const partnerLabel = side === "from" ? "降車バス停" : "乗車バス停";
 
 	if (trimmed === "") {
-		return `${sideLabel}を選択してください`;
+		return `${sideLabel}を選択してください。`;
 	}
 
 	// 相手バス停と同名を手入力しているケースは、以降の partialHits / exactHits /

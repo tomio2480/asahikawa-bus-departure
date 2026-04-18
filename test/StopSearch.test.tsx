@@ -224,11 +224,11 @@ describe("StopSearch コンポーネント", () => {
 		expect(onSelect).toHaveBeenCalledWith(null);
 	});
 
-	// 逆に、selectedStop.stop_name と完全一致する query（= 選択直後の状態）では
-	// onSelect(null) が呼ばれないことを確認する。`selectedStop` prop 変化時の
-	// useEffect 経由の query 同期で誤って null が通知されると、親の form state を
-	// 破壊するループになるため、このケースの防御的テストを含める。
-	it("selectedStop が渡された状態で入力値が一致する query のままなら onSelect(null) は呼ばれない", () => {
+	// selectedStop を渡して初期マウントした直後、useEffect 経由で query が
+	// selectedStop.stop_name に同期されるだけで、onSelect(null) が誤発火しない
+	// ことを確認する。ここで null が通知されると親の form state を破壊する
+	// ループになるため、マウント直後の防御的テストとして残す。
+	it("selectedStop 初期マウント時に onSelect(null) は呼ばれない", () => {
 		const onSelect = vi.fn();
 		const selected: StopSearchResult = {
 			stop_id: "test:S001",

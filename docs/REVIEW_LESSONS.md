@@ -158,5 +158,5 @@
 |---|---|---|
 | #92 | 通知タイミング入力のリフトアップ | Enter 経路の busy ガード，定数集約，再レンダ局所化 |
 | #95 | `useNotifyBeforeMinutesInput` 配置変更 | `useState` 初期化子の undefined→defined トラップ，用語「発車」→「出発」揃え |
-| #96 | 直通便で到達不能な組み合わせ除外 | クラスタ契約違反，`aria-expanded` 乖離，`useEffect` 同期排除，`??` vs `||`，assertion の固定文字列化 |
+| #96 | 直通便で到達不能な組み合わせ除外 | クラスタ契約違反，`aria-expanded` 乖離，`useEffect` 同期排除，`??` vs `\|\|`，assertion の固定文字列化 |
 | #97 | main ホットフィックス（文言追従） | UI 文言変更時の test grep スイープ漏れ |
