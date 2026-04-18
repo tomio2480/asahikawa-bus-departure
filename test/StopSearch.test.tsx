@@ -218,6 +218,22 @@ describe("StopSearch コンポーネント", () => {
 		expect(input).toHaveAttribute("aria-expanded", "true");
 	});
 
+	it("候補が 0 件のクエリでは aria-expanded が false のままになる", async () => {
+		// CodeRabbit 指摘: listbox が描画されないのに aria-expanded="true" は
+		// WAI-ARIA combobox パターンに違反する。描画条件と aria-expanded は
+		// 「候補が 1 件以上かつユーザーが閉じていない」の派生値で一元化する。
+		const onSelect = vi.fn();
+		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "該当しない文字列xyz");
+
+		// listbox が描画されていない
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+		// aria-expanded は実在する listbox の状態を反映する必要がある
+		expect(input).toHaveAttribute("aria-expanded", "false");
+	});
+
 	it("ドロップダウン外クリックで閉じる", async () => {
 		const onSelect = vi.fn();
 		render(
@@ -233,5 +249,160 @@ describe("StopSearch コンポーネント", () => {
 
 		fireEvent.mouseDown(screen.getByText("外側ボタン"));
 		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+	});
+});
+
+describe("StopSearch（到達可能性フィルタ）", () => {
+	// Issue #90: 乗降車バス停の組み合わせで直通便が無いものを
+	// ドロップダウンから除外するために reachabilityFilter props を受け取る。
+	const stops: GtfsData["stops"] = [
+		{ stop_id: "S001", stop_name: "A停", stop_lat: 43.76, stop_lon: 142.35 },
+		{ stop_id: "S002", stop_name: "B停", stop_lat: 43.77, stop_lon: 142.36 },
+		{ stop_id: "S003", stop_name: "C停", stop_lat: 43.78, stop_lon: 142.37 },
+		{ stop_id: "S004", stop_name: "D停", stop_lat: 43.79, stop_lon: 142.38 },
+	];
+
+	const routes: GtfsData["routes"] = [
+		{ route_id: "R001", agency_id: "A001", route_short_name: "1" },
+	];
+
+	const calendar: GtfsData["calendar"] = [
+		{
+			service_id: "weekday",
+			monday: 1,
+			tuesday: 1,
+			wednesday: 1,
+			thursday: 1,
+			friday: 1,
+			saturday: 0,
+			sunday: 0,
+			start_date: "20260401",
+			end_date: "20280407",
+		},
+	];
+
+	const trips: GtfsData["trips"] = [
+		{ trip_id: "T001", route_id: "R001", service_id: "weekday" },
+	];
+
+	// T001: A → B → C の直通便のみ。D は孤立。
+	const stopTimes: GtfsData["stop_times"] = [
+		{
+			trip_id: "T001",
+			arrival_time: "08:00:00",
+			departure_time: "08:00:00",
+			stop_id: "S001",
+			stop_sequence: 1,
+		},
+		{
+			trip_id: "T001",
+			arrival_time: "08:05:00",
+			departure_time: "08:05:00",
+			stop_id: "S002",
+			stop_sequence: 2,
+		},
+		{
+			trip_id: "T001",
+			arrival_time: "08:10:00",
+			departure_time: "08:10:00",
+			stop_id: "S003",
+			stop_sequence: 3,
+		},
+	];
+
+	beforeEach(() => {
+		// 外側 beforeEach で生成された db を上書きする前に明示的に解放する
+		// （sql.js の WASM インスタンスはリーク防止のため close が必要）
+		db.close();
+		db = new SQL.Database();
+		createSchema(db);
+		loadGtfsData(
+			db,
+			{
+				...emptyGtfsBase,
+				stops,
+				routes,
+				calendar,
+				trips,
+				stop_times: stopTimes,
+			},
+			"test",
+		);
+	});
+
+	it("reachabilityFilter 未指定時は全候補を表示する", async () => {
+		const onSelect = vi.fn();
+		render(<StopSearch db={db} label="降車バス停" onSelect={onSelect} />);
+
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "停");
+		expect(screen.getByText("A停")).toBeInTheDocument();
+		expect(screen.getByText("B停")).toBeInTheDocument();
+		expect(screen.getByText("C停")).toBeInTheDocument();
+		expect(screen.getByText("D停")).toBeInTheDocument();
+	});
+
+	it("reachableFromOrigin 指定時は origin から直通で到達可能な候補のみ表示する", async () => {
+		const onSelect = vi.fn();
+		render(
+			<StopSearch
+				db={db}
+				label="降車バス停"
+				onSelect={onSelect}
+				reachabilityFilter={{ reachableFromOrigin: ["test:S001"] }}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "停");
+		// A→B→C の直通便があるため B, C はヒット、孤立した D と origin の A は除外
+		expect(screen.getByText("B停")).toBeInTheDocument();
+		expect(screen.getByText("C停")).toBeInTheDocument();
+		expect(screen.queryByText("A停")).not.toBeInTheDocument();
+		expect(screen.queryByText("D停")).not.toBeInTheDocument();
+	});
+
+	it("reachableToDestination 指定時は destination に直通で到達できる候補のみ表示する", async () => {
+		const onSelect = vi.fn();
+		render(
+			<StopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				reachabilityFilter={{ reachableToDestination: ["test:S003"] }}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "停");
+		// C に直通で到達できるのは A, B のみ
+		expect(screen.getByText("A停")).toBeInTheDocument();
+		expect(screen.getByText("B停")).toBeInTheDocument();
+		expect(screen.queryByText("C停")).not.toBeInTheDocument();
+		expect(screen.queryByText("D停")).not.toBeInTheDocument();
+	});
+
+	it("reachabilityFilter の変更時にドロップダウン表示が追従する", async () => {
+		const onSelect = vi.fn();
+		const { rerender } = render(
+			<StopSearch db={db} label="降車バス停" onSelect={onSelect} />,
+		);
+
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "停");
+		expect(screen.getByText("D停")).toBeInTheDocument();
+
+		// フィルタを追加して再描画 → D は除外されるべき
+		rerender(
+			<StopSearch
+				db={db}
+				label="降車バス停"
+				onSelect={onSelect}
+				reachabilityFilter={{ reachableFromOrigin: ["test:S001"] }}
+			/>,
+		);
+		// 既に開いているドロップダウンがフィルタ変更に応じて更新される
+		expect(screen.queryByText("D停")).not.toBeInTheDocument();
+		expect(screen.getByText("B停")).toBeInTheDocument();
 	});
 });

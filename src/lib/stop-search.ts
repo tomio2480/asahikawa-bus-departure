@@ -1,5 +1,6 @@
 import type { Database } from "sql.js";
 import { NEARBY_THRESHOLD_METERS, distanceMeters } from "./geo-utils";
+import { isReachable } from "./stop-reachability";
 
 /** 名前統合の距離閾値（メートル） */
 const MERGE_THRESHOLD_METERS = 200;
@@ -26,6 +27,20 @@ export type StopSearchResult = {
 
 /** 検索結果の最大件数 */
 const DEFAULT_LIMIT = 20;
+
+/**
+ * 到達可能性フィルタオプション。
+ *
+ * Issue #90: 乗り換えを前提としないため、検索結果から直通便で
+ * 到達不能なバス停を除外するために用いる。両フィールドを同時に
+ * 指定した場合は AND 条件で絞り込む。
+ */
+export type ReachabilityFilter = {
+	/** 指定した stop_id 群のいずれかから直通便で到達できる候補のみ返す */
+	reachableFromOrigin?: string[];
+	/** 指定した stop_id 群のいずれかに直通便で到達できる候補のみ返す */
+	reachableToDestination?: string[];
+};
 
 /** SQL から取得する生データの型 */
 type RawStopRow = {
@@ -54,7 +69,8 @@ type StopCluster = {
 export function searchStops(
 	db: Database,
 	query: string,
-	limit = DEFAULT_LIMIT,
+	limit: number = DEFAULT_LIMIT,
+	filter: ReachabilityFilter = {},
 ): StopSearchResult[] {
 	const trimmed = query.trim();
 	if (trimmed === "") {
@@ -64,48 +80,81 @@ export function searchStops(
 	const sanitizedLimit = Math.max(1, Math.min(Math.floor(limit), 100));
 
 	const escaped = escapeLike(trimmed);
-	const stmt = db.prepare(
-		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE stop_name LIKE ? ESCAPE '\\' ORDER BY stop_name, stop_id",
-	);
+
+	// coderabbitai #96 指摘: 到達可能性フィルタは SQL 段階ではなく
+	// クラスタリング後に適用する。SQL 段階で個別 stop を除外すると、
+	// クラスタ内で一部メンバーのみ直通便の起点/終点に成り得るケースで
+	// `clusterStopIds` の「クラスタに含まれる全物理バス停」という契約が
+	// 破壊される（事業者バッジの欠落や名前統合の崩れを招く）ため。
+	// ここでは名前マッチのみを SQL で行い、到達可能性はクラスタ単位で
+	// `isReachable` を使って判定する。
+	//
+	// 空配列は「フィルタなし」と解釈し、呼び出し側で未選択状態を
+	// 安全に扱えるようにする（クラスタ展開の結果が空のときの防御）。
+	const sql =
+		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE stop_name LIKE ? ESCAPE '\\' ORDER BY stop_name, stop_id";
+	const stmt = db.prepare(sql);
+	let rawRows: RawStopRow[];
 	try {
 		stmt.bind([`%${escaped}%`]);
-		const rawRows: RawStopRow[] = [];
+		rawRows = [];
 		while (stmt.step()) {
 			const row = stmt.getAsObject() as unknown as RawStopRow;
 			rawRows.push(row);
 		}
-
-		if (rawRows.length === 0) {
-			return [];
-		}
-
-		const clusters = clusterByNameAndDistance(rawRows);
-		const needsDisambiguation = findNamesNeedingDisambiguation(clusters);
-		const results: StopSearchResult[] = [];
-
-		for (const cluster of clusters) {
-			if (results.length >= sanitizedLimit) break;
-
-			const result: StopSearchResult = {
-				stop_id: cluster.representativeId,
-				stop_name: cluster.stopName,
-				clusterStopIds: cluster.stopIds,
-			};
-
-			if (needsDisambiguation.has(cluster.stopName)) {
-				result.disambiguationLabel = resolveDisambiguationLabel(
-					db,
-					cluster.representativeId,
-				);
-			}
-
-			results.push(result);
-		}
-
-		return results;
 	} finally {
 		stmt.free();
 	}
+
+	if (rawRows.length === 0) {
+		return [];
+	}
+
+	const clusters = clusterByNameAndDistance(rawRows);
+
+	const originIds = filter.reachableFromOrigin;
+	const hasOriginFilter = originIds !== undefined && originIds.length > 0;
+	const destinationIds = filter.reachableToDestination;
+	const hasDestinationFilter =
+		destinationIds !== undefined && destinationIds.length > 0;
+
+	// クラスタ単位の到達可能性判定。クラスタ内のいずれかのメンバーが
+	// 条件を満たせばクラスタを採用し、clusterStopIds は生成時の完全な
+	// 集合を保持する。
+	const filteredClusters = clusters.filter((cluster) => {
+		const prefixedIds = cluster.stopIds;
+		if (hasOriginFilter && !isReachable(db, originIds, prefixedIds)) {
+			return false;
+		}
+		if (hasDestinationFilter && !isReachable(db, prefixedIds, destinationIds)) {
+			return false;
+		}
+		return true;
+	});
+
+	const needsDisambiguation = findNamesNeedingDisambiguation(filteredClusters);
+	const results: StopSearchResult[] = [];
+
+	for (const cluster of filteredClusters) {
+		if (results.length >= sanitizedLimit) break;
+
+		const result: StopSearchResult = {
+			stop_id: cluster.representativeId,
+			stop_name: cluster.stopName,
+			clusterStopIds: cluster.stopIds,
+		};
+
+		if (needsDisambiguation.has(cluster.stopName)) {
+			result.disambiguationLabel = resolveDisambiguationLabel(
+				db,
+				cluster.representativeId,
+			);
+		}
+
+		results.push(result);
+	}
+
+	return results;
 }
 
 /**
@@ -175,9 +224,7 @@ function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 		for (let j = i + 1; j < clusters.length; j++) {
 			const canMerge =
 				normalizedMergedNames[i].some((ni) =>
-					normalizedMergedNames[j].some((nj) =>
-						normalizedNamesContain(ni, nj),
-					),
+					normalizedMergedNames[j].some((nj) => normalizedNamesContain(ni, nj)),
 				) &&
 				distanceMeters(
 					clusters[i].lat,
@@ -320,8 +367,7 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 	const degPerMeter = 1 / 111_000; // 緯度 1 度 ≈ 111km
 	const latDelta = MERGE_THRESHOLD_METERS * degPerMeter;
 	const lonDelta =
-		MERGE_THRESHOLD_METERS /
-		(111_000 * Math.cos((refLat * Math.PI) / 180));
+		MERGE_THRESHOLD_METERS / (111_000 * Math.cos((refLat * Math.PI) / 180));
 	const nearbyStmt = db.prepare(
 		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ?",
 	);
@@ -341,7 +387,10 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 			};
 			if (siblingIds.has(row.stop_id)) continue;
 			if (
-				normalizedNamesContain(normalizedRefName, normalizeName(row.stop_name)) &&
+				normalizedNamesContain(
+					normalizedRefName,
+					normalizeName(row.stop_name),
+				) &&
 				distanceMeters(refLat, refLon, row.stop_lat, row.stop_lon) <=
 					MERGE_THRESHOLD_METERS
 			) {

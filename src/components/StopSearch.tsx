@@ -1,7 +1,18 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import type { Database } from "sql.js";
 import { getAgencyColor } from "../lib/agency-colors";
-import { type StopSearchResult, searchStops } from "../lib/stop-search";
+import {
+	type ReachabilityFilter,
+	type StopSearchResult,
+	searchStops,
+} from "../lib/stop-search";
 
 type StopSearchProps = {
 	/** sql.js データベースインスタンス */
@@ -14,6 +25,12 @@ type StopSearchProps = {
 	selectedStop?: StopSearchResult | null;
 	/** placeholder テキスト */
 	placeholder?: string;
+	/**
+	 * Issue #90: 候補を直通便で到達可能なバス停に絞り込むフィルタ。
+	 * 乗車側では reachableToDestination、降車側では reachableFromOrigin を
+	 * 親コンポーネントで構築して渡す。
+	 */
+	reachabilityFilter?: ReachabilityFilter;
 };
 
 /** バス停名のインクリメンタルサーチコンポーネント */
@@ -23,40 +40,50 @@ export function StopSearch({
 	onSelect,
 	selectedStop = null,
 	placeholder = "バス停名を入力",
+	reachabilityFilter,
 }: StopSearchProps) {
 	const id = useId();
 	const [query, setQuery] = useState(selectedStop?.stop_name ?? "");
-	const [results, setResults] = useState<StopSearchResult[]>([]);
 	const [isOpen, setIsOpen] = useState(false);
 	const [activeIndex, setActiveIndex] = useState(-1);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
+
+	// 検索結果は state ではなく派生値とする（gemini-code-assist #96 指摘）。
+	// `db` / `query` / `reachabilityFilter` が唯一の入力であるという依存関係を
+	// 型レベルで可視化し、useEffect による props → state 同期アンチパターンを排除する。
+	// ドロップダウンの開閉は独立した UI 状態として `isOpen` で制御する。
+	const results = useMemo<StopSearchResult[]>(() => {
+		if (query.trim() === "") return [];
+		return searchStops(db, query, undefined, reachabilityFilter);
+	}, [db, query, reachabilityFilter]);
+
+	// listbox の実在状態。`isOpen` は「ユーザーが明示的に閉じていない」を表し、
+	// 実際に listbox を描画するか否かは候補の有無との AND で決まる。
+	// aria-expanded と描画条件をこの派生値で一元化することで、候補 0 件時に
+	// aria-expanded="true" のまま listbox が無いという WAI-ARIA 違反を防ぐ
+	// （coderabbitai #96 指摘）。
+	const isListboxOpen = isOpen && results.length > 0;
 
 	// 外部から selectedStop が変更された場合に入力欄を同期する
 	useEffect(() => {
 		setQuery(selectedStop?.stop_name ?? "");
 	}, [selectedStop]);
 
-	const handleSearch = useCallback(
-		(value: string) => {
-			setQuery(value);
-			setActiveIndex(-1);
-			if (value.trim() === "") {
-				setResults([]);
-				setIsOpen(false);
-				return;
-			}
-			const found = searchStops(db, value);
-			setResults(found);
-			setIsOpen(found.length > 0);
-		},
-		[db],
-	);
+	const handleSearch = useCallback((value: string) => {
+		setQuery(value);
+		setActiveIndex(-1);
+		if (value.trim() === "") {
+			setIsOpen(false);
+			return;
+		}
+		// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
+		setIsOpen(true);
+	}, []);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {
 			setQuery(stop.stop_name);
-			setResults([]);
 			setIsOpen(false);
 			setActiveIndex(-1);
 			onSelect(stop);
@@ -126,14 +153,14 @@ export function StopSearch({
 				}}
 				role="combobox"
 				aria-autocomplete="list"
-				aria-expanded={isOpen}
+				aria-expanded={isListboxOpen}
 				aria-controls={`stop-search-listbox-${id}`}
 				aria-activedescendant={
 					activeIndex >= 0 ? `stop-option-${id}-${activeIndex}` : undefined
 				}
 				autoComplete="off"
 			/>
-			{isOpen && results.length > 0 && (
+			{isListboxOpen && (
 				<div
 					id={`stop-search-listbox-${id}`}
 					className="menu dropdown-content bg-base-100 rounded-box z-10 mt-1 max-h-60 w-full overflow-y-auto shadow-lg"
