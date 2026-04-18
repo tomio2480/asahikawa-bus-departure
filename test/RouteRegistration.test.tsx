@@ -723,10 +723,10 @@ describe("RouteRegistration コンポーネント", () => {
 		await userEvent.click(screen.getByRole("button", { name: "編集" }));
 		await userEvent.click(screen.getByRole("button", { name: "更新" }));
 
+		// ユーザー指摘: 「異なるバス停を選択してください」より「同じバス停は
+		// 指定できません」のほうが禁止事項として直接的で読み解きが早い。
 		expect(
-			screen.getByText(
-				"乗車バス停と降車バス停には異なるバス停を選択してください",
-			),
+			screen.getByText("乗車バス停と降車バス停に同じバス停は指定できません"),
 		).toBeInTheDocument();
 	});
 

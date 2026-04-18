@@ -410,9 +410,10 @@ export function RouteRegistration({
 				return;
 			}
 			if (form.fromStop.stop_id === form.toStop.stop_id) {
-				setErrorMessage(
-					"乗車バス停と降車バス停には異なるバス停を選択してください",
-				);
+				// ユーザー指摘: 禁止事項として「同じバス停は指定できません」の
+				// 否定形のほうが「異なるバス停を選択してください」の間接表現
+				// よりも即座に問題を把握できる。文言だけの変更で挙動は不変。
+				setErrorMessage("乗車バス停と降車バス停に同じバス停は指定できません");
 				return;
 			}
 
