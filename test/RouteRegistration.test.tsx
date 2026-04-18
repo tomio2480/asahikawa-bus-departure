@@ -494,6 +494,28 @@ describe("RouteRegistration コンポーネント", () => {
 		);
 	});
 
+	// Cycle 7 追加（ユーザー報告「『富良野』は存在しないのに存在する扱いになる」）：
+	// searchStops の SQL は LIKE '%query%' で部分一致するため、「旭川駅」と
+	// 入力すると「旭川駅前」にヒットしてしまい、厳密にその名前のバス停が
+	// 存在するわけではない。エラー文言は「存在しません」と「候補から選択
+	// してください」の間に、部分一致はあるが厳密一致はない中間状態として
+	// 「一致するバス停が見つかりません」を分岐として持たせる。
+	it("部分一致するが厳密一致しない名前を入力すると『一致するバス停が見つかりません』エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 「旭川駅」は fixture の「旭川駅前」「旭川四条駅」に LIKE 部分一致
+		// するが、stop_name と完全一致する行は存在しない。
+		await userEvent.type(comboboxes[0], "旭川駅");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「旭川駅」に一致するバス停が見つかりません。候補から選択してください。",
+		);
+	});
+
 	// Cycle 7（予防的 UI）: ユーザーが submit 前に選択必須であることに
 	// 気付けるよう、入力欄の label 付近に「候補から選択してください」の
 	// 永続ヒントを表示する。エラーによる事後通知だけでなく、入力中に

@@ -73,19 +73,39 @@ const initialFormState: FormState = {
 };
 
 /**
+ * `StopSearchResult` の stop_name が query と NFKC 正規化で厳密一致するか判定する。
+ *
+ * `searchStops` は SQL `LIKE '%query%'` による部分一致で候補を広く取得する
+ * ため、存在判定には使えない（例: 「富良野」と入力すると「上富良野」に
+ * ヒットするが、ユーザー認識では「富良野というバス停は無い」）。
+ * クラスタ統合によって stop_name が "短い名/長い名" の結合表現になる
+ * ケースも考慮し、スラッシュで分割した各名称のいずれかが一致するかを確認する。
+ */
+function isExactStopNameMatch(
+	result: StopSearchResult,
+	query: string,
+): boolean {
+	const normalizedQuery = query.normalize("NFKC");
+	return result.stop_name
+		.split("/")
+		.some((name) => name.normalize("NFKC") === normalizedQuery);
+}
+
+/**
  * 乗車または降車のバス停が未選択な状態で submit された際のエラー文言を決定する。
  *
+ * `searchStops` は SQL `LIKE '%query%'` で部分一致する候補を返すため、
+ * 「部分一致 hits が空か」と「厳密一致 hits が空か」を二段で判定する。
+ *
  * 分岐の意図（ユーザー指摘対応）:
- * - query が空：従来通り「選択してください」（入力されていないことが原因なので
- *   原因と解決策が一致）
- * - query が非空だが stop_name に部分一致する候補が存在しない：「存在しません」
- *   （誤記・地名の勘違いが原因なのでその旨を明示）
- * - 存在はするが相手バス停から乗り換えなしで到達できない：「到達できません」
- *   （reachabilityFilter で候補リストから除外されているため、ユーザーからは
- *   「候補に出てこない」ように見えるが、理由は存在ではなく到達可能性）
- * - 存在し到達可能でもあるが候補選択が完了していない：「候補から選択してください」
- *   （正確に名前を手入力しても、候補クリックまたは Enter 選択が必要である点を
- *   明示し、入力欄の永続ヒントと一貫した文言で事後説明する）
+ * - query が空：従来通り「選択してください」
+ * - 部分一致も 0 件：「存在しません」（誤記・地名の勘違い）
+ * - 部分一致はあるが厳密一致 0 件：「一致するバス停が見つかりません」
+ *   （例: 「富良野」で「上富良野」がヒットする状況。候補はあるがユーザーの
+ *   認識どおり該当名称のバス停は存在しない旨を伝える）
+ * - 厳密一致あり、相手バス停未選択：「候補から選択してください」
+ * - 厳密一致あり、相手から乗り換えなしで到達できない：「到達できません」
+ * - 厳密一致あり、到達可能でもあるが候補選択未実行：「候補から選択してください」
  */
 function describeUnselectedStopError(params: {
 	side: "from" | "to";
@@ -102,34 +122,44 @@ function describeUnselectedStopError(params: {
 		return `${sideLabel}を選択してください`;
 	}
 
-	// 存在判定：reachabilityFilter なしで検索して 1 件以上あれば「存在する」。
-	// searchStops は名前部分一致 + クラスタリング済みなので、ここでは 1 件
-	// 取得できるかだけを判定する（クラスタ数を意味的に扱うわけではない）。
-	const existsHits = searchStops(db, trimmed, 1);
-	if (existsHits.length === 0) {
+	// 部分一致すら無ければ「存在しません」。
+	const partialHits = searchStops(db, trimmed);
+	if (partialHits.length === 0) {
 		return `入力された${sideLabel}「${query}」は存在しません。候補から選択してください。`;
 	}
 
-	// 相手バス停が未選択なら到達可能性は判定できない。存在することは
+	// 部分一致はあるが stop_name 厳密一致が無ければ「該当するバス停はない」。
+	// 候補リストに部分一致結果が並んでいる状態で「存在しません」と断定すると
+	// 「候補に出ているのに？」という違和感を招くため、独立した文言に分岐する。
+	const exactHits = partialHits.filter((h) => isExactStopNameMatch(h, trimmed));
+	if (exactHits.length === 0) {
+		return `入力された${sideLabel}「${query}」に一致するバス停が見つかりません。候補から選択してください。`;
+	}
+
+	// 相手バス停が未選択なら到達可能性は判定できない。厳密一致の存在は
 	// 分かっているので「候補から選択してください」に誘導する。
 	if (!partnerFilter) {
 		return `入力された${sideLabel}「${query}」は候補から選択してください。`;
 	}
 
-	// 相手バス停が選択済みで、到達可能性フィルタ下で候補が無い場合は
-	// 「乗り換えなしで到達できない」と断定できる。from / to どちらから
-	// 呼ばれても冒頭「入力された◯車バス停「query」」→ 方向助詞 →
-	// 「乗り換えなしで到達できません」の共通リズムで読めるよう、
-	// from 側は「...から降車バス停へは」、to 側は「...へは乗車バス停から」
-	// と起点→終点の語順で助詞だけを入れ替える。
-	const reachableHits = searchStops(db, trimmed, 1, partnerFilter);
-	if (reachableHits.length === 0) {
+	// 相手バス停が選択済みで、到達可能性フィルタ下でも厳密一致が残るかを判定。
+	// partialHits と異なり reachabilityFilter を通した検索結果を再取得し、
+	// 同じ厳密一致条件で再フィルタする。
+	const reachableExactHits = searchStops(
+		db,
+		trimmed,
+		undefined,
+		partnerFilter,
+	).filter((h) => isExactStopNameMatch(h, trimmed));
+	if (reachableExactHits.length === 0) {
+		// 「起点から終点へは乗り換えなしで到達できません」の語順で統一し、
+		// from / to どちらから呼ばれても末尾が揃うよう助詞だけ切り替える。
 		const directionalClause =
 			side === "from" ? `から${partnerLabel}へは` : `へは${partnerLabel}から`;
 		return `入力された${sideLabel}「${query}」${directionalClause}乗り換えなしで到達できません。別のバス停を選択してください。`;
 	}
 
-	// 存在し到達可能でもあるが候補選択されていないケース。
+	// 厳密一致あり・到達可能でもあるが候補選択されていないケース。
 	return `入力された${sideLabel}「${query}」は候補から選択してください。`;
 }
 
