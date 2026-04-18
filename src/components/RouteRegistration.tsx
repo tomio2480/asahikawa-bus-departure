@@ -98,11 +98,18 @@ export function RouteRegistration({
 	 * Enter キー押下 / 設定ボタンクリック時に呼び出され、
 	 * onCommitNotifyInput（親フックの commit）に委譲する。
 	 *
+	 * 設定ボタンは `disabled` 属性でガードされているが、Enter キー経路は
+	 * 無条件で呼び出されるため、canCommit=false のまま commit すると
+	 * 親フックから `invalid-or-unchanged` エラーが返ってエラートーストが
+	 * 誤表示される。そのため呼び出し側でも canCommitNotifyInput を
+	 * 明示ガードする。
+	 *
 	 * コールバック未指定時は「設定しました」トーストの誤表示を防ぐため
 	 * 明示的に no-op。入力値・確定値・ロールバックは親フック側の責務で、
 	 * ここでは commit 結果に応じたトースト出力のみを担当する。
 	 */
 	const commitNotifyInput = () => {
+		if (!canCommitNotifyInput) return;
 		if (!onCommitNotifyInput) return;
 		const result = onCommitNotifyInput();
 		if (result.ok) {
@@ -112,9 +119,8 @@ export function RouteRegistration({
 			);
 			return;
 		}
-		// canCommit=false 等の既知ガード漏れは、親が設定ボタンの disabled を
-		// 正しく制御している前提では起こらない。ここへ来る失敗は
-		// 永続化失敗等の本物のエラーのためエラートーストで通知する。
+		// 冒頭で canCommit=false をガード済みのため、ここへ来る失敗は
+		// 永続化失敗等の本物のエラーに限られる。エラートーストで通知する。
 		const detail =
 			result.error instanceof Error ? result.error.message : String(result.error);
 		showToast(`通知タイミングを設定できませんでした: ${detail}`, {

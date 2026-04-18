@@ -1310,6 +1310,57 @@ describe("RouteRegistration コンポーネント", () => {
 			).toBeDisabled();
 		});
 
+		it("canCommit=false の状態で Enter キーを押してもエラートーストが表示されない", async () => {
+			// 設定ボタンは disabled でガードされているが、Enter キー経路は
+			// 無条件で commitNotifyInput を呼ぶため、ガードが漏れると
+			// 親フックから invalid-or-unchanged エラーが返り、ユーザーに
+			// 不適切なエラートーストが表示されてしまう（PR #92 レビュー指摘）。
+			const onCommitSpy = vi.fn();
+			render(
+				<NotifyHarness
+					db={db}
+					routes={notifyEnabledRoutes}
+					{...baseHandlers()}
+					hasNotifyEnabledRoutes={true}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			// 初期値 5 のまま何も変更せず Enter キーを押す（canCommit=false）
+			fireEvent.keyDown(input, { key: "Enter" });
+			// コンポーネント側の canCommit ガードにより commit 呼び出し自体が抑止され、
+			// エラー / 成功どちらのトーストも出てはならない。
+			expect(
+				screen.queryByText(/通知タイミングを設定できませんでした/),
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByText(/発車の.*分前に通知するように設定しました/),
+			).not.toBeInTheDocument();
+			// 親フックの commit 自体が呼ばれないことも明示的に検証する
+			expect(onCommitSpy).not.toHaveBeenCalled();
+		});
+
+		it("無効値の状態で Enter キーを押してもエラートーストが表示されない", () => {
+			// 範囲外等の無効値入力で Enter キーを押した場合も、エラートーストを
+			// 出さない（バリデーション表示は別責務で、ここでは無反応でよい）。
+			render(
+				<NotifyHarness
+					db={db}
+					routes={notifyEnabledRoutes}
+					{...baseHandlers()}
+					hasNotifyEnabledRoutes={true}
+					initialMinutes={5}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "100" } });
+			fireEvent.keyDown(input, { key: "Enter" });
+			expect(
+				screen.queryByText(/通知タイミングを設定できませんでした/),
+			).not.toBeInTheDocument();
+		});
+
 		it("commit が throw した場合はエラートーストが表示される", async () => {
 			const onCommitSpy = vi.fn().mockImplementation(() => {
 				throw new Error("localStorage 書き込みに失敗しました");
