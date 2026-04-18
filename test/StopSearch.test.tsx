@@ -218,6 +218,22 @@ describe("StopSearch コンポーネント", () => {
 		expect(input).toHaveAttribute("aria-expanded", "true");
 	});
 
+	it("候補が 0 件のクエリでは aria-expanded が false のままになる", async () => {
+		// CodeRabbit 指摘: listbox が描画されないのに aria-expanded="true" は
+		// WAI-ARIA combobox パターンに違反する。描画条件と aria-expanded は
+		// 「候補が 1 件以上かつユーザーが閉じていない」の派生値で一元化する。
+		const onSelect = vi.fn();
+		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "該当しない文字列xyz");
+
+		// listbox が描画されていない
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+		// aria-expanded は実在する listbox の状態を反映する必要がある
+		expect(input).toHaveAttribute("aria-expanded", "false");
+	});
+
 	it("ドロップダウン外クリックで閉じる", async () => {
 		const onSelect = vi.fn();
 		render(

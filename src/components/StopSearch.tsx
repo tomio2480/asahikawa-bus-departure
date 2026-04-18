@@ -58,6 +58,13 @@ export function StopSearch({
 		return searchStops(db, query, undefined, reachabilityFilter);
 	}, [db, query, reachabilityFilter]);
 
+	// listbox の実在状態。`isOpen` は「ユーザーが明示的に閉じていない」を表し、
+	// 実際に listbox を描画するか否かは候補の有無との AND で決まる。
+	// aria-expanded と描画条件をこの派生値で一元化することで、候補 0 件時に
+	// aria-expanded="true" のまま listbox が無いという WAI-ARIA 違反を防ぐ
+	// （coderabbitai #96 指摘）。
+	const isListboxOpen = isOpen && results.length > 0;
+
 	// 外部から selectedStop が変更された場合に入力欄を同期する
 	useEffect(() => {
 		setQuery(selectedStop?.stop_name ?? "");
@@ -146,14 +153,14 @@ export function StopSearch({
 				}}
 				role="combobox"
 				aria-autocomplete="list"
-				aria-expanded={isOpen}
+				aria-expanded={isListboxOpen}
 				aria-controls={`stop-search-listbox-${id}`}
 				aria-activedescendant={
 					activeIndex >= 0 ? `stop-option-${id}-${activeIndex}` : undefined
 				}
 				autoComplete="off"
 			/>
-			{isOpen && results.length > 0 && (
+			{isListboxOpen && (
 				<div
 					id={`stop-search-listbox-${id}`}
 					className="menu dropdown-content bg-base-100 rounded-box z-10 mt-1 max-h-60 w-full overflow-y-auto shadow-lg"
