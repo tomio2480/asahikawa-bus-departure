@@ -194,8 +194,14 @@ export function RouteRegistration({
 			// Issue #90: 直通便で到達不能な組み合わせを弾く。
 			// 兄弟バス停（上下線・事業者違い）まで展開して判定することで、
 			// 選択肢として見えている「同一物理停留所」からの直通便を網羅する。
-			const fromIds = getSiblingStopIds(db, form.fromStop.stop_id);
-			const toIds = getSiblingStopIds(db, form.toStop.stop_id);
+			// 兄弟展開結果は親側で useMemo 済みのため、送信時は再計算せず
+			// メモ化値を再利用する（gemini-code-assist #96 指摘）。
+			// `??` を使うのは `string[] | null` に対して空配列を falsy 扱いしない
+			// ためで、理屈上フォールバックへは到達しないが型安全のガードとして置く。
+			const fromIds =
+				fromStopSiblings ?? getSiblingStopIds(db, form.fromStop.stop_id);
+			const toIds =
+				toStopSiblings ?? getSiblingStopIds(db, form.toStop.stop_id);
 			if (!isReachable(db, fromIds, toIds)) {
 				setErrorMessage(
 					"選択したバス停間に直通便がありません。別の組み合わせを選んでください",
@@ -250,6 +256,8 @@ export function RouteRegistration({
 		[
 			db,
 			form,
+			fromStopSiblings,
+			toStopSiblings,
 			editingId,
 			onAdd,
 			onUpdate,

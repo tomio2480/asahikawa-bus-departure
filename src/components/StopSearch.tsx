@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import type { Database } from "sql.js";
 import { getAgencyColor } from "../lib/agency-colors";
 import {
@@ -37,50 +44,39 @@ export function StopSearch({
 }: StopSearchProps) {
 	const id = useId();
 	const [query, setQuery] = useState(selectedStop?.stop_name ?? "");
-	const [results, setResults] = useState<StopSearchResult[]>([]);
 	const [isOpen, setIsOpen] = useState(false);
 	const [activeIndex, setActiveIndex] = useState(-1);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
+
+	// 検索結果は state ではなく派生値とする（gemini-code-assist #96 指摘）。
+	// `db` / `query` / `reachabilityFilter` が唯一の入力であるという依存関係を
+	// 型レベルで可視化し、useEffect による props → state 同期アンチパターンを排除する。
+	// ドロップダウンの開閉は独立した UI 状態として `isOpen` で制御する。
+	const results = useMemo<StopSearchResult[]>(() => {
+		if (query.trim() === "") return [];
+		return searchStops(db, query, undefined, reachabilityFilter);
+	}, [db, query, reachabilityFilter]);
 
 	// 外部から selectedStop が変更された場合に入力欄を同期する
 	useEffect(() => {
 		setQuery(selectedStop?.stop_name ?? "");
 	}, [selectedStop]);
 
-	const handleSearch = useCallback(
-		(value: string) => {
-			setQuery(value);
-			setActiveIndex(-1);
-			if (value.trim() === "") {
-				setResults([]);
-				setIsOpen(false);
-				return;
-			}
-			const found = searchStops(db, value, undefined, reachabilityFilter);
-			setResults(found);
-			setIsOpen(found.length > 0);
-		},
-		[db, reachabilityFilter],
-	);
-
-	// reachabilityFilter の変更時に現在の入力で再検索する。
-	// 親が選択した相手側バス停が変わったときに即座に候補を絞り込み直すため、
-	// ドロップダウンが開いている状態でもその中身だけを更新する（Escape で
-	// 閉じた状態は維持する）。
-	useEffect(() => {
-		if (query.trim() === "") {
-			setResults([]);
+	const handleSearch = useCallback((value: string) => {
+		setQuery(value);
+		setActiveIndex(-1);
+		if (value.trim() === "") {
+			setIsOpen(false);
 			return;
 		}
-		const found = searchStops(db, query, undefined, reachabilityFilter);
-		setResults(found);
-	}, [reachabilityFilter, db, query]);
+		// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
+		setIsOpen(true);
+	}, []);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {
 			setQuery(stop.stop_name);
-			setResults([]);
 			setIsOpen(false);
 			setActiveIndex(-1);
 			onSelect(stop);
