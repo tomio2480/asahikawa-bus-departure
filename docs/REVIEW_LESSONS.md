@@ -1,6 +1,6 @@
 # 📘 過去レビューから抽出したセルフレビュー観点
 
-これまでの PR #92 / #95 / #96 / #97 で CodeRabbit・gemini-code-assist・ユーザーから受けた指摘を恒久化し，新規 PR を出す前のセルフレビューチェックリストとして機能させるための文書．実装エージェント・レビュー担当（自分自身含む）は，PR 作成前にここを最後に一読すること．
+これまでの PR #92 / #95 / #96 / #97 / #98 で CodeRabbit・gemini-code-assist・ユーザーから受けた指摘を恒久化し，新規 PR を出す前のセルフレビューチェックリストとして機能させるための文書．実装エージェント・レビュー担当（自分自身含む）は，PR 作成前にここを最後に一読すること．
 
 ---
 
@@ -101,6 +101,41 @@
 - **指摘例** （PR #92 gemini-code-assist）：入力 state を `AppContent` 直下で持っていたため，1 キーストロークごとに `MapView` / `DepartureBoard` まで再レンダされた．
 - **対処パターン** ：入力 state は「消費者コンポーネント」の内部に押し込む．永続化だけ親から `setter` prop で受ける．
 
+### 14. `searchStops` limit はバリデーション用途とサジェスト用途で使い分ける
+
+- **指摘例** （PR #98 gemini-code-assist， `src/components/RouteRegistration.tsx` L162 / L188）： `describeUnselectedStopError` 内でデフォルト `DEFAULT_LIMIT=20` のまま `searchStops` を呼んでいた．部分一致が 21 件以上出る汎用語（「前」「中央」等）で厳密一致が上位 20 件から落ちると，実在するバス停でも「存在しません」「一致するバス停が見つかりません」と誤判定する．
+- **対処パターン** ：バリデーション目的の呼び出しでは第 3 引数に `100`（`searchStops` 側のハードキャップ上限）を明示する．サジェスト UI（ドロップダウン表示）はデフォルト 20 のままでよい．
+- **チェック観点** ：
+  - 「存在判定・厳密一致判定」を目的に `searchStops` を呼ぶ箇所で `limit` を明示しているか．
+  - `undefined` プレースホルダで `filter` だけ渡している箇所はないか（第 3 引数はバリデーション目的なら `100` を明示）．
+- **適用外** ：単純なサジェストのみ目的の呼び出し（`StopSearch.tsx` 内の候補表示）はデフォルト `DEFAULT_LIMIT=20` でよい．ユーザーの目に触れる候補数と揃える．
+
+### 15. エラーメッセージの句点・文体統一
+
+- **指摘例 A** （PR #98 CodeRabbit， `src/components/RouteRegistration.tsx` L145）： `describeUnselectedStopError` の空クエリ分岐だけ `${sideLabel}を選択してください` と句点なしで，他分岐（`...してください。` / `...です。`）と不揃いだった．`\n` 連結時に可視化される．
+- **指摘例 B** （PR #98 ユーザー指示）： `SAME_STOP_ERROR_MESSAGE` の末尾に「。」を追加．
+- **対処パターン** ：同一コンポーネント内のユーザー向け文字列は句点有無・体言止め・敬体を揃える．複数行を `\n` で連結する可能性があるメッセージは句点で閉じる．
+- **チェック観点** ：エラーメッセージ生成関数を追加・変更したら，該当関数内の全分岐と既存定数で文末形が一致しているか．
+
+### 16. `handleSearch` 中間状態で `onSelect(null)` は発火する契約
+
+- **指摘例** （PR #98 CodeRabbit， `test/StopSearch.test.tsx` L231-248）：テスト名「入力値が一致する query のまま onSelect(null) は呼ばれない」に対し，本体が `render` のみで `userEvent.type` していなかった．CodeRabbit の diff 提案は `userEvent.type("旭川駅前")` を挿入する形だが， `handleSearch` は `selectedStop.stop_name` と一致しない中間状態（例: 打鍵途中の「旭」「旭川」）で意図的に `onSelect(null)` を発火する契約のため， `expect(onSelect).not.toHaveBeenCalled()` を満たせない．
+- **対処パターン** ：「選択済み状態で `onSelect(null)` が誤発火しない」ことを検証するテストは， `userEvent.type` で再入力する形ではなく，初期マウント時点（`selectedStop` prop 付き `render` 直後）で assertion する．
+- **チェック観点** ：
+  - 選択済みフィールドで `userEvent.type` を使うテストは， `onSelect(null)` の中間発火を織り込んだ assertion になっているか．
+  - `selectedStop` 経由の `useEffect` 同期と打鍵入力を同じテストで混ぜていないか．
+- **背景** ： `handleSearch` の中間 null 発火は `selectedStop` 無効化の仕様（入力が選択済みと乖離したら選択状態を破棄）を担う．この契約は変えない．
+
+### 17. セルフレビューは並列エージェントで多視点から行う
+
+- **指摘例** （PR #98 ユーザー指示）：Draft PR 作成前のセルフレビューで，単一視点だと検知漏れが発生しやすい．a11y / 型安全 / デッドコード / テスト品質等の観点ごとに視点が独立しているため，並列実行で網羅性を上げられる．
+- **対処パターン** ：Draft 作成前に以下の 4 視点相当でエージェントを並列起動する．
+  - WAI-ARIA / keyboard 操作性（`aria-*` 属性と描画条件の一致，Enter / Escape 等）．
+  - 型安全 / `||` vs `??` / 空値扱い．
+  - デッドコード / 重複ロジック / マジックリテラル．
+  - テストの assertion 強度（キーワード選言の不在，冒頭フレーズ固定の堅牢性，同時検証の網羅）．
+- **チェック観点** ：セルフレビューが 1 パスで済んでいる場合，視点の独立性が担保されているか疑う．レビュー結果を本文書のカテゴリに還元する．
+
 ---
 
 ## セルフレビューチェックリスト
@@ -117,6 +152,8 @@
 - [ ] `new SQL.Database()` の直前・直後で， `close()` の対応が取れているか．
 - [ ] Enter key handler と onClick handler で，busy / validity ガードが対称か．
 - [ ] `useMemo` で計算した値を別関数で再計算していないか．
+- [ ] 存在判定・厳密一致判定（バリデーション目的）で `searchStops` を呼ぶ箇所は， `limit=100` を明示しているか（`undefined` プレースホルダを残していないか）．
+- [ ] ユーザー向けエラーメッセージ（生成関数・定数・直接記述）の全箇所で，句点有無・体言止め・敬体が揃っているか．
 
 ### テスト
 
@@ -124,31 +161,28 @@
 - [ ] 新規テストファイルは既存の `afterEach(cleanup)` パターンに揃っているか．
 - [ ] ネストされた `beforeEach` が外側で作った `db` を上書きする場合，先頭で `db.close()` を呼んでいるか．
 - [ ] Red ステップを必ず踏んだか（失敗出力を一度確認したか）．
+- [ ] 選択済みフィールドに対する「`onSelect(null)` 不発火」の検証は，`userEvent.type` ではなく初期マウント時点で assertion しているか．
+- [ ] テスト名（`it` 文字列）と本体の操作・assertion が一致しているか．
 
 ### PR 作成
 
 - [ ] Draft で作成しているか．
 - [ ] `git push` のタイミングはユーザー指示を受けたあとか．
 - [ ] PR 本文に Test plan が入っているか．
+- [ ] Draft 作成前に，独立視点（a11y / 型安全 / デッドコード / テスト品質）で並列セルフレビューを回したか．
 
 ---
 
 ## 今回の PR 固有の観点
 
-タスク：経路登録 UI の 4 点改善（成功トースト・エラー文言変更・注意書き追加・入力乖離時の再検証）．
+本セクションは新規 PR の Draft 作成時に，その PR 固有のスコープ・制約・変更の意図を明文化するスクラッチ領域として再記入する．マージ済み PR の内容は，恒久化すべき観点のみ上記カテゴリに昇格させ，本セクションはクリアする運用とする．
 
-### 個別の注意
+### 記入テンプレート
 
-- **文言統一** ：要望 2・3 は「乗り換えなしで到達できる便」という表現を共通キーワードにする．エラーメッセージと注意書きの間で用語がブレないよう，両方のテストで同じ正規表現フラグメントを共有する．
-- **`StopSearch.onSelect` の型拡張** ：型を `(stop: StopSearchResult) => void` から `(stop: StopSearchResult | null) => void` に広げる．既存の全利用箇所（現状 `RouteRegistration` 2 箇所のみ）が null を受けて正しく動くことを確認する．
-- **選択無効化の契約** ： `selectedStop` が与えられている状態で `query` が `selectedStop.stop_name` と一致しなくなったら， `onSelect(null)` を呼ぶ．これは `handleSearch` 内で行い， `useMemo` の results 派生には含めない（責務分離）．
-- **re-entrancy 防止** ：選択直後に `setQuery(stop.stop_name)` → `handleSearch` ではなく `onSelect` 経由で query を同期しているため，選択直後に `onSelect(null)` が呼ばれるループは起きない．ただし `selectedStop` prop 変化の `useEffect` 経路（L69-71）と衝突しないよう，「 `selectedStop` 経由の setQuery では onSelect(null) を呼ばない」ことをコード上で保証する．
-- **成功トーストの文言** ：経路登録は `${fromName} → ${toName} を登録しました` / `更新しました` ． 既存の通知トグルトースト（ `${routeLabel} の通知を ON にしました`）と様式を揃える．
-
-### 実装前に確認したこと
-
-- `StopSearch` の import 元は `grep -rn "from.*StopSearch"` で `RouteRegistration.tsx` のみ （他コンポーネントへの影響なし）．
-- 現行テスト 1908-1946 のエラー文言 assertion は本 PR で新文言に更新する．
+- **タスク**： 1 行で目的を記述（参照 Issue / 要望番号を含める）．
+- **スコープ**： 変更対象コンポーネント・モジュール名．対象外を明示する．
+- **個別の注意**： 型変更・契約変更・副作用・用語統一など，汎用カテゴリに昇格する前の固有論点．
+- **実装前に確認したこと**： import 元の洗い出し，テスト assertion の updates 対象範囲など．
 
 ---
 
@@ -160,3 +194,4 @@
 | #95 | `useNotifyBeforeMinutesInput` 配置変更 | `useState` 初期化子の undefined→defined トラップ，用語「発車」→「出発」揃え |
 | #96 | 直通便で到達不能な組み合わせ除外 | クラスタ契約違反，`aria-expanded` 乖離，`useEffect` 同期排除，`??` vs `\|\|`，assertion の固定文字列化 |
 | #97 | main ホットフィックス（文言追従） | UI 文言変更時の test grep スイープ漏れ |
+| #98 | 経路登録 UX 改善（エラー・トースト・到達可能性告知） | `searchStops` limit のバリデーション用途誤用，エラー文末の句点揺れ，テスト名と本体の乖離，`handleSearch` 中間状態の `onSelect(null)` 契約 |
