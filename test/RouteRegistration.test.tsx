@@ -614,8 +614,15 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(alert).toHaveTextContent(
 			"乗車バス停と降車バス停に同じバス停は指定できません。",
 		);
-		// 誤った「到達できません」分岐に落ちていないことを確認する。
+		// describeUnselectedStopError の他 5 分岐（存在しない / 一致する
+		// バス停が見つかりません / 到達できません / 候補から選択してください /
+		// 空の「選択してください」）のいずれにも fall-through していない
+		// ことを確認する。分岐順序が崩れて「同名検出」優先が効かなくなる
+		// リグレッションを検出可能にする（self-review Test-Quality S1 対応）。
 		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
+		expect(alert).not.toHaveTextContent("存在しません");
+		expect(alert).not.toHaveTextContent("一致するバス停が見つかりません");
+		expect(alert).not.toHaveTextContent("候補から選択してください");
 	});
 
 	it("乗車側で降車と同名のバス停を手入力した場合は「同じバス停は指定できません」エラーになる", async () => {
@@ -635,6 +642,9 @@ describe("RouteRegistration コンポーネント", () => {
 			"乗車バス停と降車バス停に同じバス停は指定できません。",
 		);
 		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
+		expect(alert).not.toHaveTextContent("存在しません");
+		expect(alert).not.toHaveTextContent("一致するバス停が見つかりません");
+		expect(alert).not.toHaveTextContent("候補から選択してください");
 	});
 
 	// ユーザー指摘：エラー文言が出ている状態で入力欄を改めてもエラーが

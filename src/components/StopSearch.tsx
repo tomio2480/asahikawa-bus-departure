@@ -256,6 +256,11 @@ export function StopSearch({
 					className="menu dropdown-content bg-base-100 rounded-box z-10 mt-1 max-h-60 w-full overflow-y-auto shadow-lg"
 					// biome-ignore lint/a11y/useSemanticElements: WAI-ARIA combobox パターンでは div + role="listbox" が標準
 					role="listbox"
+					// WAI-ARIA 1.2: composite widget は accessible name を持つべき。
+					// 親 input の label (`乗車バス停` / `降車バス停`) を文脈として
+					// 「候補」と組み合わせ、NVDA/VoiceOver 等で listbox にフォーカス
+					// が映ったときに用途が曖昧にならないようにする。
+					aria-label={`${label}の候補`}
 					tabIndex={-1}
 				>
 					{results.map((stop, index) => (

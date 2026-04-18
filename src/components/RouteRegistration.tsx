@@ -73,6 +73,16 @@ const initialFormState: FormState = {
 };
 
 /**
+ * 乗車・降車に同一バス停が指定された場合のエラーメッセージ。
+ * describeUnselectedStopError 内（手入力で相手と同名を指定した経路）と
+ * handleSubmit の stop_id 比較（選択経由で同一 ID になる経路）の 2 箇所で
+ * 使う。文言が片方だけ変わるとテストの完全一致 assert が破綻するため、
+ * 単一の定数として一元化する（self-review Code-Quality S1 対応）。
+ */
+const SAME_STOP_ERROR_MESSAGE =
+	"乗車バス停と降車バス停に同じバス停は指定できません。";
+
+/**
  * `StopSearchResult` の stop_name が query と NFKC 正規化で厳密一致するか判定する。
  *
  * `searchStops` は SQL `LIKE '%query%'` による部分一致で候補を広く取得する
@@ -144,7 +154,7 @@ function describeUnselectedStopError(params: {
 			.split("/")
 			.some((name) => name.normalize("NFKC") === normalizedQuery);
 		if (partnerMatches) {
-			return "乗車バス停と降車バス停に同じバス停は指定できません。";
+			return SAME_STOP_ERROR_MESSAGE;
 		}
 	}
 
@@ -441,7 +451,7 @@ export function RouteRegistration({
 				// ユーザー指摘: 禁止事項として「同じバス停は指定できません」の
 				// 否定形のほうが「異なるバス停を選択してください」の間接表現
 				// よりも即座に問題を把握できる。文言だけの変更で挙動は不変。
-				setErrorMessage("乗車バス停と降車バス停に同じバス停は指定できません。");
+				setErrorMessage(SAME_STOP_ERROR_MESSAGE);
 				return;
 			}
 
