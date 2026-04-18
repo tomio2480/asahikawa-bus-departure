@@ -295,6 +295,9 @@ describe("StopSearch（到達可能性フィルタ）", () => {
 	];
 
 	beforeEach(() => {
+		// 外側 beforeEach で生成された db を上書きする前に明示的に解放する
+		// （sql.js の WASM インスタンスはリーク防止のため close が必要）
+		db.close();
 		db = new SQL.Database();
 		createSchema(db);
 		loadGtfsData(
