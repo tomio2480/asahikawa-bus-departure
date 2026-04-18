@@ -359,6 +359,33 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(onUpdate).toHaveBeenCalled();
 	});
 
+	// 動画で報告されたバグの回帰テスト：
+	// 一度バス停を選択したあと、input を別の文字列（存在しない名称や
+	// 到達不能な名称を想定）に書き換えて submit すると、最初に選択した
+	// 経路が登録されてしまっていた。StopSearch 側で入力値が選択 stop_name と
+	// 乖離したら onSelect(null) を呼ぶ契約に変更したため、親の form.fromStop
+	// は null に戻り、既存の submit ガード（「乗車バス停を選択してください」）
+	// が作動して onAdd は呼ばれない。
+	it("選択後に input を書き換えて submit しても onAdd は呼ばれずエラーが表示される", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// 選択後、乗車バス停の input を「存在しない名称」に書き換える
+		await userEvent.type(comboboxes[0], "xxx");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"乗車バス停を選択してください",
+		);
+	});
+
 	it("徒歩所要時間のデフォルト値が10である", () => {
 		renderComponent();
 		const walkInput = screen.getByLabelText("徒歩所要時間（分）");

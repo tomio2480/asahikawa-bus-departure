@@ -19,8 +19,19 @@ type StopSearchProps = {
 	db: Database;
 	/** 入力欄のラベル */
 	label: string;
-	/** バス停が選択されたときのコールバック */
-	onSelect: (stop: StopSearchResult) => void;
+	/**
+	 * バス停の選択状態が変化したときのコールバック。
+	 *
+	 * - 候補クリック / Enter 押下 / selectedStop prop からの初期化時は
+	 *   `StopSearchResult` で呼び出す。
+	 * - 選択済みの状態で入力値が `selectedStop.stop_name` と乖離した場合は
+	 *   `null` で呼び出し、親側の選択状態を無効化することを依頼する。
+	 *
+	 * 親が form state と query state の乖離による誤登録（選択済みのまま
+	 * 入力を書き換えて submit すると最初の選択が登録される問題）を防ぐため、
+	 * 選択の有効/無効は常に本コールバックの契約で一元化する。
+	 */
+	onSelect: (stop: StopSearchResult | null) => void;
 	/** 選択済みのバス停（外部から制御する場合） */
 	selectedStop?: StopSearchResult | null;
 	/** placeholder テキスト */
@@ -70,16 +81,29 @@ export function StopSearch({
 		setQuery(selectedStop?.stop_name ?? "");
 	}, [selectedStop]);
 
-	const handleSearch = useCallback((value: string) => {
-		setQuery(value);
-		setActiveIndex(-1);
-		if (value.trim() === "") {
-			setIsOpen(false);
-			return;
-		}
-		// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
-		setIsOpen(true);
-	}, []);
+	const handleSearch = useCallback(
+		(value: string) => {
+			setQuery(value);
+			setActiveIndex(-1);
+			// 選択済み状態で入力値が選択 stop の名称と乖離したら、親側の
+			// 選択状態を無効化する。これにより「選択後に入力だけ書き換えて
+			// submit」された場合でも、親の form state が null に戻り、
+			// 実在性・到達可能性の再検証（= submit ガード）が正しく走る。
+			// `selectedStop` prop 経由の useEffect による setQuery（下記参照）
+			// では `value === selectedStop.stop_name` になるため、ここでは
+			// 呼ばれず、親 state を破壊するループにはならない。
+			if (selectedStop && value !== selectedStop.stop_name) {
+				onSelect(null);
+			}
+			if (value.trim() === "") {
+				setIsOpen(false);
+				return;
+			}
+			// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
+			setIsOpen(true);
+		},
+		[selectedStop, onSelect],
+	);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {

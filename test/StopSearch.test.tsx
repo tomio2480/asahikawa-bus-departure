@@ -195,6 +195,58 @@ describe("StopSearch コンポーネント", () => {
 		expect(input).toHaveValue("旭川駅前");
 	});
 
+	// 親（RouteRegistration）の form state と子（StopSearch）の query state が
+	// 乖離すると、ユーザーが候補から選ばずに入力を書き換えても form state は
+	// 最初に選択した stop のまま残り、submit 時に実在性・到達可能性の再検証が
+	// 走らず誤った経路が登録される（RouteRegistration 側で観測されたバグ）。
+	// 選択状態は「入力値が選択済みの stop_name と一致している」場合にのみ
+	// 維持される契約とし、乖離したら onSelect(null) で親に通知する。
+	it("selectedStop が渡された状態で入力値を変更すると onSelect(null) が呼ばれる", async () => {
+		const onSelect = vi.fn();
+		const selected: StopSearchResult = {
+			stop_id: "test:S001",
+			stop_name: "旭川駅前",
+			clusterStopIds: ["test:S001"],
+		};
+		render(
+			<StopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				selectedStop={selected}
+			/>,
+		);
+
+		const input = screen.getByRole("combobox");
+		// selectedStop.stop_name と異なる文字列に書き換える（末尾に文字追加）
+		await userEvent.type(input, "aaa");
+
+		expect(onSelect).toHaveBeenCalledWith(null);
+	});
+
+	// 逆に、selectedStop.stop_name と完全一致する query（= 選択直後の状態）では
+	// onSelect(null) が呼ばれないことを確認する。`selectedStop` prop 変化時の
+	// useEffect 経由の query 同期で誤って null が通知されると、親の form state を
+	// 破壊するループになるため、このケースの防御的テストを含める。
+	it("selectedStop が渡された状態で入力値が一致する query のままなら onSelect(null) は呼ばれない", () => {
+		const onSelect = vi.fn();
+		const selected: StopSearchResult = {
+			stop_id: "test:S001",
+			stop_name: "旭川駅前",
+			clusterStopIds: ["test:S001"],
+		};
+		render(
+			<StopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				selectedStop={selected}
+			/>,
+		);
+
+		expect(onSelect).not.toHaveBeenCalled();
+	});
+
 	it("入力を空にするとドロップダウンが閉じる", async () => {
 		const onSelect = vi.fn();
 		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
