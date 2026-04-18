@@ -288,8 +288,12 @@ export function RouteRegistration({
 			const toIds =
 				toStopSiblings ?? getSiblingStopIds(db, form.toStop.stop_id);
 			if (!isReachable(db, fromIds, toIds)) {
+				// 文言はユーザー向けに「直通便」等の運行用語を避け、
+				// 注意書き（到達可能性フィルタの予告）と用語を揃えて
+				// 「乗り換えなしで到達」で統一する（coderabbitai #95 の
+				// 「ユーザー向け文言の揺れを避ける」指摘を踏襲）。
 				setErrorMessage(
-					"選択したバス停間に直通便がありません。別の組み合わせを選んでください",
+					"乗り換えなしで到達できる便が見つかりませんでした。別の組み合わせを選んでください。",
 				);
 				return;
 			}

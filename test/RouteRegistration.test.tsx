@@ -1988,10 +1988,13 @@ describe("RouteRegistration（到達可能性フィルタ）", () => {
 		await userEvent.click(screen.getByRole("button", { name: "更新" }));
 
 		// UX 文言の意図しない退化を検出できるよう、実装側の実文言
-		// 「選択したバス停間に直通便がありません。別の組み合わせを選んでください」の
+		// 「乗り換えなしで到達できる便が見つかりませんでした。」の
 		// 冒頭フレーズにマッチさせる（coderabbitai #96 nitpick）。
+		// 注意書き（サイクル 1）と同じ「乗り換えなしで到達」という
+		// 語彙を共有することで UX 上の用語統一を図る
+		// （coderabbitai #95 の「ユーザー向け文言の揺れを避ける」指摘）。
 		expect(screen.getByRole("alert")).toHaveTextContent(
-			/選択したバス停間に直通便がありません/,
+			/乗り換えなしで到達できる便が見つかりませんでした/,
 		);
 		expect(onUpdate).not.toHaveBeenCalled();
 	});
