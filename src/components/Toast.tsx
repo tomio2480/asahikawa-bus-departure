@@ -42,7 +42,9 @@ function ToastItem({ toast }: { toast: Toast }) {
 			role={isError ? "alert" : "status"}
 			aria-live={isError ? "assertive" : "polite"}
 		>
-			<span>{toast.message}</span>
+			{/* close ボタンが右端にあるため、メッセージも text-end で右寄せに
+			    揃え視覚的な整列を取る（issue #91）。 */}
+			<span className="flex-1 text-end">{toast.message}</span>
 			<button
 				type="button"
 				className="btn btn-ghost btn-xs"

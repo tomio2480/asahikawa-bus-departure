@@ -69,6 +69,19 @@ describe("ToastContainer", () => {
 		expect(screen.queryByText("消えるメッセージ")).not.toBeInTheDocument();
 	});
 
+	it("メッセージのテキストが右寄せで表示される", () => {
+		// 閉じるボタンが右側にあるため、メッセージ文字列も右寄せにして
+		// 視覚的な整列を取りたい（issue #91）。
+		render(
+			<ToastProvider>
+				<ToastContainer />
+				<Trigger message="右寄せテスト" />
+			</ToastProvider>,
+		);
+		const message = screen.getByText("右寄せテスト");
+		expect(message.className).toMatch(/text-end/);
+	});
+
 	it("variant=error のトーストに alert-error クラスが付与される", () => {
 		render(
 			<ToastProvider>
