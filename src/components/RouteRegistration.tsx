@@ -159,7 +159,11 @@ function describeUnselectedStopError(params: {
 	}
 
 	// 部分一致すら無ければ「存在しません」。
-	const partialHits = searchStops(db, trimmed);
+	// バリデーション用途のため limit はデフォルト 20 ではなく、searchStops が
+	// 許容するハードキャップ上限の 100 を明示する。「前」「中央」等の汎用語で
+	// 部分一致が 21 件以上出た場合に厳密一致が上位 20 件から落ち、実在するのに
+	// 「存在しません」と誤判定される事象を防ぐため（gemini #3105538652）。
+	const partialHits = searchStops(db, trimmed, 100);
 	if (partialHits.length === 0) {
 		return `入力された${sideLabel}「${query}」は存在しません。候補から選択してください。`;
 	}
@@ -180,11 +184,12 @@ function describeUnselectedStopError(params: {
 
 	// 相手バス停が選択済みで、到達可能性フィルタ下でも厳密一致が残るかを判定。
 	// partialHits と異なり reachabilityFilter を通した検索結果を再取得し、
-	// 同じ厳密一致条件で再フィルタする。
+	// 同じ厳密一致条件で再フィルタする。partialHits と同じ理由で limit=100 を
+	// 明示する（gemini #3105538658）。
 	const reachableExactHits = searchStops(
 		db,
 		trimmed,
-		undefined,
+		100,
 		partnerFilter,
 	).filter((h) => isExactStopNameMatch(h, trimmed));
 	if (reachableExactHits.length === 0) {
@@ -636,7 +641,7 @@ export function RouteRegistration({
 					 * 「乗り換えなしで到達できない」というキーワードで予告する。
 					 */}
 					<p className="text-xs text-base-content/60">
-						実在するバス停が選択候補にでない場合、乗り換えなしで到達できない組み合わせのため、候補に出てこない可能性があります。
+						実在するバス停が選択候補に出ない場合、乗り換えなしで到達できない組み合わせのため、候補に出てこない可能性があります。
 					</p>
 					<div className="form-control w-full max-w-xs">
 						<label className="label" htmlFor="walk-minutes">

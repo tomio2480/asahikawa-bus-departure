@@ -269,7 +269,7 @@ describe("RouteRegistration コンポーネント", () => {
 		renderComponent();
 		expect(
 			screen.getByText(
-				/実在するバス停が選択候補にでない場合.*乗り換えなしで到達できない組み合わせ/,
+				/実在するバス停が選択候補に出ない場合.*乗り換えなしで到達できない組み合わせ/,
 			),
 		).toBeInTheDocument();
 	});
