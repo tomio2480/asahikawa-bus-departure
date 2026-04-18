@@ -135,38 +135,43 @@ describe("useRoutes", () => {
 					}),
 			);
 
-		const { result } = renderHook(() => useRoutes());
+		try {
+			const { result } = renderHook(() => useRoutes());
 
-		// 初回ロードの失敗が反映されるまで待つ
-		await waitFor(() => {
-			expect(result.current.error).not.toBeNull();
-		});
-		await waitFor(() => {
+			// 初回ロードの失敗が反映されるまで待つ
+			await waitFor(() => {
+				expect(result.current.error).not.toBeNull();
+			});
+			await waitFor(() => {
+				expect(result.current.loading).toBe(false);
+			});
+
+			// reload を開始する（await しない。2 回目のコールは pending のまま）
+			let reloadPromise: Promise<void> = Promise.resolve();
+			act(() => {
+				reloadPromise = result.current.reload();
+			});
+
+			// 2 回目の getAllRoutes が解決する前に loading=true になる必要がある
+			await waitFor(() => {
+				expect(result.current.loading).toBe(true);
+			});
+
+			// 2 回目の呼び出しを解決して reload を完了させる
+			resolveSecondCall([]);
+			await act(async () => {
+				await reloadPromise;
+			});
+
+			// 成功後 loading=false に戻り、error もクリアされる
 			expect(result.current.loading).toBe(false);
-		});
-
-		// reload を開始する（await しない。2 回目のコールは pending のまま）
-		let reloadPromise: Promise<void> = Promise.resolve();
-		act(() => {
-			reloadPromise = result.current.reload();
-		});
-
-		// 2 回目の getAllRoutes が解決する前に loading=true になる必要がある
-		await waitFor(() => {
-			expect(result.current.loading).toBe(true);
-		});
-
-		// 2 回目の呼び出しを解決して reload を完了させる
-		resolveSecondCall([]);
-		await act(async () => {
-			await reloadPromise;
-		});
-
-		// 成功後 loading=false に戻り、error もクリアされる
-		expect(result.current.loading).toBe(false);
-		expect(result.current.error).toBeNull();
-
-		getAllRoutesSpy.mockRestore();
+			expect(result.current.error).toBeNull();
+		} finally {
+			// 途中の assertion/waitFor が throw した場合でも spy を確実に復元する。
+			// 復元されないと後続テスト（real getAllRoutes を使うもの）が漏れた
+			// mock に引きずられて不安定化する。
+			getAllRoutesSpy.mockRestore();
+		}
 	});
 
 	it("remove で経路を削除し一覧から消える", async () => {

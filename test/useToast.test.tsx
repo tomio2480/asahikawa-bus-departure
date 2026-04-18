@@ -72,7 +72,12 @@ describe("useToast", () => {
 
 	it("ToastProvider 外で useToast を呼ぶとエラーになる", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-		expect(() => renderHook(() => useToast())).toThrow(/ToastProvider/);
-		spy.mockRestore();
+		try {
+			expect(() => renderHook(() => useToast())).toThrow(/ToastProvider/);
+		} finally {
+			// assertion が throw した場合でも console.error の spy を確実に復元する。
+			// 漏れると後続テストの本物のエラー出力が suppressed されデバッグが困難になる。
+			spy.mockRestore();
+		}
 	});
 });
