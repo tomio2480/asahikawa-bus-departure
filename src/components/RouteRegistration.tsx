@@ -1,5 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Database } from "sql.js";
+import {
+	NOTIFY_MAX_MINUTES,
+	NOTIFY_MIN_MINUTES,
+} from "../constants/notification";
 import type { NotifyInputCommitResult } from "../hooks/useNotifyBeforeMinutesInput";
 import { useToast } from "../hooks/useToast";
 import { type StopSearchResult, getStopName } from "../lib/stop-search";
@@ -370,8 +374,8 @@ export function RouteRegistration({
 										id="notify-before-minutes"
 										type="number"
 										className="input input-bordered input-xs w-14"
-										min="1"
-										max="60"
+										min={NOTIFY_MIN_MINUTES}
+										max={NOTIFY_MAX_MINUTES}
 										step="1"
 										aria-describedby="notify-before-minutes-unit"
 										value={notifyInputValue ?? ""}

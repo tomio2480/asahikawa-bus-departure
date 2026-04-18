@@ -1,4 +1,8 @@
 import { useCallback, useState } from "react";
+import {
+	NOTIFY_MAX_MINUTES,
+	NOTIFY_MIN_MINUTES,
+} from "../constants/notification";
 import { useNotificationSettings } from "./useNotificationSettings";
 
 /**
@@ -9,10 +13,6 @@ import { useNotificationSettings } from "./useNotificationSettings";
 export type NotifyInputCommitResult =
 	| { ok: true; committedMinutes: number }
 	| { ok: false; error: unknown };
-
-/** 通知タイミング（発車の何分前か）の入力値が満たすべき範囲 */
-const MIN_MINUTES = 1;
-const MAX_MINUTES = 60;
 
 /**
  * 通知タイミング入力の確定値と編集中の値を同一スコープで保持するフック。
@@ -37,8 +37,8 @@ export function useNotifyBeforeMinutesInput() {
 	const isValid =
 		inputValue.trim() !== "" &&
 		Number.isInteger(parsed) &&
-		parsed >= MIN_MINUTES &&
-		parsed <= MAX_MINUTES;
+		parsed >= NOTIFY_MIN_MINUTES &&
+		parsed <= NOTIFY_MAX_MINUTES;
 	const isChanged = parsed !== minutes;
 	const canCommit = isValid && isChanged;
 
