@@ -609,3 +609,125 @@ describe("searchStops（到達可能性フィルタ）", () => {
 		expect(results).toHaveLength(1);
 	});
 });
+
+describe("searchStops（クラスタ契約 × 到達可能性フィルタ）", () => {
+	// coderabbitai #96 指摘: 到達可能性フィルタは SQL の WHERE 段階ではなく
+	// クラスタリング後に適用する必要がある。SQL 段階で個別 stop を除外すると
+	// 「クラスタ内の一部のみ直通便で到達可能」なケースで clusterStopIds が
+	// 欠落し、StopSearchResult.clusterStopIds の「クラスタに含まれる全物理
+	// バス停」という契約が破壊されるため。
+	//
+	// このテストは契約そのものを検証する Red テスト。現行実装では failing する。
+	const stops: GtfsData["stops"] = [
+		// origin（クエリには含まれないため結果には出ない）
+		{
+			stop_id: "S000",
+			stop_name: "起点",
+			stop_lat: 43.76,
+			stop_lon: 142.35,
+		},
+		// クラスタ「合流停」: 同名かつ 500m 以内 → 1 クラスタに統合される
+		{
+			stop_id: "S001",
+			stop_name: "合流停",
+			stop_lat: 43.77,
+			stop_lon: 142.36,
+		},
+		{
+			stop_id: "S002",
+			stop_name: "合流停",
+			stop_lat: 43.7701,
+			stop_lon: 142.3601,
+		},
+	];
+
+	const routes: GtfsData["routes"] = [
+		{ route_id: "R001", agency_id: "A001", route_short_name: "1" },
+	];
+
+	const calendar: GtfsData["calendar"] = [
+		{
+			service_id: "weekday",
+			monday: 1,
+			tuesday: 1,
+			wednesday: 1,
+			thursday: 1,
+			friday: 1,
+			saturday: 0,
+			sunday: 0,
+			start_date: "20260401",
+			end_date: "20280407",
+		},
+	];
+
+	const trips: GtfsData["trips"] = [
+		{ trip_id: "T001", route_id: "R001", service_id: "weekday" },
+	];
+
+	// T001: S000 → S001 のみ。同じクラスタの S002 には直通便が無い。
+	const stopTimes: GtfsData["stop_times"] = [
+		{
+			trip_id: "T001",
+			arrival_time: "08:00:00",
+			departure_time: "08:00:00",
+			stop_id: "S000",
+			stop_sequence: 1,
+		},
+		{
+			trip_id: "T001",
+			arrival_time: "08:10:00",
+			departure_time: "08:10:00",
+			stop_id: "S001",
+			stop_sequence: 2,
+		},
+	];
+
+	let db: Database;
+
+	beforeEach(() => {
+		db = new SQL.Database();
+		createSchema(db);
+		loadGtfsData(
+			db,
+			{
+				...emptyGtfsBase,
+				stops,
+				routes,
+				calendar,
+				trips,
+				stop_times: stopTimes,
+			},
+			"test",
+		);
+	});
+
+	afterEach(() => {
+		db.close();
+	});
+
+	it("クラスタ内の一部のみ直通便で到達可能でも clusterStopIds にはクラスタ全体が含まれる", () => {
+		// origin=S000 から直通便で到達可能なのは S001 のみ。S002 は同一クラスタ
+		// だが直通便が無い。クラスタ自体は「到達可能なメンバーが 1 つでもあれば」
+		// 結果に含め、clusterStopIds には S001 と S002 の両方を保持する。
+		const results = searchStops(db, "合流停", undefined, {
+			reachableFromOrigin: ["test:S000"],
+		});
+
+		expect(results).toHaveLength(1);
+		expect(results[0].stop_name).toBe("合流停");
+		expect([...results[0].clusterStopIds].sort()).toEqual([
+			"test:S001",
+			"test:S002",
+		]);
+	});
+
+	it("クラスタ内のどのメンバーからも direct に到達できない場合のみクラスタを除外する", () => {
+		// destination=S000 に対して、クラスタ {S001, S002} のどちらからも
+		// S000 への直通便は無い（T001 は S000→S001 の一方向のみ）。
+		// この場合はクラスタごと結果から除外される。
+		const results = searchStops(db, "合流停", undefined, {
+			reachableToDestination: ["test:S000"],
+		});
+		expect(results).toHaveLength(0);
+	});
+});

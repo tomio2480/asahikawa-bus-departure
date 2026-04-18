@@ -1,5 +1,6 @@
 import type { Database } from "sql.js";
 import { NEARBY_THRESHOLD_METERS, distanceMeters } from "./geo-utils";
+import { isReachable } from "./stop-reachability";
 
 /** 名前統合の距離閾値（メートル） */
 const MERGE_THRESHOLD_METERS = 200;
@@ -80,85 +81,80 @@ export function searchStops(
 
 	const escaped = escapeLike(trimmed);
 
-	// ReachabilityFilter の EXISTS 句を組み立てる。
+	// coderabbitai #96 指摘: 到達可能性フィルタは SQL 段階ではなく
+	// クラスタリング後に適用する。SQL 段階で個別 stop を除外すると、
+	// クラスタ内で一部メンバーのみ直通便の起点/終点に成り得るケースで
+	// `clusterStopIds` の「クラスタに含まれる全物理バス停」という契約が
+	// 破壊される（事業者バッジの欠落や名前統合の崩れを招く）ため。
+	// ここでは名前マッチのみを SQL で行い、到達可能性はクラスタ単位で
+	// `isReachable` を使って判定する。
+	//
 	// 空配列は「フィルタなし」と解釈し、呼び出し側で未選択状態を
 	// 安全に扱えるようにする（クラスタ展開の結果が空のときの防御）。
-	const whereClauses: string[] = ["stop_name LIKE ? ESCAPE '\\'"];
-	const bindings: (string | number)[] = [`%${escaped}%`];
-
-	const originIds = filter.reachableFromOrigin;
-	if (originIds !== undefined && originIds.length > 0) {
-		const placeholders = originIds.map(() => "?").join(", ");
-		whereClauses.push(
-			`EXISTS (
-				SELECT 1 FROM stop_times st_from
-				JOIN stop_times st_to
-					ON st_from.trip_id = st_to.trip_id
-					AND st_from.stop_sequence < st_to.stop_sequence
-				WHERE st_from.stop_id IN (${placeholders})
-					AND st_to.stop_id = stops.stop_id
-			)`,
-		);
-		bindings.push(...originIds);
-	}
-
-	const destinationIds = filter.reachableToDestination;
-	if (destinationIds !== undefined && destinationIds.length > 0) {
-		const placeholders = destinationIds.map(() => "?").join(", ");
-		whereClauses.push(
-			`EXISTS (
-				SELECT 1 FROM stop_times st_from
-				JOIN stop_times st_to
-					ON st_from.trip_id = st_to.trip_id
-					AND st_from.stop_sequence < st_to.stop_sequence
-				WHERE st_from.stop_id = stops.stop_id
-					AND st_to.stop_id IN (${placeholders})
-			)`,
-		);
-		bindings.push(...destinationIds);
-	}
-
-	const sql = `SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE ${whereClauses.join(" AND ")} ORDER BY stop_name, stop_id`;
+	const sql =
+		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE stop_name LIKE ? ESCAPE '\\' ORDER BY stop_name, stop_id";
 	const stmt = db.prepare(sql);
+	let rawRows: RawStopRow[];
 	try {
-		stmt.bind(bindings);
-		const rawRows: RawStopRow[] = [];
+		stmt.bind([`%${escaped}%`]);
+		rawRows = [];
 		while (stmt.step()) {
 			const row = stmt.getAsObject() as unknown as RawStopRow;
 			rawRows.push(row);
 		}
-
-		if (rawRows.length === 0) {
-			return [];
-		}
-
-		const clusters = clusterByNameAndDistance(rawRows);
-		const needsDisambiguation = findNamesNeedingDisambiguation(clusters);
-		const results: StopSearchResult[] = [];
-
-		for (const cluster of clusters) {
-			if (results.length >= sanitizedLimit) break;
-
-			const result: StopSearchResult = {
-				stop_id: cluster.representativeId,
-				stop_name: cluster.stopName,
-				clusterStopIds: cluster.stopIds,
-			};
-
-			if (needsDisambiguation.has(cluster.stopName)) {
-				result.disambiguationLabel = resolveDisambiguationLabel(
-					db,
-					cluster.representativeId,
-				);
-			}
-
-			results.push(result);
-		}
-
-		return results;
 	} finally {
 		stmt.free();
 	}
+
+	if (rawRows.length === 0) {
+		return [];
+	}
+
+	const clusters = clusterByNameAndDistance(rawRows);
+
+	const originIds = filter.reachableFromOrigin;
+	const hasOriginFilter = originIds !== undefined && originIds.length > 0;
+	const destinationIds = filter.reachableToDestination;
+	const hasDestinationFilter =
+		destinationIds !== undefined && destinationIds.length > 0;
+
+	// クラスタ単位の到達可能性判定。クラスタ内のいずれかのメンバーが
+	// 条件を満たせばクラスタを採用し、clusterStopIds は生成時の完全な
+	// 集合を保持する。
+	const filteredClusters = clusters.filter((cluster) => {
+		const prefixedIds = cluster.stopIds;
+		if (hasOriginFilter && !isReachable(db, originIds, prefixedIds)) {
+			return false;
+		}
+		if (hasDestinationFilter && !isReachable(db, prefixedIds, destinationIds)) {
+			return false;
+		}
+		return true;
+	});
+
+	const needsDisambiguation = findNamesNeedingDisambiguation(filteredClusters);
+	const results: StopSearchResult[] = [];
+
+	for (const cluster of filteredClusters) {
+		if (results.length >= sanitizedLimit) break;
+
+		const result: StopSearchResult = {
+			stop_id: cluster.representativeId,
+			stop_name: cluster.stopName,
+			clusterStopIds: cluster.stopIds,
+		};
+
+		if (needsDisambiguation.has(cluster.stopName)) {
+			result.disambiguationLabel = resolveDisambiguationLabel(
+				db,
+				cluster.representativeId,
+			);
+		}
+
+		results.push(result);
+	}
+
+	return results;
 }
 
 /**
