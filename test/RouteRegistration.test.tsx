@@ -7,6 +7,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { type ReactElement, useState } from "react";
 import initSqlJs from "sql.js";
+import type { Database } from "sql.js";
 import {
 	afterEach,
 	beforeAll,
@@ -16,7 +17,6 @@ import {
 	it,
 	vi,
 } from "vitest";
-import type { Database } from "sql.js";
 import { RouteRegistration } from "../src/components/RouteRegistration";
 import { ToastContainer } from "../src/components/Toast";
 import type { NotifyInputCommitResult } from "../src/hooks/useNotifyBeforeMinutesInput";
@@ -59,6 +59,82 @@ const testStops: GtfsData["stops"] = [
 	},
 ];
 
+/**
+ * Issue #90: 共通テストデータの全バス停間で直通便が成立するよう、
+ * 往復の trip と stop_times を用意する。これにより乗降の順序を問わず
+ * 既存の「from → to を選んで登録」テストが到達可能性ガードを通過する。
+ */
+const testRoutes: GtfsData["routes"] = [
+	{ route_id: "R001", agency_id: "A001", route_short_name: "1" },
+];
+
+const testCalendar: GtfsData["calendar"] = [
+	{
+		service_id: "weekday",
+		monday: 1,
+		tuesday: 1,
+		wednesday: 1,
+		thursday: 1,
+		friday: 1,
+		saturday: 0,
+		sunday: 0,
+		start_date: "20260401",
+		end_date: "20280407",
+	},
+];
+
+const testTrips: GtfsData["trips"] = [
+	{ trip_id: "T001", route_id: "R001", service_id: "weekday" },
+	{ trip_id: "T002", route_id: "R001", service_id: "weekday" },
+];
+
+const testStopTimes: GtfsData["stop_times"] = [
+	// T001: 旭川駅前 → 市役所前 → 旭川四条駅
+	{
+		trip_id: "T001",
+		arrival_time: "08:00:00",
+		departure_time: "08:00:00",
+		stop_id: "S001",
+		stop_sequence: 1,
+	},
+	{
+		trip_id: "T001",
+		arrival_time: "08:05:00",
+		departure_time: "08:05:00",
+		stop_id: "S002",
+		stop_sequence: 2,
+	},
+	{
+		trip_id: "T001",
+		arrival_time: "08:10:00",
+		departure_time: "08:10:00",
+		stop_id: "S003",
+		stop_sequence: 3,
+	},
+	// T002: 逆向き（旭川四条駅 → 市役所前 → 旭川駅前）
+	{
+		trip_id: "T002",
+		arrival_time: "09:00:00",
+		departure_time: "09:00:00",
+		stop_id: "S003",
+		stop_sequence: 1,
+	},
+	{
+		trip_id: "T002",
+		arrival_time: "09:05:00",
+		departure_time: "09:05:00",
+		stop_id: "S002",
+		stop_sequence: 2,
+	},
+	{
+		trip_id: "T002",
+		arrival_time: "09:10:00",
+		departure_time: "09:10:00",
+		stop_id: "S001",
+		stop_sequence: 3,
+	},
+];
+
 const emptyGtfsBase: GtfsData = {
 	agency: [{ agency_id: "A001", agency_name: "テストバス" }],
 	stops: [],
@@ -82,7 +158,18 @@ beforeAll(async () => {
 beforeEach(() => {
 	db = new SQL.Database();
 	createSchema(db);
-	loadGtfsData(db, { ...emptyGtfsBase, stops: testStops }, "test");
+	loadGtfsData(
+		db,
+		{
+			...emptyGtfsBase,
+			stops: testStops,
+			routes: testRoutes,
+			calendar: testCalendar,
+			trips: testTrips,
+			stop_times: testStopTimes,
+		},
+		"test",
+	);
 });
 
 afterEach(() => {
@@ -121,7 +208,9 @@ function renderComponent(routes: RegisteredRouteEntry[] = []) {
 function NotifyHarness(props: {
 	db: Database;
 	routes: RegisteredRouteEntry[];
-	onAdd: (entry: Omit<import("../src/types/route-entry").RouteEntry, "id">) => Promise<number>;
+	onAdd: (
+		entry: Omit<import("../src/types/route-entry").RouteEntry, "id">,
+	) => Promise<number>;
 	onUpdate: (entry: RegisteredRouteEntry) => Promise<void>;
 	onDelete: (id: number) => Promise<void>;
 	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
@@ -131,11 +220,7 @@ function NotifyHarness(props: {
 	/** commit 時に minutes 引数で呼ばれる。throw すると rollback される */
 	onCommitSpy?: (minutes: number) => void;
 }) {
-	const {
-		initialMinutes = 5,
-		onCommitSpy,
-		...componentProps
-	} = props;
+	const { initialMinutes = 5, onCommitSpy, ...componentProps } = props;
 	const [minutes, setMinutes] = useState(initialMinutes);
 	const [inputValue, setInputValue] = useState(String(initialMinutes));
 
@@ -309,18 +394,20 @@ describe("RouteRegistration コンポーネント", () => {
 	});
 
 	it("同一バス停を選択して登録するとエラーメッセージが表示される", async () => {
-		renderComponent();
+		// Issue #90: 降車ドロップダウンは乗車と同じバス停を除外するため、
+		// 通常フローでは同一バス停を選択できない。編集経路で同一バス停の
+		// エントリを読み込み、フォーム上で同じバス停同士になった状態を
+		// 再現して submit ガードを検証する。
+		const sameFromToRoute: RegisteredRouteEntry = {
+			id: 1,
+			fromStopId: "test:S001",
+			toStopId: "test:S001",
+			walkMinutes: 5,
+		};
+		renderComponent([sameFromToRoute]);
 
-		const comboboxes = screen.getAllByRole("combobox");
-		await userEvent.type(comboboxes[0], "旭川駅");
-		await userEvent.click(screen.getByText("旭川駅前"));
-		await userEvent.type(comboboxes[1], "旭川駅");
-		await userEvent.click(screen.getByText("旭川駅前"));
-
-		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
-		await userEvent.type(walkInput, "5");
-
-		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		await userEvent.click(screen.getByRole("button", { name: "編集" }));
+		await userEvent.click(screen.getByRole("button", { name: "更新" }));
 
 		expect(
 			screen.getByText(
@@ -1636,5 +1723,190 @@ describe("RouteRegistration コンポーネント", () => {
 		const rows = screen.getAllByRole("row");
 		// ヘッダ行 + データ行 2 件
 		expect(rows).toHaveLength(3);
+	});
+});
+
+/**
+ * Issue #90: 乗降車バス停の候補を直通便で絞り込む統合テスト。
+ *
+ * 専用の GTFS データを構築し、T001: A→B→C の直通便のみが存在する状況で、
+ * - 乗車バス停選択後の降車バス停候補が絞り込まれること
+ * - 直通便が無い組み合わせで submit してもガードが働くこと
+ * を確認する。
+ */
+describe("RouteRegistration（到達可能性フィルタ）", () => {
+	const stops: GtfsData["stops"] = [
+		{ stop_id: "S001", stop_name: "A停", stop_lat: 43.76, stop_lon: 142.35 },
+		{ stop_id: "S002", stop_name: "B停", stop_lat: 43.77, stop_lon: 142.36 },
+		{ stop_id: "S003", stop_name: "C停", stop_lat: 43.78, stop_lon: 142.37 },
+		{ stop_id: "S004", stop_name: "D停", stop_lat: 43.79, stop_lon: 142.38 },
+	];
+
+	const routes: GtfsData["routes"] = [
+		{ route_id: "R001", agency_id: "A001", route_short_name: "1" },
+	];
+
+	const calendar: GtfsData["calendar"] = [
+		{
+			service_id: "weekday",
+			monday: 1,
+			tuesday: 1,
+			wednesday: 1,
+			thursday: 1,
+			friday: 1,
+			saturday: 0,
+			sunday: 0,
+			start_date: "20260401",
+			end_date: "20280407",
+		},
+	];
+
+	const trips: GtfsData["trips"] = [
+		{ trip_id: "T001", route_id: "R001", service_id: "weekday" },
+	];
+
+	// T001: A → B → C の直通便のみ。D は孤立。
+	const stopTimes: GtfsData["stop_times"] = [
+		{
+			trip_id: "T001",
+			arrival_time: "08:00:00",
+			departure_time: "08:00:00",
+			stop_id: "S001",
+			stop_sequence: 1,
+		},
+		{
+			trip_id: "T001",
+			arrival_time: "08:05:00",
+			departure_time: "08:05:00",
+			stop_id: "S002",
+			stop_sequence: 2,
+		},
+		{
+			trip_id: "T001",
+			arrival_time: "08:10:00",
+			departure_time: "08:10:00",
+			stop_id: "S003",
+			stop_sequence: 3,
+		},
+	];
+
+	beforeEach(() => {
+		db = new SQL.Database();
+		createSchema(db);
+		loadGtfsData(
+			db,
+			{
+				...emptyGtfsBase,
+				stops,
+				routes,
+				calendar,
+				trips,
+				stop_times: stopTimes,
+			},
+			"test",
+		);
+	});
+
+	it("乗車バス停選択後、降車バス停の候補は直通便で到達可能な停留所のみ表示される", async () => {
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={[]}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+			/>,
+		);
+
+		// 乗車バス停で A を選択
+		const fromInput = screen.getByRole("combobox", { name: "乗車バス停" });
+		await userEvent.type(fromInput, "A停");
+		await userEvent.click(screen.getByText("A停"));
+
+		// 降車バス停のドロップダウンを開く
+		const toInput = screen.getByRole("combobox", { name: "降車バス停" });
+		await userEvent.type(toInput, "停");
+
+		// A 発の直通便で到達できる B, C のみが候補になり、D と A 自身は除外される
+		expect(screen.getByText("B停")).toBeInTheDocument();
+		expect(screen.getByText("C停")).toBeInTheDocument();
+		// A は乗車バス停の入力欄に残っているため、getAllByText で降車ドロップダウン側に
+		// A が現れていないことを確認する（listbox 内に A が無いことを検証）
+		const listbox = screen.getByRole("listbox");
+		expect(listbox).not.toHaveTextContent("A停");
+		expect(listbox).not.toHaveTextContent("D停");
+	});
+
+	it("降車バス停選択後、乗車バス停の候補は直通便で到達可能な停留所のみ表示される", async () => {
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={[]}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+			/>,
+		);
+
+		// 降車バス停で C を選択
+		const toInput = screen.getByRole("combobox", { name: "降車バス停" });
+		await userEvent.type(toInput, "C停");
+		await userEvent.click(screen.getByText("C停"));
+
+		// 乗車バス停のドロップダウンを開く
+		const fromInput = screen.getByRole("combobox", { name: "乗車バス停" });
+		await userEvent.type(fromInput, "停");
+
+		// C に直通で到達できる A, B のみが候補になる
+		expect(screen.getByText("A停")).toBeInTheDocument();
+		expect(screen.getByText("B停")).toBeInTheDocument();
+		const listbox = screen.getByRole("listbox");
+		expect(listbox).not.toHaveTextContent("C停");
+		expect(listbox).not.toHaveTextContent("D停");
+	});
+
+	it("直通便の無い組み合わせで submit するとエラーメッセージが表示され onAdd は呼ばれない", async () => {
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		// 編集経由で A → D（直通便なし）を事前に入れる。
+		// 編集モードで form state にセットされたあと、そのまま「更新」を押して
+		// submit ガードが働くかを検証する。
+		const unreachableRoute: RegisteredRouteEntry = {
+			id: 1,
+			fromStopId: "test:S001",
+			toStopId: "test:S004",
+			walkMinutes: 10,
+		};
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={[unreachableRoute]}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+			/>,
+		);
+
+		// 編集ボタンを押して form に A → D を載せる
+		await userEvent.click(screen.getByRole("button", { name: "編集" }));
+
+		// 「更新」ボタンを押す → submit ガードでエラーが表示される
+		await userEvent.click(screen.getByRole("button", { name: "更新" }));
+
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			/直通便|到達|経路がありません/,
+		);
+		expect(onUpdate).not.toHaveBeenCalled();
 	});
 });

@@ -27,6 +27,20 @@ export type StopSearchResult = {
 /** 検索結果の最大件数 */
 const DEFAULT_LIMIT = 20;
 
+/**
+ * 到達可能性フィルタオプション。
+ *
+ * Issue #90: 乗り換えを前提としないため、検索結果から直通便で
+ * 到達不能なバス停を除外するために用いる。両フィールドを同時に
+ * 指定した場合は AND 条件で絞り込む。
+ */
+export type ReachabilityFilter = {
+	/** 指定した stop_id 群のいずれかから直通便で到達できる候補のみ返す */
+	reachableFromOrigin?: string[];
+	/** 指定した stop_id 群のいずれかに直通便で到達できる候補のみ返す */
+	reachableToDestination?: string[];
+};
+
 /** SQL から取得する生データの型 */
 type RawStopRow = {
 	stop_id: string;
@@ -54,7 +68,8 @@ type StopCluster = {
 export function searchStops(
 	db: Database,
 	query: string,
-	limit = DEFAULT_LIMIT,
+	limit: number = DEFAULT_LIMIT,
+	filter: ReachabilityFilter = {},
 ): StopSearchResult[] {
 	const trimmed = query.trim();
 	if (trimmed === "") {
@@ -64,11 +79,49 @@ export function searchStops(
 	const sanitizedLimit = Math.max(1, Math.min(Math.floor(limit), 100));
 
 	const escaped = escapeLike(trimmed);
-	const stmt = db.prepare(
-		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE stop_name LIKE ? ESCAPE '\\' ORDER BY stop_name, stop_id",
-	);
+
+	// ReachabilityFilter の EXISTS 句を組み立てる。
+	// 空配列は「フィルタなし」と解釈し、呼び出し側で未選択状態を
+	// 安全に扱えるようにする（クラスタ展開の結果が空のときの防御）。
+	const whereClauses: string[] = ["stop_name LIKE ? ESCAPE '\\'"];
+	const bindings: (string | number)[] = [`%${escaped}%`];
+
+	const originIds = filter.reachableFromOrigin;
+	if (originIds !== undefined && originIds.length > 0) {
+		const placeholders = originIds.map(() => "?").join(", ");
+		whereClauses.push(
+			`EXISTS (
+				SELECT 1 FROM stop_times st_from
+				JOIN stop_times st_to
+					ON st_from.trip_id = st_to.trip_id
+					AND st_from.stop_sequence < st_to.stop_sequence
+				WHERE st_from.stop_id IN (${placeholders})
+					AND st_to.stop_id = stops.stop_id
+			)`,
+		);
+		bindings.push(...originIds);
+	}
+
+	const destinationIds = filter.reachableToDestination;
+	if (destinationIds !== undefined && destinationIds.length > 0) {
+		const placeholders = destinationIds.map(() => "?").join(", ");
+		whereClauses.push(
+			`EXISTS (
+				SELECT 1 FROM stop_times st_from
+				JOIN stop_times st_to
+					ON st_from.trip_id = st_to.trip_id
+					AND st_from.stop_sequence < st_to.stop_sequence
+				WHERE st_from.stop_id = stops.stop_id
+					AND st_to.stop_id IN (${placeholders})
+			)`,
+		);
+		bindings.push(...destinationIds);
+	}
+
+	const sql = `SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE ${whereClauses.join(" AND ")} ORDER BY stop_name, stop_id`;
+	const stmt = db.prepare(sql);
 	try {
-		stmt.bind([`%${escaped}%`]);
+		stmt.bind(bindings);
 		const rawRows: RawStopRow[] = [];
 		while (stmt.step()) {
 			const row = stmt.getAsObject() as unknown as RawStopRow;
@@ -175,9 +228,7 @@ function clusterByNameAndDistance(rows: RawStopRow[]): StopCluster[] {
 		for (let j = i + 1; j < clusters.length; j++) {
 			const canMerge =
 				normalizedMergedNames[i].some((ni) =>
-					normalizedMergedNames[j].some((nj) =>
-						normalizedNamesContain(ni, nj),
-					),
+					normalizedMergedNames[j].some((nj) => normalizedNamesContain(ni, nj)),
 				) &&
 				distanceMeters(
 					clusters[i].lat,
@@ -320,8 +371,7 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 	const degPerMeter = 1 / 111_000; // 緯度 1 度 ≈ 111km
 	const latDelta = MERGE_THRESHOLD_METERS * degPerMeter;
 	const lonDelta =
-		MERGE_THRESHOLD_METERS /
-		(111_000 * Math.cos((refLat * Math.PI) / 180));
+		MERGE_THRESHOLD_METERS / (111_000 * Math.cos((refLat * Math.PI) / 180));
 	const nearbyStmt = db.prepare(
 		"SELECT stop_id, stop_name, stop_lat, stop_lon FROM stops WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ?",
 	);
@@ -341,7 +391,10 @@ export function getSiblingStopIds(db: Database, stopId: string): string[] {
 			};
 			if (siblingIds.has(row.stop_id)) continue;
 			if (
-				normalizedNamesContain(normalizedRefName, normalizeName(row.stop_name)) &&
+				normalizedNamesContain(
+					normalizedRefName,
+					normalizeName(row.stop_name),
+				) &&
 				distanceMeters(refLat, refLon, row.stop_lat, row.stop_lon) <=
 					MERGE_THRESHOLD_METERS
 			) {

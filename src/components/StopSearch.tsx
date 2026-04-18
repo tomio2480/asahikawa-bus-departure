@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { Database } from "sql.js";
 import { getAgencyColor } from "../lib/agency-colors";
-import { type StopSearchResult, searchStops } from "../lib/stop-search";
+import {
+	type ReachabilityFilter,
+	type StopSearchResult,
+	searchStops,
+} from "../lib/stop-search";
 
 type StopSearchProps = {
 	/** sql.js データベースインスタンス */
@@ -14,6 +18,12 @@ type StopSearchProps = {
 	selectedStop?: StopSearchResult | null;
 	/** placeholder テキスト */
 	placeholder?: string;
+	/**
+	 * Issue #90: 候補を直通便で到達可能なバス停に絞り込むフィルタ。
+	 * 乗車側では reachableToDestination、降車側では reachableFromOrigin を
+	 * 親コンポーネントで構築して渡す。
+	 */
+	reachabilityFilter?: ReachabilityFilter;
 };
 
 /** バス停名のインクリメンタルサーチコンポーネント */
@@ -23,6 +33,7 @@ export function StopSearch({
 	onSelect,
 	selectedStop = null,
 	placeholder = "バス停名を入力",
+	reachabilityFilter,
 }: StopSearchProps) {
 	const id = useId();
 	const [query, setQuery] = useState(selectedStop?.stop_name ?? "");
@@ -46,12 +57,25 @@ export function StopSearch({
 				setIsOpen(false);
 				return;
 			}
-			const found = searchStops(db, value);
+			const found = searchStops(db, value, undefined, reachabilityFilter);
 			setResults(found);
 			setIsOpen(found.length > 0);
 		},
-		[db],
+		[db, reachabilityFilter],
 	);
+
+	// reachabilityFilter の変更時に現在の入力で再検索する。
+	// 親が選択した相手側バス停が変わったときに即座に候補を絞り込み直すため、
+	// ドロップダウンが開いている状態でもその中身だけを更新する（Escape で
+	// 閉じた状態は維持する）。
+	useEffect(() => {
+		if (query.trim() === "") {
+			setResults([]);
+			return;
+		}
+		const found = searchStops(db, query, undefined, reachabilityFilter);
+		setResults(found);
+	}, [reachabilityFilter, db, query]);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {
