@@ -76,8 +76,26 @@ export function StopSearch({
 	// （coderabbitai #96 指摘）。
 	const isListboxOpen = isOpen && results.length > 0;
 
-	// 外部から selectedStop が変更された場合に入力欄を同期する
+	// 本コンポーネント自身が発する onSelect(null) による selectedStop=null
+	// への遷移と、外部起因の selectedStop 変更（handleEdit / resetForm 等）を
+	// 区別するためのフラグ。前者では query を空に戻したくないが、後者では
+	// query を新しい値に同期したい。
+	//
+	// 内部起因（ユーザーが選択済みの入力を書き換えた）の場合だけこのフラグを
+	// 立て、直後に発火する selectedStop 同期 useEffect でスキップさせる。
+	// これにより、選択後に input を書き換えたときユーザーの打鍵がそのまま
+	// 残り、到達不能・存在しないバス停で submit したときの再検証ガードも
+	// 正しく働くようになる。
+	const suppressNextSelectedSyncRef = useRef(false);
+
+	// 外部から selectedStop が変更された場合に入力欄を同期する。
+	// 内部起因（handleSearch の onSelect(null)）経由の selectedStop=null
+	// 遷移ではスキップし、ユーザーが打鍵した中間状態の query を保持する。
 	useEffect(() => {
+		if (suppressNextSelectedSyncRef.current) {
+			suppressNextSelectedSyncRef.current = false;
+			return;
+		}
 		setQuery(selectedStop?.stop_name ?? "");
 	}, [selectedStop]);
 
@@ -89,10 +107,10 @@ export function StopSearch({
 			// 選択状態を無効化する。これにより「選択後に入力だけ書き換えて
 			// submit」された場合でも、親の form state が null に戻り、
 			// 実在性・到達可能性の再検証（= submit ガード）が正しく走る。
-			// `selectedStop` prop 経由の useEffect による setQuery（下記参照）
-			// では `value === selectedStop.stop_name` になるため、ここでは
-			// 呼ばれず、親 state を破壊するループにはならない。
+			// 直後の useEffect が selectedStop=null を受けて query を空に
+			// 戻さないよう、suppress フラグを立ててから onSelect(null) を呼ぶ。
 			if (selectedStop && value !== selectedStop.stop_name) {
+				suppressNextSelectedSyncRef.current = true;
 				onSelect(null);
 			}
 			if (value.trim() === "") {

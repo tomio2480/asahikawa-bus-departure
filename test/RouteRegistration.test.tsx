@@ -375,8 +375,12 @@ describe("RouteRegistration コンポーネント", () => {
 		await userEvent.type(comboboxes[1], "市役所");
 		await userEvent.click(screen.getByText("市役所前"));
 
-		// 選択後、乗車バス停の input を「存在しない名称」に書き換える
+		// 選択後、乗車バス停の input を「存在しない名称」に書き換える。
+		// ユーザーが実際に入力した文字が残っていることも検証する
+		// （selectedStop が null に戻った際の useEffect で query が空に
+		// 吹き飛ぶ再発を検出するため）。
 		await userEvent.type(comboboxes[0], "xxx");
+		expect(comboboxes[0]).toHaveValue("旭川駅前xxx");
 
 		await userEvent.click(screen.getByRole("button", { name: "登録" }));
 
