@@ -156,45 +156,56 @@ Biome によるリントとフォーマットを実行する。
 
 ```text
 src/
-├── App.tsx                     # アプリケーションのルートコンポーネント
+├── App.tsx                         # アプリケーションのルートコンポーネント
 ├── components/
-│   ├── DepartureBoard.tsx      # 発車案内テーブル
-│   ├── MapView.tsx             # 経路マップ
-│   ├── RouteRegistration.tsx   # 経路登録フォーム
-│   ├── StopSearch.tsx          # バス停インクリメンタルサーチ
-│   ├── RouteTransfer.tsx       # エクスポート / インポート
-│   ├── Footer.tsx              # フッター・免責表示・データ出典
-│   ├── ExpiryWarning.tsx       # データ有効期限の警告
-│   └── LoadingSpinner.tsx      # 読み込み中表示
+│   ├── DepartureBoard.tsx          # 発車案内テーブル
+│   ├── MapView.tsx                 # 経路マップ
+│   ├── RouteRegistration.tsx       # 経路登録フォーム
+│   ├── StopSearch.tsx              # バス停インクリメンタルサーチ
+│   ├── RouteTransfer.tsx           # エクスポート / インポート
+│   ├── Toast.tsx                   # 操作結果フィードバック表示
+│   ├── Footer.tsx                  # フッター・免責表示・データ出典
+│   ├── ExpiryWarning.tsx           # データ有効期限の警告
+│   └── LoadingSpinner.tsx          # 読み込み中表示
 ├── hooks/
-│   ├── useDatabase.ts          # GTFS データベースの初期化
-│   ├── useDepartures.ts        # 発車案内の取得とグルーピング
-│   ├── useRoutes.ts            # 登録経路の CRUD
-│   ├── useTheme.ts             # テーマ切り替え（ライト / ダーク / デバイス設定）
-│   ├── useNotification.ts      # 発車前の通知送信
-│   └── useNotificationSettings.ts # 通知タイミング設定
+│   ├── useDatabase.ts              # GTFS データベースの初期化
+│   ├── useDepartures.ts            # 発車案内の取得とグルーピング
+│   ├── useRoutes.ts                # 登録経路の CRUD
+│   ├── useTheme.ts                 # テーマ切り替え（ライト / ダーク / デバイス設定）
+│   ├── useNotification.ts          # 発車前の通知送信
+│   ├── useNotificationSettings.ts  # 通知タイミングの永続化
+│   ├── useNotifyBeforeMinutesInput.ts # 通知タイミング入力の編集中値管理
+│   └── useToast.tsx                # Toast 表示の Provider / フック
 ├── lib/
-│   ├── gtfs-loader.ts          # GTFS JSON を sql.js に読み込む
-│   ├── departure-query.ts      # 発車時刻の検索クエリ
-│   ├── calendar-service.ts     # 運行日判定
-│   ├── fare-query.ts           # 運賃検索
-│   ├── stop-search.ts          # バス停検索・兄弟停留所展開
-│   ├── route-store.ts          # IndexedDB による経路永続化
-│   ├── agency-colors.ts        # 事業者カラー定義
-│   ├── data-expiry.ts          # データ有効期限の算出
-│   ├── shape-query.ts          # 経路形状の取得
-│   └── geo-utils.ts            # 座標計算ユーティリティ
-└── types/                      # 型定義
+│   ├── gtfs-loader.ts              # GTFS JSON を sql.js に読み込む
+│   ├── departure-query.ts          # 発車時刻の検索クエリ
+│   ├── calendar-service.ts         # 運行日判定
+│   ├── fare-query.ts               # 運賃検索
+│   ├── stop-search.ts              # バス停検索・兄弟停留所展開
+│   ├── stop-reachability.ts        # 直通便による到達可能性判定
+│   ├── route-store.ts              # IndexedDB による経路永続化
+│   ├── agency-colors.ts            # 事業者カラー定義
+│   ├── data-expiry.ts              # データ有効期限の算出
+│   ├── shape-query.ts              # 経路形状の取得
+│   └── geo-utils.ts                # 座標計算ユーティリティ
+├── constants/                      # 複数箇所で共有する定数（通知タイミング範囲など）
+└── types/                          # 型定義
 
 scripts/
-├── compare-calendar.sh         # カレンダー期間の変更検出
-├── convert-gtfs.ts             # GTFS CSV → JSON 変換
-├── run-pfaedle.sh              # pfaedle による経路形状生成
-└── validate-shapes.ts          # 経路形状のバリデーション
+├── compare-calendar.sh             # カレンダー期間の変更検出
+├── convert-gtfs.ts                 # GTFS CSV → JSON 変換
+├── run-pfaedle.sh                  # pfaedle による経路形状生成
+└── validate-shapes.ts              # 経路形状のバリデーション
 
-public/data/                    # 事業者ごとの GTFS JSON
-test/                           # テストファイル
+docs/
+├── ARCHITECTURE.md                 # 設計判断と実装上の勘所
+└── REVIEW_LESSONS.md               # PR レビューから抽出したセルフレビュー観点
+
+public/data/                        # 事業者ごとの GTFS JSON
+test/                               # テストファイル
 ```
+
+設計判断の詳細や実装上の勘所は [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照．
 
 ---
 
