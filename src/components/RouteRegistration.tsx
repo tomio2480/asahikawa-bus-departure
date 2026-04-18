@@ -423,6 +423,16 @@ export function RouteRegistration({
 							reachabilityFilter={toStopFilter}
 						/>
 					</div>
+					{/*
+					 * Issue #90 派生：到達可能性フィルタ（#96）により、片方のバス停を
+					 * 選択すると乗り換えなしで到達できない候補は自動的に除外される。
+					 * 「実在する地名を入力しても候補に出てこない」現象をユーザーが
+					 * 故障と誤認しないよう、submit 時のエラーメッセージと同じ
+					 * 「乗り換えなしで到達できない」というキーワードで予告する。
+					 */}
+					<p className="text-xs text-base-content/60">
+						実在するバス停が選択候補にでない場合、乗り換えなしで到達できない組み合わせのため、候補に出てこない可能性があります。
+					</p>
 					<div className="form-control w-full max-w-xs">
 						<label className="label" htmlFor="walk-minutes">
 							<span className="label-text">徒歩所要時間（分）</span>

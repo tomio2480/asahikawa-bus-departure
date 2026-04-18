@@ -250,6 +250,19 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(screen.getByRole("button", { name: "登録" })).toBeInTheDocument();
 	});
 
+	// Issue #90 派生：到達可能性フィルタにより「実在するのに候補に出ない」が
+	// 起こり得るため，ユーザーに理由を事前告知する補足文言を検証する。
+	// 文言は errorMessage（要望 2）と用語を揃え，「乗り換えなしで到達」の
+	// キーワードを共通化して UX の一貫性を担保する。
+	it("入力欄の近くに到達可能性の補足文言が表示される", () => {
+		renderComponent();
+		expect(
+			screen.getByText(
+				/実在するバス停が選択候補にでない場合.*乗り換えなしで到達できない組み合わせ/,
+			),
+		).toBeInTheDocument();
+	});
+
 	it("経路一覧が空の場合は一覧テーブルが表示されない", () => {
 		renderComponent([]);
 		expect(screen.queryByText("登録済み経路")).not.toBeInTheDocument();
