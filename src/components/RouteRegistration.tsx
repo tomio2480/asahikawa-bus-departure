@@ -99,6 +99,12 @@ function isExactStopNameMatch(
  *
  * 分岐の意図（ユーザー指摘対応）:
  * - query が空：従来通り「選択してください」
+ * - 相手バス停と同名の手入力：「同じバス停は指定できません」
+ *   （Cycle 10 追加。候補 UI は相手を除外するため「選択」経路では
+ *   同名指定が発生しないが、キーボードで相手と全く同じ名称を手入力
+ *   された場合、以降の reachabilityFilter 付き searchStops は自分
+ *   自身を候補から除外するため「到達できません」分岐に誤誘導される。
+ *   問題の本質＝同一バス停指定をそのまま伝えるため最優先で分岐する）
  * - 部分一致も 0 件：「存在しません」（誤記・地名の勘違い）
  * - 部分一致はあるが厳密一致 0 件：「一致するバス停が見つかりません」
  *   （例: 「富良野」で「上富良野」がヒットする状況。候補はあるがユーザーの
@@ -112,14 +118,34 @@ function describeUnselectedStopError(params: {
 	query: string;
 	db: Database;
 	partnerFilter: ReachabilityFilter | undefined;
+	/**
+	 * 相手バス停の stop_name（選択済みの場合のみ非 undefined）。
+	 * クラスタで結合された「短い名/長い名」形式もそのまま渡す前提で、
+	 * 内部で "/" で分割して NFKC 正規化のうえ厳密一致を判定する。
+	 */
+	partnerStopName: string | undefined;
 }): string {
-	const { side, query, db, partnerFilter } = params;
+	const { side, query, db, partnerFilter, partnerStopName } = params;
 	const trimmed = query.trim();
 	const sideLabel = side === "from" ? "乗車バス停" : "降車バス停";
 	const partnerLabel = side === "from" ? "降車バス停" : "乗車バス停";
 
 	if (trimmed === "") {
 		return `${sideLabel}を選択してください`;
+	}
+
+	// 相手バス停と同名を手入力しているケースは、以降の partialHits / exactHits /
+	// reachableExactHits による分岐よりも優先して「同じバス停は指定できません」
+	// に振り分ける。handleSubmit 本体の stop_id 比較と同じ禁止事項を、
+	// 「候補未選択だが入力だけは完了している」状態でも同一文言で伝える。
+	if (partnerStopName) {
+		const normalizedQuery = trimmed.normalize("NFKC");
+		const partnerMatches = partnerStopName
+			.split("/")
+			.some((name) => name.normalize("NFKC") === normalizedQuery);
+		if (partnerMatches) {
+			return "乗車バス停と降車バス停に同じバス停は指定できません";
+		}
 	}
 
 	// 部分一致すら無ければ「存在しません」。
@@ -396,6 +422,7 @@ export function RouteRegistration({
 							query: form.fromStopQuery,
 							db,
 							partnerFilter: fromStopFilter,
+							partnerStopName: form.toStop?.stop_name,
 						})
 					: null;
 				const toError = !form.toStop
@@ -404,6 +431,7 @@ export function RouteRegistration({
 							query: form.toStopQuery,
 							db,
 							partnerFilter: toStopFilter,
+							partnerStopName: form.fromStop?.stop_name,
 						})
 					: null;
 				setErrorMessage([fromError, toError].filter(Boolean).join("\n"));

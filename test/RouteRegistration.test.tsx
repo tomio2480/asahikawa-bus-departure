@@ -589,6 +589,54 @@ describe("RouteRegistration コンポーネント", () => {
 		expect(alert).not.toHaveTextContent("降車バス停「");
 	});
 
+	// Cycle 10（ユーザー指摘）: 候補選択 UI では相手バス停が除外される
+	// ため、同名バス停を「選択」経由で指定する経路は塞がれている。
+	// しかしユーザーがキーボードで相手と同じ名前を手入力した場合、
+	// partnerFilter 下の searchStops は自分自身（相手バス停）を候補から
+	// 除外するため、厳密一致があっても「到達不能」分岐に落ちてしまい、
+	// 「乗り換えなしで到達できません」という誤ったエラー文言が出ていた。
+	// 問題の本質（同一バス停）を直接伝えるため、同名手入力の場合は
+	// 「同じバス停は指定できません」分岐に振り分ける。
+	it("降車側で乗車と同名のバス停を手入力した場合は「同じバス停は指定できません」エラーになる", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		// 降車側に乗車と同じ「旭川駅前」を手入力。候補 UI からは除外
+		// されているため、ユーザーはクリックで確定できない（= form.toStop は null）。
+		await userEvent.type(comboboxes[1], "旭川駅前");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"乗車バス停と降車バス停に同じバス停は指定できません",
+		);
+		// 誤った「到達できません」分岐に落ちていないことを確認する。
+		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
+	});
+
+	it("乗車側で降車と同名のバス停を手入力した場合は「同じバス停は指定できません」エラーになる", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 降車側を先に選択し、乗車側に同名手入力する対称ケース。
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+		await userEvent.type(comboboxes[0], "市役所前");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"乗車バス停と降車バス停に同じバス停は指定できません",
+		);
+		expect(alert).not.toHaveTextContent("乗り換えなしで到達できません");
+	});
+
 	// ユーザー指摘：エラー文言が出ている状態で入力欄を改めてもエラーが
 	// 残り続けると、問題が解消していないかのように見える。入力を書き
 	// 換えた時点でエラー表示を消し、ユーザーに「入力が受理されている」
