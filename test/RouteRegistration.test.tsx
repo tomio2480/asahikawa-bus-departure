@@ -7,6 +7,7 @@ import {
 import userEvent from "@testing-library/user-event";
 import { type ReactElement, useState } from "react";
 import initSqlJs from "sql.js";
+import type { Database } from "sql.js";
 import {
 	afterEach,
 	beforeAll,
@@ -16,7 +17,6 @@ import {
 	it,
 	vi,
 } from "vitest";
-import type { Database } from "sql.js";
 import { RouteRegistration } from "../src/components/RouteRegistration";
 import { ToastContainer } from "../src/components/Toast";
 import { ToastProvider } from "../src/hooks/useToast";
@@ -121,7 +121,9 @@ function renderComponent(routes: RegisteredRouteEntry[] = []) {
 function NotifyHarness(props: {
 	db: Database;
 	routes: RegisteredRouteEntry[];
-	onAdd: (entry: Omit<import("../src/types/route-entry").RouteEntry, "id">) => Promise<number>;
+	onAdd: (
+		entry: Omit<import("../src/types/route-entry").RouteEntry, "id">,
+	) => Promise<number>;
 	onUpdate: (entry: RegisteredRouteEntry) => Promise<void>;
 	onDelete: (id: number) => Promise<void>;
 	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
@@ -131,11 +133,7 @@ function NotifyHarness(props: {
 	/** commit 成功時に minutes 引数で呼ばれる。throw すると rollback される */
 	onCommitSpy?: (minutes: number) => void;
 }) {
-	const {
-		initialMinutes = 5,
-		onCommitSpy,
-		...componentProps
-	} = props;
+	const { initialMinutes = 5, onCommitSpy, ...componentProps } = props;
 	const [minutes, setMinutes] = useState(initialMinutes);
 
 	const setNotifyBeforeMinutes = (value: number) => {
@@ -1546,6 +1544,61 @@ describe("RouteRegistration コンポーネント", () => {
 				await screen.findByText(/通知タイミング.*設定できませんでした/),
 			).toBeInTheDocument();
 			expect(input).toHaveValue(5);
+		});
+
+		it("初回マウント時に notifyBeforeMinutes=undefined でも、後から確定値が流入したときに入力欄が確定値に一致する", () => {
+			// CodeRabbit 指摘（#95）のシナリオ:
+			// useNotifyBeforeMinutesInput は useState 初期化子でマウント時の minutes を
+			// 一度だけ捕捉する。RouteRegistration が `?? NOTIFY_DEFAULT_MINUTES` で
+			// フォールバックしたまま無条件にフックを呼ぶ構造だと、初回 undefined で
+			// 初期化されたフック内の inputValue がフォールバック値 5 のまま残り、
+			// 後から確定値 8 が流入して UI が表示されたときに表示ラベルは 8 なのに
+			// 入力欄は 5 のままという不整合が生じる。
+			// 通知 UI を別コンポーネントに切り出し showNotifySettings=true のときだけ
+			// マウントする構造にすれば、フックの初期化子は確定値で走るため入力欄も
+			// 表示も 8 に一致する。
+			function UndefinedToDefinedChanger() {
+				const [minutes, setMinutes] = useState<number | undefined>(undefined);
+				const setNotifyBeforeMinutes =
+					minutes === undefined
+						? undefined
+						: (value: number) => setMinutes(value);
+				return (
+					<>
+						<button
+							type="button"
+							onClick={() => setMinutes(8)}
+							data-testid="force-define-minutes"
+						>
+							確定値を 8 にセット
+						</button>
+						<RouteRegistration
+							db={db}
+							routes={notifyEnabledRoutes}
+							{...baseHandlers()}
+							hasNotifyEnabledRoutes={true}
+							notifyBeforeMinutes={minutes}
+							setNotifyBeforeMinutes={setNotifyBeforeMinutes}
+						/>
+					</>
+				);
+			}
+			render(<UndefinedToDefinedChanger />);
+
+			// 初回は通知タイミング UI 非表示（notifyBeforeMinutes=undefined）
+			expect(
+				screen.queryByRole("spinbutton", { name: "通知タイミング" }),
+			).not.toBeInTheDocument();
+
+			// 親が確定値 8 と永続化ハンドラを後から渡す
+			fireEvent.click(screen.getByTestId("force-define-minutes"));
+
+			// UI が表示され、確定値表示も入力欄も 8 に一致する
+			expect(
+				screen.getByText(/現在、出発\s*8\s*分前に通知します/),
+			).toBeInTheDocument();
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			expect(input).toHaveValue(8);
 		});
 
 		it("外部から notifyBeforeMinutes が更新されても入力中の値が破壊されない（Issue #89）", () => {

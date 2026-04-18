@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Database } from "sql.js";
 import {
-	NOTIFY_DEFAULT_MINUTES,
 	NOTIFY_MAX_MINUTES,
 	NOTIFY_MIN_MINUTES,
 } from "../constants/notification";
@@ -38,13 +37,6 @@ type RouteRegistrationProps = {
 	setNotifyBeforeMinutes?: (value: number) => void;
 };
 
-/**
- * setNotifyBeforeMinutes 未指定時のフォールバック。useState 初期化子が一度だけ
- * この参照を見るためモジュールスコープで定義して安定参照を提供する。通知タイミング
- * UI は表示条件で非表示化されるため、この no-op が実際に呼ばれることはない。
- */
-const NOOP_SET_MINUTES = (_value: number) => {};
-
 type FormState = {
 	fromStop: StopSearchResult | null;
 	toStop: StopSearchResult | null;
@@ -59,6 +51,131 @@ const initialFormState: FormState = {
 	notifyEnabled: false,
 };
 
+type NotifySettingsProps = {
+	/** 通知する出発目安の何分前（確定値） */
+	notifyBeforeMinutes: number;
+	/** 通知タイミングを永続化するハンドラ */
+	setNotifyBeforeMinutes: (value: number) => void;
+	/** フォーム送信中かどうか（設定ボタンの disabled 制御） */
+	submitting: boolean;
+	/** トグル処理中の経路 ID（設定ボタンの disabled 制御） */
+	togglingRouteId: number | null;
+	/** 通知パーミッション要求 */
+	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
+	/** 現在の通知パーミッション */
+	notifyPermission?: NotificationPermission | "unsupported";
+};
+
+/**
+ * 通知タイミング設定 UI。
+ *
+ * showNotifySettings=true のときだけ親からマウントされる前提で、
+ * notifyBeforeMinutes / setNotifyBeforeMinutes を非 optional で受け取る。
+ * こうすることで内部フック useNotifyBeforeMinutesInput の useState 初期化子は
+ * 必ず確定値で走り、親側での `?? フォールバック` と `NOOP_SET_MINUTES` を
+ * 介した呼び出しによる「undefined→defined 遷移時にフォールバック値が
+ * 入力欄に取り残される」罠（PR #95 CodeRabbit 指摘）を構造的に排除する。
+ */
+function NotifySettings({
+	notifyBeforeMinutes,
+	setNotifyBeforeMinutes,
+	submitting,
+	togglingRouteId,
+	onRequestNotificationPermission,
+	notifyPermission,
+}: NotifySettingsProps) {
+	const {
+		inputValue,
+		setInputValue,
+		canCommit,
+		commit: internalCommit,
+	} = useNotifyBeforeMinutesInput(notifyBeforeMinutes, setNotifyBeforeMinutes);
+	const { showToast } = useToast();
+
+	/**
+	 * 通知分前入力の確定処理。Enter キー押下 / 設定ボタンクリック時に呼び出され、
+	 * 内部フックの commit に委譲する。設定ボタン側の disabled 条件と対称に
+	 * busy / validity を明示ガードし、Enter 経路でも誤トースト表示を防ぐ。
+	 */
+	const commitNotifyInput = () => {
+		if (submitting || togglingRouteId !== null) return;
+		if (!canCommit) return;
+		const result = internalCommit();
+		if (result.ok) {
+			showToast(
+				`発車の ${result.committedMinutes} 分前に通知するように設定しました`,
+				{ variant: "success" },
+			);
+			return;
+		}
+		const detail =
+			result.error instanceof Error
+				? result.error.message
+				: String(result.error);
+		showToast(`通知タイミングを設定できませんでした: ${detail}`, {
+			variant: "error",
+		});
+	};
+
+	return (
+		<div className="space-y-2 text-sm">
+			<p className="font-semibold text-base-content">
+				{`現在、出発 ${notifyBeforeMinutes} 分前に通知します`}
+			</p>
+			<div className="flex items-center gap-2">
+				<label
+					htmlFor="notify-before-minutes"
+					className="text-base-content/70 cursor-pointer"
+				>
+					通知タイミング
+				</label>
+				<input
+					id="notify-before-minutes"
+					type="number"
+					className="input input-bordered input-xs w-14"
+					min={NOTIFY_MIN_MINUTES}
+					max={NOTIFY_MAX_MINUTES}
+					step="1"
+					aria-describedby="notify-before-minutes-unit"
+					value={inputValue}
+					onChange={(e) => {
+						// 確定は Enter キー / 設定ボタンで行う（入力中の逐次 persist を防ぐ）。
+						// blur による自動確定は廃止（意図しない確定を避けるため）。
+						setInputValue(e.target.value);
+					}}
+					onKeyDown={(e) => {
+						if (e.key === "Enter") {
+							e.preventDefault();
+							commitNotifyInput();
+						}
+					}}
+				/>
+				<span id="notify-before-minutes-unit" className="text-base-content/70">
+					分前
+				</span>
+				<button
+					type="button"
+					className="btn btn-xs btn-primary"
+					onClick={commitNotifyInput}
+					disabled={!canCommit || submitting || togglingRouteId !== null}
+					aria-label="通知タイミングを設定"
+				>
+					設定
+				</button>
+				{notifyPermission === "default" && onRequestNotificationPermission && (
+					<button
+						type="button"
+						className="btn btn-xs btn-outline"
+						onClick={onRequestNotificationPermission}
+					>
+						通知を許可
+					</button>
+				)}
+			</div>
+		</div>
+	);
+}
+
 /** 経路登録・編集・削除を行うコンポーネント */
 export function RouteRegistration({
 	db,
@@ -72,30 +189,12 @@ export function RouteRegistration({
 	notifyBeforeMinutes,
 	setNotifyBeforeMinutes,
 }: RouteRegistrationProps) {
-	// 通知タイミング入力の確定値と編集中の値は本フックが同一スコープで保持する。
-	// Issue #93: 従来は App.tsx 側で useNotifyBeforeMinutesInput を呼び出し 4 つの
-	// props を受け渡していたため、キー入力のたびに AppContent 全体が再レンダされて
-	// いた。フックを消費側のコンポーネント内部に配置することで再レンダ範囲を
-	// RouteRegistration に局所化する。
-	//
-	// 通知タイミング UI は notifyBeforeMinutes / setNotifyBeforeMinutes の両方が
-	// 渡されているときのみ表示する。フックは条件付き呼び出しができないため、
-	// 未指定時はフォールバック値で呼び出すが、UI 自体が非表示のためユーザーから
-	// 到達することはない。
-	const {
-		inputValue: notifyInputValue,
-		setInputValue: setNotifyInputValue,
-		canCommit: canCommitNotifyInput,
-		commit: internalCommitNotifyInput,
-	} = useNotifyBeforeMinutesInput(
-		notifyBeforeMinutes ?? NOTIFY_DEFAULT_MINUTES,
-		setNotifyBeforeMinutes ?? NOOP_SET_MINUTES,
-	);
-
-	const showNotifySettings =
-		hasNotifyEnabledRoutes === true &&
-		notifyBeforeMinutes !== undefined &&
-		setNotifyBeforeMinutes !== undefined;
+	// Issue #93: 通知タイミング入力フックは RouteRegistration 内部に配置し
+	// AppContent 全体の再レンダを避ける。さらに PR #95 CodeRabbit 指摘対応で、
+	// notifyBeforeMinutes / setNotifyBeforeMinutes が両方揃ったときだけ
+	// 子コンポーネント NotifySettings をマウントし、その内部でフックを呼ぶ。
+	// これにより useState 初期化子は必ず確定値で走り、フォールバック値が
+	// 入力欄に残り続けるトラップを型レベルで排除できる。
 	const stopNameMap = useMemo(() => {
 		const ids = new Set<string>();
 		for (const route of routes) {
@@ -123,43 +222,6 @@ export function RouteRegistration({
 	const [togglingRouteId, setTogglingRouteId] = useState<number | null>(null);
 
 	const { showToast } = useToast();
-
-	/**
-	 * 通知分前入力の確定処理。
-	 * Enter キー押下 / 設定ボタンクリック時に呼び出され、
-	 * 内部フック useNotifyBeforeMinutesInput の commit に委譲する。
-	 *
-	 * 設定ボタンは `disabled` 属性で
-	 *   (!canCommit || submitting || togglingRouteId !== null)
-	 * をガードしているが、Enter キー経路は無条件で呼び出されるため、
-	 * 呼び出し側でも同じ busy / validity 条件を明示ガードする。これは
-	 * 「busy 中は全確定経路を塞ぐ」という UI invariant と、
-	 * `invalid-or-unchanged` エラーがエラートーストとして誤表示されるのを
-	 * 防ぐためである。
-	 *
-	 * 入力値・確定値・ロールバックはフック側の責務で、ここでは commit 結果
-	 * に応じたトースト出力のみを担当する。
-	 */
-	const commitNotifyInput = () => {
-		// ボタン側の disabled 条件と対称に busy 状態を先にガードする
-		if (submitting || togglingRouteId !== null) return;
-		if (!canCommitNotifyInput) return;
-		const result = internalCommitNotifyInput();
-		if (result.ok) {
-			showToast(
-				`発車の ${result.committedMinutes} 分前に通知するように設定しました`,
-				{ variant: "success" },
-			);
-			return;
-		}
-		// 冒頭で canCommit=false をガード済みのため、ここへ来る失敗は
-		// 永続化失敗等の本物のエラーに限られる。エラートーストで通知する。
-		const detail =
-			result.error instanceof Error ? result.error.message : String(result.error);
-		showToast(`通知タイミングを設定できませんでした: ${detail}`, {
-			variant: "error",
-		});
-	};
 
 	const resetForm = useCallback(() => {
 		setForm(initialFormState);
@@ -383,71 +445,20 @@ export function RouteRegistration({
 								の経路でも出発前の通知は送信されません。ブラウザ設定で許可に変更してください。
 							</div>
 						)}
-						{showNotifySettings && (
-							<div className="space-y-2 text-sm">
-								<p className="font-semibold text-base-content">
-									{`現在、出発 ${notifyBeforeMinutes} 分前に通知します`}
-								</p>
-								<div className="flex items-center gap-2">
-									<label
-										htmlFor="notify-before-minutes"
-										className="text-base-content/70 cursor-pointer"
-									>
-										通知タイミング
-									</label>
-									<input
-										id="notify-before-minutes"
-										type="number"
-										className="input input-bordered input-xs w-14"
-										min={NOTIFY_MIN_MINUTES}
-										max={NOTIFY_MAX_MINUTES}
-										step="1"
-										aria-describedby="notify-before-minutes-unit"
-										value={notifyInputValue}
-										onChange={(e) => {
-											// 確定は Enter キー / 設定ボタンで行う（入力中の逐次 persist を防ぐ）。
-											// blur による自動確定は廃止（意図しない確定を避けるため）。
-											setNotifyInputValue(e.target.value);
-										}}
-										onKeyDown={(e) => {
-											if (e.key === "Enter") {
-												e.preventDefault();
-												commitNotifyInput();
-											}
-										}}
-									/>
-									<span
-										id="notify-before-minutes-unit"
-										className="text-base-content/70"
-									>
-										分前
-									</span>
-									<button
-										type="button"
-										className="btn btn-xs btn-primary"
-										onClick={commitNotifyInput}
-										disabled={
-											!canCommitNotifyInput ||
-											submitting ||
-											togglingRouteId !== null
-										}
-										aria-label="通知タイミングを設定"
-									>
-										設定
-									</button>
-									{notifyPermission === "default" &&
-										onRequestNotificationPermission && (
-											<button
-												type="button"
-												className="btn btn-xs btn-outline"
-												onClick={onRequestNotificationPermission}
-											>
-												通知を許可
-											</button>
-										)}
-								</div>
-							</div>
-						)}
+						{hasNotifyEnabledRoutes === true &&
+							notifyBeforeMinutes !== undefined &&
+							setNotifyBeforeMinutes !== undefined && (
+								<NotifySettings
+									notifyBeforeMinutes={notifyBeforeMinutes}
+									setNotifyBeforeMinutes={setNotifyBeforeMinutes}
+									submitting={submitting}
+									togglingRouteId={togglingRouteId}
+									onRequestNotificationPermission={
+										onRequestNotificationPermission
+									}
+									notifyPermission={notifyPermission}
+								/>
+							)}
 						<div className="overflow-x-auto">
 							<table className="table">
 								<thead>
