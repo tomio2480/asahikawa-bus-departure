@@ -296,9 +296,12 @@ describe("RouteRegistration コンポーネント", () => {
 		const submitButton = screen.getByRole("button", { name: "登録" });
 		await userEvent.click(submitButton);
 
-		expect(
-			screen.getByText("乗車バス停を選択してください"),
-		).toBeInTheDocument();
+		// Cycle 9 以降: 両側未選択なら両方のメッセージが同じ alert に
+		// 改行で並ぶ。乗車側が指摘されていることは toHaveTextContent で
+		// 部分一致確認する（getByText は完全一致を要求するため不向き）。
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"乗車バス停を選択してください",
+		);
 	});
 
 	it("バス停を選択して登録できる", async () => {
@@ -529,12 +532,61 @@ describe("RouteRegistration コンポーネント", () => {
 
 	// 入力が空の場合は従来の「選択してください」文言を維持する
 	// （新分岐の追加で全てのエラーが置き換わらないことの回帰防止）。
+	// ユーザー指摘に合わせ、両方が未入力なら両方の指摘が同時に出る。
 	it("入力が空のまま submit した場合は従来どおり「選択してください」が表示される", async () => {
 		renderComponent();
 		await userEvent.click(screen.getByRole("button", { name: "登録" }));
-		expect(screen.getByRole("alert")).toHaveTextContent(
-			"乗車バス停を選択してください",
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent("乗車バス停を選択してください");
+		expect(alert).toHaveTextContent("降車バス停を選択してください");
+	});
+
+	// Cycle 9（ユーザー指摘）: 乗車・降車の両方に問題があれば一度に
+	// 指摘する。従来は乗車側で early return していたため、降車側の問題は
+	// 乗車を直すまで見えなかった。テストでは存在しない名称を両方に入力し、
+	// 両方のメッセージが同じ alert 内に含まれることを確認する。
+	it("乗車と降車の両方に問題がある場合は一度に両方のエラーが表示される", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 両方とも LIKE 部分一致すらしない名称を入力する（「存在しません」分岐）。
+		await userEvent.type(comboboxes[0], "旭川駅前xxx");
+		await userEvent.type(comboboxes[1], "市役所前zzz");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前xxx」は存在しません。候補から選択してください。",
 		);
+		expect(alert).toHaveTextContent(
+			"入力された降車バス停「市役所前zzz」は存在しません。候補から選択してください。",
+		);
+	});
+
+	// Cycle 9: 片方だけに問題があればその片方のみ指摘する（無関係な側を
+	// 巻き込んで誤解を与えない）。既存の単独分岐テストを補強する回帰検証。
+	it("乗車のみ問題がある場合は乗車側のエラーだけが表示される", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		// 降車側は正しく選択する
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+		// 乗車側だけ存在しない名称を入力
+		await userEvent.type(comboboxes[0], "旭川駅前xxx");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		const alert = screen.getByRole("alert");
+		expect(alert).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前xxx」は存在しません。候補から選択してください。",
+		);
+		// 降車側は正しく選択済みなので、降車の指摘は現れない
+		expect(alert).not.toHaveTextContent("降車バス停を選択してください");
+		expect(alert).not.toHaveTextContent("降車バス停「");
 	});
 
 	// ユーザー指摘：エラー文言が出ている状態で入力欄を改めてもエラーが

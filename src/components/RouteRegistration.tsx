@@ -383,26 +383,30 @@ export function RouteRegistration({
 			e.preventDefault();
 			setErrorMessage(null);
 
-			if (!form.fromStop) {
-				setErrorMessage(
-					describeUnselectedStopError({
-						side: "from",
-						query: form.fromStopQuery,
-						db,
-						partnerFilter: fromStopFilter,
-					}),
-				);
-				return;
-			}
-			if (!form.toStop) {
-				setErrorMessage(
-					describeUnselectedStopError({
-						side: "to",
-						query: form.toStopQuery,
-						db,
-						partnerFilter: toStopFilter,
-					}),
-				);
+			// 乗車・降車の未選択エラーは両側で独立に評価し、問題があれば両方を
+			// 同じ alert にまとめて表示する（ユーザー指摘: 片方ずつ出すと
+			// 「乗車を直してから再送信するとまだ降車も問題だった」という
+			// 二度手間になる）。外側の if で「少なくとも一方が未選択」を
+			// 判定に入れることで、以降のコードでは form.fromStop / form.toStop が
+			// ともに non-null であることを TypeScript の narrowing が認識する。
+			if (!form.fromStop || !form.toStop) {
+				const fromError = !form.fromStop
+					? describeUnselectedStopError({
+							side: "from",
+							query: form.fromStopQuery,
+							db,
+							partnerFilter: fromStopFilter,
+						})
+					: null;
+				const toError = !form.toStop
+					? describeUnselectedStopError({
+							side: "to",
+							query: form.toStopQuery,
+							db,
+							partnerFilter: toStopFilter,
+						})
+					: null;
+				setErrorMessage([fromError, toError].filter(Boolean).join("\n"));
 				return;
 			}
 			if (form.fromStop.stop_id === form.toStop.stop_id) {
@@ -632,7 +636,13 @@ export function RouteRegistration({
 						</label>
 					</div>
 					{errorMessage && (
-						<div className="text-error text-sm" role="alert">
+						// 乗車・降車両側のエラーを 1 つの alert にまとめて表示するため、
+						// 改行文字を視覚的改行として反映する。role="alert" を 1 つに
+						// 保つことでスクリーンリーダーの読み上げ順も一貫させる。
+						<div
+							className="text-error text-sm whitespace-pre-line"
+							role="alert"
+						>
 							{errorMessage}
 						</div>
 					)}
