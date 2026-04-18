@@ -32,6 +32,15 @@ type StopSearchProps = {
 	 * 選択の有効/無効は常に本コールバックの契約で一元化する。
 	 */
 	onSelect: (stop: StopSearchResult | null) => void;
+	/**
+	 * 入力欄の query 文字列が変化したときのコールバック。
+	 *
+	 * ユーザーのキー入力・候補選択・`selectedStop` prop 経由の同期の
+	 * いずれでも最新の query を親に通知する。親は「選択が無効だが
+	 * ユーザーは文字を入力している」状態を検出し、エラー文言の分岐
+	 * （「選択してください」vs「候補にありません」）に使う。
+	 */
+	onQueryChange?: (query: string) => void;
 	/** 選択済みのバス停（外部から制御する場合） */
 	selectedStop?: StopSearchResult | null;
 	/** placeholder テキスト */
@@ -49,6 +58,7 @@ export function StopSearch({
 	db,
 	label,
 	onSelect,
+	onQueryChange,
 	selectedStop = null,
 	placeholder = "バス停名を入力",
 	reachabilityFilter,
@@ -88,6 +98,24 @@ export function StopSearch({
 	// 正しく働くようになる。
 	const suppressNextSelectedSyncRef = useRef(false);
 
+	// 親が渡す onQueryChange は毎レンダ新規生成されるケースが多いため、
+	// 依存配列に直接入れると useEffect / useCallback が毎レンダ再実行・
+	// 再生成されてしまう（REVIEW_LESSONS #1 の派生値同期アンチパターンに
+	// 似た無駄を生む）。ref で最新関数を保持し、依存配列からは除外する
+	// useEventCallback パターンで切り離す。
+	const onQueryChangeRef = useRef(onQueryChange);
+	useEffect(() => {
+		onQueryChangeRef.current = onQueryChange;
+	}, [onQueryChange]);
+
+	// query を更新すると同時に親の onQueryChange にも通知するヘルパー。
+	// 空の依存配列で identity を固定し、handleSearch / handleSelect /
+	// selectedStop 同期 effect いずれから呼ばれても無駄な再生成を避ける。
+	const updateQuery = useCallback((newQuery: string) => {
+		setQuery(newQuery);
+		onQueryChangeRef.current?.(newQuery);
+	}, []);
+
 	// 外部から selectedStop が変更された場合に入力欄を同期する。
 	// 内部起因（handleSearch の onSelect(null)）経由の selectedStop=null
 	// 遷移ではスキップし、ユーザーが打鍵した中間状態の query を保持する。
@@ -96,12 +124,12 @@ export function StopSearch({
 			suppressNextSelectedSyncRef.current = false;
 			return;
 		}
-		setQuery(selectedStop?.stop_name ?? "");
-	}, [selectedStop]);
+		updateQuery(selectedStop?.stop_name ?? "");
+	}, [selectedStop, updateQuery]);
 
 	const handleSearch = useCallback(
 		(value: string) => {
-			setQuery(value);
+			updateQuery(value);
 			setActiveIndex(-1);
 			// 選択済み状態で入力値が選択 stop の名称と乖離したら、親側の
 			// 選択状態を無効化する。これにより「選択後に入力だけ書き換えて
@@ -120,17 +148,17 @@ export function StopSearch({
 			// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
 			setIsOpen(true);
 		},
-		[selectedStop, onSelect],
+		[selectedStop, onSelect, updateQuery],
 	);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {
-			setQuery(stop.stop_name);
+			updateQuery(stop.stop_name);
 			setIsOpen(false);
 			setActiveIndex(-1);
 			onSelect(stop);
 		},
-		[onSelect],
+		[onSelect, updateQuery],
 	);
 
 	const handleKeyDown = useCallback(
