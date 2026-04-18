@@ -10,7 +10,7 @@ import { ToastContainer } from "./components/Toast";
 import { useDatabase } from "./hooks/useDatabase";
 import { useDepartures } from "./hooks/useDepartures";
 import { useNotification } from "./hooks/useNotification";
-import { useNotificationSettings } from "./hooks/useNotificationSettings";
+import { useNotifyBeforeMinutesInput } from "./hooks/useNotifyBeforeMinutesInput";
 import { useRoutes } from "./hooks/useRoutes";
 import { type ThemePreference, useTheme } from "./hooks/useTheme";
 import { ToastProvider } from "./hooks/useToast";
@@ -108,8 +108,17 @@ function AppContent() {
 
 	const { preference, changeTheme } = useTheme();
 
-	const { minutes: notifyBeforeMinutes, setMinutes: setNotifyBeforeMinutes } =
-		useNotificationSettings();
+	// 通知タイミングの確定値と入力中の値を同一スコープで管理する。
+	// 従来は RouteRegistration 内で useState + useEffect による
+	// props → state 同期を行っていたが、React アンチパターンであり
+	// 入力中に外部更新が来た場合の上書きリスクもあった（Issue #89）。
+	const {
+		minutes: notifyBeforeMinutes,
+		inputValue: notifyInputValue,
+		setInputValue: setNotifyInputValue,
+		canCommit: canCommitNotifyInput,
+		commit: commitNotifyInput,
+	} = useNotifyBeforeMinutesInput();
 
 	const allDeparturesForNotification = useMemo(
 		() =>
@@ -205,7 +214,10 @@ function AppContent() {
 							notifyPermission={notifyPermission}
 							hasNotifyEnabledRoutes={hasNotifyEnabledRoutes}
 							notifyBeforeMinutes={notifyBeforeMinutes}
-							onNotifyBeforeMinutesChange={setNotifyBeforeMinutes}
+							notifyInputValue={notifyInputValue}
+							onNotifyInputChange={setNotifyInputValue}
+							canCommitNotifyInput={canCommitNotifyInput}
+							onCommitNotifyInput={commitNotifyInput}
 						/>
 					</>
 				)}

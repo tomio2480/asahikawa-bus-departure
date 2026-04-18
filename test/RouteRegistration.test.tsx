@@ -5,7 +5,7 @@ import {
 	screen,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
+import { type ReactElement, useState } from "react";
 import initSqlJs from "sql.js";
 import {
 	afterEach,
@@ -16,8 +16,10 @@ import {
 	it,
 	vi,
 } from "vitest";
+import type { Database } from "sql.js";
 import { RouteRegistration } from "../src/components/RouteRegistration";
 import { ToastContainer } from "../src/components/Toast";
+import type { NotifyInputCommitResult } from "../src/hooks/useNotifyBeforeMinutesInput";
 import { ToastProvider } from "../src/hooks/useToast";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
@@ -104,6 +106,71 @@ function renderComponent(routes: RegisteredRouteEntry[] = []) {
 	);
 
 	return { onAdd, onUpdate, onDelete };
+}
+
+/**
+ * 通知タイミング UI の対話系テスト向けハーネス。
+ * useNotifyBeforeMinutesInput の振る舞いを等価に再現しつつ、
+ * commit 成功時のスパイ注入・失敗時の挙動確認を可能にする。
+ *
+ * 実フック (`useNotifyBeforeMinutesInput`) と異なり localStorage には
+ * 触れず、confirmation 専用のインメモリ状態だけで動作する。これにより
+ * テスト間での localStorage 漏れを避けつつ、確定値・入力値の同一スコープ
+ * 管理による「入力中の外部更新保護」の振る舞いを再現できる。
+ */
+function NotifyHarness(props: {
+	db: Database;
+	routes: RegisteredRouteEntry[];
+	onAdd: (entry: Omit<import("../src/types/route-entry").RouteEntry, "id">) => Promise<number>;
+	onUpdate: (entry: RegisteredRouteEntry) => Promise<void>;
+	onDelete: (id: number) => Promise<void>;
+	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
+	notifyPermission?: NotificationPermission | "unsupported";
+	hasNotifyEnabledRoutes?: boolean;
+	initialMinutes?: number;
+	/** commit 時に minutes 引数で呼ばれる。throw すると rollback される */
+	onCommitSpy?: (minutes: number) => void;
+}) {
+	const {
+		initialMinutes = 5,
+		onCommitSpy,
+		...componentProps
+	} = props;
+	const [minutes, setMinutes] = useState(initialMinutes);
+	const [inputValue, setInputValue] = useState(String(initialMinutes));
+
+	const parsed = Number(inputValue);
+	const isValid =
+		inputValue.trim() !== "" &&
+		Number.isInteger(parsed) &&
+		parsed >= 1 &&
+		parsed <= 60;
+	const canCommit = isValid && parsed !== minutes;
+
+	const commit = (): NotifyInputCommitResult => {
+		if (!canCommit) {
+			return { ok: false, error: new Error("invalid-or-unchanged") };
+		}
+		try {
+			onCommitSpy?.(parsed);
+			setMinutes(parsed);
+			return { ok: true, committedMinutes: parsed };
+		} catch (err) {
+			setInputValue(String(minutes));
+			return { ok: false, error: err };
+		}
+	};
+
+	return (
+		<RouteRegistration
+			{...componentProps}
+			notifyBeforeMinutes={minutes}
+			notifyInputValue={inputValue}
+			onNotifyInputChange={setInputValue}
+			canCommitNotifyInput={canCommit}
+			onCommitNotifyInput={commit}
+		/>
+	);
 }
 
 describe("RouteRegistration コンポーネント", () => {
@@ -936,16 +1003,21 @@ describe("RouteRegistration コンポーネント", () => {
 			},
 		];
 
+		/** 共通の必須コールバック。テスト側で上書きしたい場合のみ渡す */
+		const baseHandlers = () => ({
+			onAdd: vi.fn().mockResolvedValue(1),
+			onUpdate: vi.fn().mockResolvedValue(undefined),
+			onDelete: vi.fn().mockResolvedValue(undefined),
+		});
+
 		it("hasNotifyEnabledRoutes=true のとき現在値が明示表示される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
+					initialMinutes={5}
 				/>,
 			);
 			expect(
@@ -955,14 +1027,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("hasNotifyEnabledRoutes=true のとき変更用の入力が表示される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
+					initialMinutes={5}
 				/>,
 			);
 			expect(
@@ -972,14 +1042,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("変更用入力には単位「分前」が accessible description として関連付けられている", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
+					initialMinutes={5}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -996,14 +1064,12 @@ describe("RouteRegistration コンポーネント", () => {
 				},
 			];
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={routes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={false}
-					notifyBeforeMinutes={5}
+					initialMinutes={5}
 				/>,
 			);
 			expect(
@@ -1014,14 +1080,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("notifyPermission が default のとき「通知を許可」ボタンが表示される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
+					initialMinutes={5}
 					notifyPermission="default"
 					onRequestNotificationPermission={vi.fn().mockResolvedValue("granted")}
 				/>,
@@ -1033,15 +1097,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("設定ボタンが表示される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			expect(
@@ -1049,18 +1110,16 @@ describe("RouteRegistration コンポーネント", () => {
 			).toBeInTheDocument();
 		});
 
-		it("値を変更して設定ボタンを押すと onNotifyBeforeMinutesChange が呼ばれる", async () => {
-			const onChange = vi.fn();
+		it("値を変更して設定ボタンを押すと commit が呼ばれ確定値が更新される", async () => {
+			const onCommitSpy = vi.fn();
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1068,21 +1127,22 @@ describe("RouteRegistration コンポーネント", () => {
 			await userEvent.click(
 				screen.getByRole("button", { name: "通知タイミングを設定" }),
 			);
-			expect(onChange).toHaveBeenCalledTimes(1);
-			expect(onChange).toHaveBeenCalledWith(15);
+			expect(onCommitSpy).toHaveBeenCalledTimes(1);
+			expect(onCommitSpy).toHaveBeenCalledWith(15);
+			// 確定後は確定値表示も更新される
+			expect(
+				screen.getByText(/現在、出発\s*15\s*分前に通知します/),
+			).toBeInTheDocument();
 		});
 
 		it("設定ボタン押下で成功トーストが表示される", async () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1097,25 +1157,23 @@ describe("RouteRegistration コンポーネント", () => {
 			).toBeInTheDocument();
 		});
 
-		it("Enter キー押下でも onNotifyBeforeMinutesChange が呼ばれ成功トーストが表示される", async () => {
-			const onChange = vi.fn();
+		it("Enter キー押下でも commit が呼ばれ成功トーストが表示される", async () => {
+			const onCommitSpy = vi.fn();
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
 			fireEvent.change(input, { target: { value: "20" } });
 			fireEvent.keyDown(input, { key: "Enter" });
-			expect(onChange).toHaveBeenCalledTimes(1);
-			expect(onChange).toHaveBeenCalledWith(20);
+			expect(onCommitSpy).toHaveBeenCalledTimes(1);
+			expect(onCommitSpy).toHaveBeenCalledWith(20);
 			expect(
 				await screen.findByText(
 					/発車の\s*20\s*分前に通知するように設定しました/,
@@ -1123,88 +1181,76 @@ describe("RouteRegistration コンポーネント", () => {
 			).toBeInTheDocument();
 		});
 
-		it("onNotifyBeforeMinutesChange が未指定の場合は成功トーストが表示されない", async () => {
-			// optional chaining で silently no-op するだけでは、コールバック未指定時に
-			// 「設定しました」トーストが誤って表示され、ユーザーに未実施の操作が
-			// 完了したかのような誤情報を伝えてしまう。コールバックが実際に呼ばれた
-			// 場合のみ成功トーストを出すべき。
+		it("onCommitNotifyInput が未指定の場合は成功トーストが表示されない", async () => {
+			// 親が commit ハンドラを渡していないとき（例えば feature flag OFF 等）に
+			// 「設定しました」トーストが誤って表示されるとユーザーに未実施の操作が
+			// 完了したかのような誤情報を伝えてしまう。ハンドラ未指定時は no-op すべき。
 			render(
 				<RouteRegistration
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
 					notifyBeforeMinutes={5}
-					// onNotifyBeforeMinutesChange を意図的に渡さない
+					notifyInputValue="5"
+					onNotifyInputChange={() => {}}
+					canCommitNotifyInput={true}
+					// onCommitNotifyInput を意図的に渡さない
 				/>,
 			);
-			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
-			fireEvent.change(input, { target: { value: "15" } });
 			await userEvent.click(
 				screen.getByRole("button", { name: "通知タイミングを設定" }),
 			);
 			// 成功トーストが出てはならない
 			expect(
-				screen.queryByText(/発車の\s*15\s*分前に通知するように設定しました/),
-			).not.toBeInTheDocument();
-			expect(
-				screen.queryByText(/通知タイミングを\s*15\s*分前に設定しました/),
+				screen.queryByText(/発車の.*分前に通知するように設定しました/),
 			).not.toBeInTheDocument();
 		});
 
-		it("blur では onNotifyBeforeMinutesChange が呼ばれない（確定は Enter / 設定ボタンのみ）", () => {
-			const onChange = vi.fn();
+		it("blur では commit が呼ばれない（確定は Enter / 設定ボタンのみ）", () => {
+			const onCommitSpy = vi.fn();
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
 			fireEvent.change(input, { target: { value: "15" } });
 			fireEvent.blur(input);
-			expect(onChange).not.toHaveBeenCalled();
+			expect(onCommitSpy).not.toHaveBeenCalled();
 		});
 
-		it("入力を変更しただけでは onNotifyBeforeMinutesChange は呼ばれない", () => {
-			const onChange = vi.fn();
+		it("入力を変更しただけでは commit は呼ばれない", () => {
+			const onCommitSpy = vi.fn();
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
 			fireEvent.change(input, { target: { value: "1" } });
 			fireEvent.change(input, { target: { value: "15" } });
-			expect(onChange).not.toHaveBeenCalled();
+			expect(onCommitSpy).not.toHaveBeenCalled();
 		});
 
 		it("現在値と同じ値では設定ボタンが無効化される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			// 初期値が 5 で入力値も 5 のまま
@@ -1215,15 +1261,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("範囲外の値（60 超）では設定ボタンが無効化される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1235,15 +1278,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("小数値では設定ボタンが無効化される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1255,15 +1295,12 @@ describe("RouteRegistration コンポーネント", () => {
 
 		it("空値では設定ボタンが無効化される", () => {
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1273,20 +1310,18 @@ describe("RouteRegistration コンポーネント", () => {
 			).toBeDisabled();
 		});
 
-		it("onNotifyBeforeMinutesChange が throw した場合はエラートーストが表示される", async () => {
-			const onChange = vi.fn().mockImplementation(() => {
+		it("commit が throw した場合はエラートーストが表示される", async () => {
+			const onCommitSpy = vi.fn().mockImplementation(() => {
 				throw new Error("localStorage 書き込みに失敗しました");
 			});
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1311,15 +1346,14 @@ describe("RouteRegistration コンポーネント", () => {
 					}),
 			);
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
 					onAdd={vi.fn().mockResolvedValue(1)}
 					onUpdate={vi.fn().mockResolvedValue(undefined)}
 					onDelete={onDelete}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			// 入力値を変更して canCommitNotifyInput=true にしておく
@@ -1346,15 +1380,14 @@ describe("RouteRegistration コンポーネント", () => {
 					}),
 			);
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
 					onAdd={vi.fn().mockResolvedValue(1)}
 					onUpdate={onUpdate}
 					onDelete={vi.fn().mockResolvedValue(undefined)}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={vi.fn()}
+					initialMinutes={5}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1373,23 +1406,21 @@ describe("RouteRegistration コンポーネント", () => {
 			resolveUpdate();
 		});
 
-		it("onNotifyBeforeMinutesChange が throw したら入力欄の表示が元の値に戻る", async () => {
+		it("commit が失敗したとき入力欄の表示が元の値に戻る", async () => {
 			// 設定確定に失敗したのに入力欄だけ新しい値のまま残ると、
 			// 保存されている値と画面表示が乖離してユーザーの誤解を招く。
-			// 失敗時は確定直前の値（props の notifyBeforeMinutes）へロールバックする。
-			const onChange = vi.fn().mockImplementation(() => {
+			// 失敗時は確定直前の値へロールバックする（親フックの責務）。
+			const onCommitSpy = vi.fn().mockImplementation(() => {
 				throw new Error("localStorage 書き込みに失敗しました");
 			});
 			render(
-				<RouteRegistration
+				<NotifyHarness
 					db={db}
 					routes={notifyEnabledRoutes}
-					onAdd={vi.fn().mockResolvedValue(1)}
-					onUpdate={vi.fn().mockResolvedValue(undefined)}
-					onDelete={vi.fn().mockResolvedValue(undefined)}
+					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
-					notifyBeforeMinutes={5}
-					onNotifyBeforeMinutesChange={onChange}
+					initialMinutes={5}
+					onCommitSpy={onCommitSpy}
 				/>,
 			);
 			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
@@ -1403,6 +1434,59 @@ describe("RouteRegistration コンポーネント", () => {
 				await screen.findByText(/通知タイミング.*設定できませんでした/),
 			).toBeInTheDocument();
 			expect(input).toHaveValue(5);
+		});
+
+		it("外部から notifyBeforeMinutes が更新されても入力中の値が破壊されない（Issue #89）", () => {
+			// 従来 RouteRegistration は notifyBeforeMinutes の変化を useEffect で
+			// 内部 state に同期していたため、ユーザーが編集中に親の確定値が
+			// 変わると入力途中の値が上書きされるアンチパターンが存在した。
+			// リフトアップ後は制御コンポーネントとなり、親が notifyInputValue を
+			// 明示的に変更しない限り入力は保持される。
+			function ExternalMinutesChanger() {
+				const [externalMinutes, setExternalMinutes] = useState(5);
+				// 入力値だけはローカル維持（親は inputValue を確定値と独立に扱う）
+				const [inputValue, setInputValue] = useState("5");
+				return (
+					<>
+						<button
+							type="button"
+							onClick={() => setExternalMinutes(30)}
+							data-testid="force-change-external"
+						>
+							外部から minutes を 30 に変更
+						</button>
+						<RouteRegistration
+							db={db}
+							routes={notifyEnabledRoutes}
+							{...baseHandlers()}
+							hasNotifyEnabledRoutes={true}
+							notifyBeforeMinutes={externalMinutes}
+							notifyInputValue={inputValue}
+							onNotifyInputChange={setInputValue}
+							canCommitNotifyInput={false}
+							onCommitNotifyInput={() => ({
+								ok: true,
+								committedMinutes: Number(inputValue),
+							})}
+						/>
+					</>
+				);
+			}
+			render(<ExternalMinutesChanger />);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+
+			// ユーザーが編集中（確定前）
+			fireEvent.change(input, { target: { value: "12" } });
+			expect(input).toHaveValue(12);
+
+			// 外部（親の別経路）から notifyBeforeMinutes が 30 へ変わる
+			fireEvent.click(screen.getByTestId("force-change-external"));
+
+			// 確定値表示は 30 に追従するが、入力中の値 12 は壊されない
+			expect(
+				screen.getByText(/現在、出発\s*30\s*分前に通知します/),
+			).toBeInTheDocument();
+			expect(input).toHaveValue(12);
 		});
 	});
 

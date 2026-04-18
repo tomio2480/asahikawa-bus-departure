@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Database } from "sql.js";
+import type { NotifyInputCommitResult } from "../hooks/useNotifyBeforeMinutesInput";
 import { useToast } from "../hooks/useToast";
 import { type StopSearchResult, getStopName } from "../lib/stop-search";
 import type { RegisteredRouteEntry, RouteEntry } from "../types/route-entry";
@@ -22,10 +23,16 @@ type RouteRegistrationProps = {
 	notifyPermission?: NotificationPermission | "unsupported";
 	/** 通知が有効な経路が 1 件以上あるかどうか */
 	hasNotifyEnabledRoutes?: boolean;
-	/** 通知する出発目安の何分前（undefined のとき通知タイミング UI を非表示） */
+	/** 通知する出発目安の何分前（確定値／表示用、undefined のとき通知タイミング UI を非表示） */
 	notifyBeforeMinutes?: number;
-	/** 通知タイミング変更コールバック */
-	onNotifyBeforeMinutesChange?: (minutes: number) => void;
+	/** 通知タイミングの入力中文字列（制御コンポーネント） */
+	notifyInputValue?: string;
+	/** 入力値変更ハンドラ */
+	onNotifyInputChange?: (value: string) => void;
+	/** 入力値が有効かつ未保存の変更を含むかどうか */
+	canCommitNotifyInput?: boolean;
+	/** 入力値の確定ハンドラ。成功/失敗と確定後の値を返す */
+	onCommitNotifyInput?: () => NotifyInputCommitResult;
 };
 
 type FormState = {
@@ -53,7 +60,10 @@ export function RouteRegistration({
 	notifyPermission,
 	hasNotifyEnabledRoutes,
 	notifyBeforeMinutes,
-	onNotifyBeforeMinutesChange,
+	notifyInputValue,
+	onNotifyInputChange,
+	canCommitNotifyInput,
+	onCommitNotifyInput,
 }: RouteRegistrationProps) {
 	const stopNameMap = useMemo(() => {
 		const ids = new Set<string>();
@@ -83,60 +93,33 @@ export function RouteRegistration({
 
 	const { showToast } = useToast();
 
-	// 通知分前入力のローカル表示値（一時クリアを許容するため string で管理）
-	const [notifyInputValue, setNotifyInputValue] = useState(() =>
-		notifyBeforeMinutes !== undefined ? String(notifyBeforeMinutes) : "",
-	);
-	// 外部から prop が変更された場合（localStorage 初期読込等）に同期する
-	useEffect(() => {
-		if (notifyBeforeMinutes !== undefined) {
-			setNotifyInputValue(String(notifyBeforeMinutes));
-		}
-	}, [notifyBeforeMinutes]);
-
-	/**
-	 * 現在の入力値が有効（整数かつ 1〜60）かどうか。
-	 * UI 属性 min="1" max="60" step="1" と意図を揃える。
-	 */
-	const notifyInputParsed = Number(notifyInputValue);
-	const isNotifyInputValid =
-		notifyInputValue.trim() !== "" &&
-		Number.isInteger(notifyInputParsed) &&
-		notifyInputParsed >= 1 &&
-		notifyInputParsed <= 60;
-	const isNotifyInputChanged =
-		notifyBeforeMinutes === undefined ||
-		notifyInputParsed !== notifyBeforeMinutes;
-	const canCommitNotifyInput = isNotifyInputValid && isNotifyInputChanged;
-
 	/**
 	 * 通知分前入力の確定処理。
-	 * Enter キー押下 / 設定ボタンクリック時に呼び出され、onNotifyBeforeMinutesChange
-	 * に伝播する。呼び出し元が throw した場合はエラートーストで通知する。
-	 * コールバック未指定時は optional chaining で silently no-op するだけでは
-	 * 「設定しました」トーストが誤表示されるため、明示的にガードする。
+	 * Enter キー押下 / 設定ボタンクリック時に呼び出され、
+	 * onCommitNotifyInput（親フックの commit）に委譲する。
+	 *
+	 * コールバック未指定時は「設定しました」トーストの誤表示を防ぐため
+	 * 明示的に no-op。入力値・確定値・ロールバックは親フック側の責務で、
+	 * ここでは commit 結果に応じたトースト出力のみを担当する。
 	 */
 	const commitNotifyInput = () => {
-		if (!canCommitNotifyInput) return;
-		if (!onNotifyBeforeMinutesChange) return;
-		try {
-			onNotifyBeforeMinutesChange(notifyInputParsed);
+		if (!onCommitNotifyInput) return;
+		const result = onCommitNotifyInput();
+		if (result.ok) {
 			showToast(
-				`発車の ${notifyInputParsed} 分前に通知するように設定しました`,
+				`発車の ${result.committedMinutes} 分前に通知するように設定しました`,
 				{ variant: "success" },
 			);
-		} catch (err) {
-			const detail = err instanceof Error ? err.message : String(err);
-			showToast(`通知タイミングを設定できませんでした: ${detail}`, {
-				variant: "error",
-			});
-			// 確定に失敗したのに入力欄だけ新しい値のまま残ると、保存済みの値と
-			// 画面表示が乖離してユーザーの誤解を招く。props の現在値へロールバック
-			// して、表示と永続化値の整合を保つ。
-			if (notifyBeforeMinutes !== undefined) {
-				setNotifyInputValue(String(notifyBeforeMinutes));
-			}
+			return;
 		}
+		// canCommit=false 等の既知ガード漏れは、親が設定ボタンの disabled を
+		// 正しく制御している前提では起こらない。ここへ来る失敗は
+		// 永続化失敗等の本物のエラーのためエラートーストで通知する。
+		const detail =
+			result.error instanceof Error ? result.error.message : String(result.error);
+		showToast(`通知タイミングを設定できませんでした: ${detail}`, {
+			variant: "error",
+		});
 	};
 
 	const resetForm = useCallback(() => {
@@ -381,11 +364,11 @@ export function RouteRegistration({
 										max="60"
 										step="1"
 										aria-describedby="notify-before-minutes-unit"
-										value={notifyInputValue}
+										value={notifyInputValue ?? ""}
 										onChange={(e) => {
 											// 確定は Enter キー / 設定ボタンで行う（入力中の逐次 persist を防ぐ）。
 											// blur による自動確定は廃止（意図しない確定を避けるため）。
-											setNotifyInputValue(e.target.value);
+											onNotifyInputChange?.(e.target.value);
 										}}
 										onKeyDown={(e) => {
 											if (e.key === "Enter") {
@@ -405,7 +388,7 @@ export function RouteRegistration({
 										className="btn btn-xs btn-primary"
 										onClick={commitNotifyInput}
 										disabled={
-											!canCommitNotifyInput ||
+											!(canCommitNotifyInput ?? false) ||
 											submitting ||
 											togglingRouteId !== null
 										}
