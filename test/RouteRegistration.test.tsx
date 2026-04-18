@@ -1132,7 +1132,7 @@ describe("RouteRegistration コンポーネント", () => {
 			);
 			expect(
 				await screen.findByText(
-					/発車の\s*15\s*分前に通知するように設定しました/,
+					/出発の\s*15\s*分前に通知するように設定しました/,
 				),
 			).toBeInTheDocument();
 		});
@@ -1156,7 +1156,7 @@ describe("RouteRegistration コンポーネント", () => {
 			expect(onCommitSpy).toHaveBeenCalledWith(20);
 			expect(
 				await screen.findByText(
-					/発車の\s*20\s*分前に通知するように設定しました/,
+					/出発の\s*20\s*分前に通知するように設定しました/,
 				),
 			).toBeInTheDocument();
 		});
@@ -1314,7 +1314,7 @@ describe("RouteRegistration コンポーネント", () => {
 				screen.queryByText(/通知タイミングを設定できませんでした/),
 			).not.toBeInTheDocument();
 			expect(
-				screen.queryByText(/発車の.*分前に通知するように設定しました/),
+				screen.queryByText(/出発の.*分前に通知するように設定しました/),
 			).not.toBeInTheDocument();
 			// 親フックの commit 自体が呼ばれないことも明示的に検証する
 			expect(onCommitSpy).not.toHaveBeenCalled();
@@ -1436,7 +1436,7 @@ describe("RouteRegistration コンポーネント", () => {
 			expect(onCommitSpy).not.toHaveBeenCalled();
 			// トーストも出ない
 			expect(
-				screen.queryByText(/発車の.*分前に通知するように設定しました/),
+				screen.queryByText(/出発の.*分前に通知するように設定しました/),
 			).not.toBeInTheDocument();
 
 			resolveDelete();
@@ -1475,7 +1475,7 @@ describe("RouteRegistration コンポーネント", () => {
 			fireEvent.keyDown(input, { key: "Enter" });
 			expect(onCommitSpy).not.toHaveBeenCalled();
 			expect(
-				screen.queryByText(/発車の.*分前に通知するように設定しました/),
+				screen.queryByText(/出発の.*分前に通知するように設定しました/),
 			).not.toBeInTheDocument();
 
 			resolveUpdate();
