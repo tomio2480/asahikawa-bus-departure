@@ -270,6 +270,21 @@ export function RouteRegistration({
 		setErrorMessage(null);
 	}, []);
 
+	/**
+	 * フォーム state を更新すると同時に表示中のエラー文言をクリアする。
+	 *
+	 * エラー表示後にユーザーが入力を書き直してもメッセージが残り続けると、
+	 * 「まだ問題が解消していない」と誤解させる（ユーザー指摘）。form state
+	 * を変更する全操作（バス停選択・入力・徒歩時間・通知トグル）で errorMessage
+	 * を null に戻し、ユーザーに「入力が受理された」というフィードバックを返す。
+	 * 送信失敗時は handleSubmit が再度 setErrorMessage を呼ぶため、
+	 * クリア → 次 submit で再表示、のサイクルで整合する。
+	 */
+	const updateForm = useCallback((updater: (prev: FormState) => FormState) => {
+		setForm(updater);
+		setErrorMessage(null);
+	}, []);
+
 	const handleSubmit = useCallback(
 		async (e: React.FormEvent) => {
 			e.preventDefault();
@@ -455,10 +470,10 @@ export function RouteRegistration({
 							db={db}
 							label="乗車バス停"
 							onSelect={(stop) =>
-								setForm((prev) => ({ ...prev, fromStop: stop }))
+								updateForm((prev) => ({ ...prev, fromStop: stop }))
 							}
 							onQueryChange={(q) =>
-								setForm((prev) => ({ ...prev, fromStopQuery: q }))
+								updateForm((prev) => ({ ...prev, fromStopQuery: q }))
 							}
 							selectedStop={form.fromStop}
 							reachabilityFilter={fromStopFilter}
@@ -467,10 +482,10 @@ export function RouteRegistration({
 							db={db}
 							label="降車バス停"
 							onSelect={(stop) =>
-								setForm((prev) => ({ ...prev, toStop: stop }))
+								updateForm((prev) => ({ ...prev, toStop: stop }))
 							}
 							onQueryChange={(q) =>
-								setForm((prev) => ({ ...prev, toStopQuery: q }))
+								updateForm((prev) => ({ ...prev, toStopQuery: q }))
 							}
 							selectedStop={form.toStop}
 							reachabilityFilter={toStopFilter}
@@ -498,7 +513,7 @@ export function RouteRegistration({
 							step="1"
 							value={form.walkMinutes}
 							onChange={(e) =>
-								setForm((prev) => ({
+								updateForm((prev) => ({
 									...prev,
 									walkMinutes: e.target.value,
 								}))
@@ -513,7 +528,7 @@ export function RouteRegistration({
 								className="toggle toggle-primary toggle-sm"
 								checked={form.notifyEnabled}
 								onChange={(e) =>
-									setForm((prev) => ({
+									updateForm((prev) => ({
 										...prev,
 										notifyEnabled: e.target.checked,
 									}))

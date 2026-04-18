@@ -426,6 +426,57 @@ describe("RouteRegistration コンポーネント", () => {
 		);
 	});
 
+	// ユーザー指摘：エラー文言が出ている状態で入力欄を改めてもエラーが
+	// 残り続けると、問題が解消していないかのように見える。入力を書き
+	// 換えた時点でエラー表示を消し、ユーザーに「入力が受理されている」
+	// フィードバックを返す。
+	it("エラー表示後に乗車バス停の入力を書き換えるとエラーが消える", async () => {
+		renderComponent();
+
+		// 空 submit で「乗車バス停を選択してください」を発生させる
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		expect(screen.queryByRole("alert")).toBeInTheDocument();
+
+		// 乗車入力に 1 文字打鍵するだけでエラーが消える
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭");
+
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
+
+	it("エラー表示後に降車バス停の入力を書き換えるとエラーが消える", async () => {
+		const { onAdd } = renderComponent();
+
+		// 乗車だけ選択して submit すると「降車バス停を選択してください」が出る
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.queryByRole("alert")).toBeInTheDocument();
+
+		// 降車入力に打鍵するだけでエラーが消える
+		await userEvent.type(comboboxes[1], "市");
+
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
+
+	// 徒歩所要時間や通知トグルの変更でもエラーが残り続ける UX は避けたい。
+	// form 側の入力操作全般でエラーをクリアする方針を固定化する。
+	it("エラー表示後に徒歩所要時間を書き換えるとエラーが消える", async () => {
+		renderComponent();
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+		expect(screen.queryByRole("alert")).toBeInTheDocument();
+
+		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
+		await userEvent.clear(walkInput);
+		await userEvent.type(walkInput, "5");
+
+		expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+	});
+
 	it("徒歩所要時間のデフォルト値が10である", () => {
 		renderComponent();
 		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
