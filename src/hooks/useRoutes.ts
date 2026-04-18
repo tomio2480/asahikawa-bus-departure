@@ -51,13 +51,16 @@ export function useRoutes(): UseRoutesReturn {
 			if (seq !== reloadSeqRef.current) return;
 			setRoutes(registered);
 			setError(null);
+			// 読み込み成功時のみ「初回ロード済み」フラグを立てる。
+			// finally で立てると初回が失敗しても true になり、以降の再試行で
+			// setLoading(true) が呼ばれず LoadingSpinner が表示されなくなる。
+			hasLoadedOnceRef.current = true;
 		} catch (e) {
 			if (seq !== reloadSeqRef.current) return;
 			setError(e instanceof Error ? e : new Error(String(e)));
 		} finally {
 			if (seq === reloadSeqRef.current) {
 				setLoading(false);
-				hasLoadedOnceRef.current = true;
 			}
 		}
 	}, []);
