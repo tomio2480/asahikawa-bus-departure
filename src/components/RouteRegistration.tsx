@@ -126,6 +126,12 @@ export function RouteRegistration({
 			showToast(`通知タイミングを設定できませんでした: ${detail}`, {
 				variant: "error",
 			});
+			// 確定に失敗したのに入力欄だけ新しい値のまま残ると、保存済みの値と
+			// 画面表示が乖離してユーザーの誤解を招く。props の現在値へロールバック
+			// して、表示と永続化値の整合を保つ。
+			if (notifyBeforeMinutes !== undefined) {
+				setNotifyInputValue(String(notifyBeforeMinutes));
+			}
 		}
 	};
 
@@ -488,7 +494,7 @@ export function RouteRegistration({
 															setTogglingRouteId(null);
 														}
 													}}
-													disabled={togglingRouteId === route.id}
+													disabled={togglingRouteId !== null}
 													aria-label="通知の切り替え"
 												/>
 											</td>

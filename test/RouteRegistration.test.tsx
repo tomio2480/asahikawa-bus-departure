@@ -377,6 +377,58 @@ describe("RouteRegistration コンポーネント", () => {
 		).toBeInTheDocument();
 	});
 
+	it("トグル処理中は他の経路のトグルも disabled になる（重複サブミッション防止）", async () => {
+		// 経路 A 処理中に経路 B をクリックすると togglingRouteId が B で上書きされ
+		// A のトグルが処理中に再有効化される問題を防ぐため、処理中は全トグルを
+		// 排他無効化する。
+		const routes: RegisteredRouteEntry[] = [
+			{
+				id: 1,
+				fromStopId: "test:S001",
+				toStopId: "test:S002",
+				walkMinutes: 5,
+				notifyEnabled: false,
+			},
+			{
+				id: 2,
+				fromStopId: "test:S002",
+				toStopId: "test:S003",
+				walkMinutes: 7,
+				notifyEnabled: false,
+			},
+		];
+		let resolveUpdate: () => void = () => {};
+		const onUpdate = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					resolveUpdate = r;
+				}),
+		);
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={vi.fn().mockResolvedValue(1)}
+				onUpdate={onUpdate}
+				onDelete={vi.fn().mockResolvedValue(undefined)}
+			/>,
+		);
+
+		const toggles = screen.getAllByRole("checkbox", {
+			name: "通知の切り替え",
+		});
+		expect(toggles).toHaveLength(2);
+
+		// 経路 A のトグルをクリック（onUpdate は保留）
+		await userEvent.click(toggles[0]);
+
+		// 経路 A だけでなく経路 B のトグルも disabled になっている
+		expect(toggles[0]).toBeDisabled();
+		expect(toggles[1]).toBeDisabled();
+
+		resolveUpdate();
+	});
+
 	it("トグル処理中でも経路登録ボタンの表示（テキスト・disabled）は変わらない", async () => {
 		// 通知の ON/OFF をするたびに登録ボタンが「保存中...」になったり disabled になったり
 		// 揺れる問題を回避する。トグル操作はフォーム送信と独立した状態で管理すべき。
@@ -1046,6 +1098,38 @@ describe("RouteRegistration コンポーネント", () => {
 			expect(
 				await screen.findByText(/通知タイミング.*設定できませんでした/),
 			).toBeInTheDocument();
+		});
+
+		it("onNotifyBeforeMinutesChange が throw したら入力欄の表示が元の値に戻る", async () => {
+			// 設定確定に失敗したのに入力欄だけ新しい値のまま残ると、
+			// 保存されている値と画面表示が乖離してユーザーの誤解を招く。
+			// 失敗時は確定直前の値（props の notifyBeforeMinutes）へロールバックする。
+			const onChange = vi.fn().mockImplementation(() => {
+				throw new Error("localStorage 書き込みに失敗しました");
+			});
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					onNotifyBeforeMinutesChange={onChange}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			expect(input).toHaveValue(15);
+			await userEvent.click(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			);
+			// エラートーストが出た上で、入力値は元の 5 にロールバックされている
+			expect(
+				await screen.findByText(/通知タイミング.*設定できませんでした/),
+			).toBeInTheDocument();
+			expect(input).toHaveValue(5);
 		});
 	});
 
