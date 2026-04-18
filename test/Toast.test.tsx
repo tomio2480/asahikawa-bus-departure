@@ -114,6 +114,47 @@ describe("ToastContainer", () => {
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
+	it("複数トースト追加時に既存トーストの自動消去タイマーがリセットされない", () => {
+		// ToastContainer の再レンダリング（2 つ目のトースト追加等）で
+		// ToastItem に渡る onDismiss の参照が変わると、useEffect の依存変化で
+		// cleanup→再スケジュールが走り durationMs が最初からやり直しになる。
+		// その結果、後からトーストが追加されるたび既存トーストが消えなくなる。
+		function DualTrigger() {
+			const { showToast } = useToast();
+			useEffect(() => {
+				showToast("先に出したトースト", { durationMs: 1000 });
+				// 500ms 後に 2 つ目を追加して ToastContainer を再レンダリングさせる
+				const t = setTimeout(() => {
+					showToast("後から出したトースト", { durationMs: 5000 });
+				}, 500);
+				return () => clearTimeout(t);
+			}, [showToast]);
+			return null;
+		}
+
+		render(
+			<ToastProvider>
+				<ToastContainer />
+				<DualTrigger />
+			</ToastProvider>,
+		);
+		expect(screen.getByText("先に出したトースト")).toBeInTheDocument();
+
+		// 500ms 経過 → 2 つ目のトーストが追加され再レンダリング
+		act(() => {
+			vi.advanceTimersByTime(500);
+		});
+		expect(screen.getByText("後から出したトースト")).toBeInTheDocument();
+		// 先のトーストはまだ残り 500ms なので表示されている
+		expect(screen.getByText("先に出したトースト")).toBeInTheDocument();
+
+		// さらに 500ms（累計 1000ms）進めると、先のトーストは本来消えているはず
+		act(() => {
+			vi.advanceTimersByTime(500);
+		});
+		expect(screen.queryByText("先に出したトースト")).not.toBeInTheDocument();
+	});
+
 	it("閉じるボタンをクリックするとトーストが消える", async () => {
 		const { default: userEvent } = await import("@testing-library/user-event");
 		const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });

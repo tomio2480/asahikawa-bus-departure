@@ -9,35 +9,31 @@ const variantClass: Record<ToastVariant, string> = {
 
 /** 画面右下にトーストを積む表示コンテナ */
 export function ToastContainer() {
-	const { toasts, dismissToast } = useToast();
+	const { toasts } = useToast();
 	return (
 		<div className="toast toast-end toast-bottom z-50">
 			{toasts.map((toast) => (
-				<ToastItem
-					key={toast.id}
-					toast={toast}
-					onDismiss={() => dismissToast(toast.id)}
-				/>
+				<ToastItem key={toast.id} toast={toast} />
 			))}
 		</div>
 	);
 }
 
-function ToastItem({
-	toast,
-	onDismiss,
-}: {
-	toast: Toast;
-	onDismiss: () => void;
-}) {
+function ToastItem({ toast }: { toast: Toast }) {
+	// dismissToast は ToastProvider 側で useCallback により安定参照になっている。
+	// onDismiss をプロップで受けると ToastContainer の再レンダリングごとに
+	// 新しい参照となり useEffect の cleanup→再スケジュールで自動消去タイマーが
+	// リセットされるため、ToastItem 内部で直接取得する。
+	const { dismissToast } = useToast();
+
 	// 自動消去タイマーを ToastItem のライフサイクルに合わせて管理する。
 	// アンマウント・手動消去による再レンダリング時にクリーンアップで
 	// clearTimeout が呼ばれるため、pending タイマーの残留を防ぐ。
 	useEffect(() => {
 		if (toast.durationMs <= 0) return;
-		const timer = setTimeout(onDismiss, toast.durationMs);
+		const timer = setTimeout(() => dismissToast(toast.id), toast.durationMs);
 		return () => clearTimeout(timer);
-	}, [toast.durationMs, onDismiss]);
+	}, [toast.id, toast.durationMs, dismissToast]);
 
 	const isError = toast.variant === "error";
 	return (
@@ -51,7 +47,7 @@ function ToastItem({
 				type="button"
 				className="btn btn-ghost btn-xs"
 				aria-label="閉じる"
-				onClick={onDismiss}
+				onClick={() => dismissToast(toast.id)}
 			>
 				×
 			</button>
