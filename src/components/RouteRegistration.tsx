@@ -324,10 +324,16 @@ export function RouteRegistration({
 					walkMinutes,
 					notifyEnabled,
 				};
+				// 成功トーストで「どの経路が登録されたか」を示す。既存の通知トグル
+				// トースト（`... の通知を ON にしました`）と様式を揃え、
+				// 文言退化を避けるため resetForm 前に stop_name を読み出しておく。
+				const routeLabel = `${form.fromStop.stop_name} → ${form.toStop.stop_name}`;
 				if (editingId != null) {
 					await onUpdate({ ...entry, id: editingId });
+					showToast(`${routeLabel} を更新しました`, { variant: "success" });
 				} else {
 					await onAdd(entry);
+					showToast(`${routeLabel} を登録しました`, { variant: "success" });
 				}
 				resetForm();
 			} catch (err) {
@@ -348,6 +354,7 @@ export function RouteRegistration({
 			onUpdate,
 			resetForm,
 			onRequestNotificationPermission,
+			showToast,
 		],
 	);
 

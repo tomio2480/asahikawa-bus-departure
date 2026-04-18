@@ -321,6 +321,44 @@ describe("RouteRegistration コンポーネント", () => {
 		});
 	});
 
+	// 登録成功をトーストでフィードバックし、どの経路が登録されたかを
+	// バス停名で明示する。既存の通知トグルトースト（「... の通知を ON に
+	// しました」）と様式を揃える（coderabbitai #95 の「ユーザー向け文言の
+	// 揺れを避ける」指摘に沿う）。
+	it("登録成功時に登録経路を示すトーストが表示される", async () => {
+		renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(
+			await screen.findByText(/旭川駅前 → 市役所前 を登録しました/),
+		).toBeInTheDocument();
+	});
+
+	// 編集→更新経路でも成功トーストを出す。文言だけ「登録しました」→
+	// 「更新しました」に切り替わる点を固定文字列で検証し、文言退化を
+	// 検出できるようにする。
+	it("更新成功時に更新経路を示すトーストが表示される", async () => {
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
+		];
+		const { onUpdate } = renderComponent(routes);
+
+		await userEvent.click(screen.getByRole("button", { name: "編集" }));
+		await userEvent.click(screen.getByRole("button", { name: "更新" }));
+
+		expect(
+			await screen.findByText(/旭川駅前 → 市役所前 を更新しました/),
+		).toBeInTheDocument();
+		expect(onUpdate).toHaveBeenCalled();
+	});
+
 	it("徒歩所要時間のデフォルト値が10である", () => {
 		renderComponent();
 		const walkInput = screen.getByLabelText("徒歩所要時間（分）");
