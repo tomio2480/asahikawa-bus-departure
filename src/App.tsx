@@ -10,7 +10,7 @@ import { ToastContainer } from "./components/Toast";
 import { useDatabase } from "./hooks/useDatabase";
 import { useDepartures } from "./hooks/useDepartures";
 import { useNotification } from "./hooks/useNotification";
-import { useNotifyBeforeMinutesInput } from "./hooks/useNotifyBeforeMinutesInput";
+import { useNotificationSettings } from "./hooks/useNotificationSettings";
 import { useRoutes } from "./hooks/useRoutes";
 import { type ThemePreference, useTheme } from "./hooks/useTheme";
 import { ToastProvider } from "./hooks/useToast";
@@ -108,17 +108,13 @@ function AppContent() {
 
 	const { preference, changeTheme } = useTheme();
 
-	// 通知タイミングの確定値と入力中の値を同一スコープで管理する。
-	// 従来は RouteRegistration 内で useState + useEffect による
-	// props → state 同期を行っていたが、React アンチパターンであり
-	// 入力中に外部更新が来た場合の上書きリスクもあった（Issue #89）。
-	const {
-		minutes: notifyBeforeMinutes,
-		inputValue: notifyInputValue,
-		setInputValue: setNotifyInputValue,
-		canCommit: canCommitNotifyInput,
-		commit: commitNotifyInput,
-	} = useNotifyBeforeMinutesInput();
+	// 通知タイミングの確定値 (localStorage 永続化付き) のみを AppContent で保持し、
+	// 入力中文字列の state は RouteRegistration 内部の useNotifyBeforeMinutesInput
+	// が管理する。Issue #93: 入力中の文字列 state を AppContent に持たせると
+	// キー入力ごとに AppContent（配下の MapView / DepartureBoard 等も含む）が
+	// 再レンダされてしまうため、入力 state の保持を必要最小限のスコープへ移動した。
+	const { minutes: notifyBeforeMinutes, setMinutes: setNotifyBeforeMinutes } =
+		useNotificationSettings();
 
 	const allDeparturesForNotification = useMemo(
 		() =>
@@ -214,10 +210,7 @@ function AppContent() {
 							notifyPermission={notifyPermission}
 							hasNotifyEnabledRoutes={hasNotifyEnabledRoutes}
 							notifyBeforeMinutes={notifyBeforeMinutes}
-							notifyInputValue={notifyInputValue}
-							onNotifyInputChange={setNotifyInputValue}
-							canCommitNotifyInput={canCommitNotifyInput}
-							onCommitNotifyInput={commitNotifyInput}
+							setNotifyBeforeMinutes={setNotifyBeforeMinutes}
 						/>
 					</>
 				)}

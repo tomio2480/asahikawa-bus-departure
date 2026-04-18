@@ -19,7 +19,6 @@ import {
 import type { Database } from "sql.js";
 import { RouteRegistration } from "../src/components/RouteRegistration";
 import { ToastContainer } from "../src/components/Toast";
-import type { NotifyInputCommitResult } from "../src/hooks/useNotifyBeforeMinutesInput";
 import { ToastProvider } from "../src/hooks/useToast";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
@@ -110,13 +109,14 @@ function renderComponent(routes: RegisteredRouteEntry[] = []) {
 
 /**
  * 通知タイミング UI の対話系テスト向けハーネス。
- * useNotifyBeforeMinutesInput の振る舞いを等価に再現しつつ、
- * commit 成功時のスパイ注入・失敗時の挙動確認を可能にする。
+ * 内部で minutes を state として保持し、setNotifyBeforeMinutes に
+ * onCommitSpy を挟むことで commit 成功時の spy 検証・throw による
+ * rollback 検証を可能にする。
  *
- * 実フック (`useNotifyBeforeMinutesInput`) と異なり localStorage には
- * 触れず、confirmation 専用のインメモリ状態だけで動作する。これにより
- * テスト間での localStorage 漏れを避けつつ、確定値・入力値の同一スコープ
- * 管理による「入力中の外部更新保護」の振る舞いを再現できる。
+ * 本物の useNotificationSettings と異なり localStorage には触れず、
+ * インメモリ状態のみで動作する。RouteRegistration 内部の
+ * useNotifyBeforeMinutesInput がそのまま動くため、入力中の文字列
+ * state や canCommit 判定は本物と同一の実装で検証される。
  */
 function NotifyHarness(props: {
 	db: Database;
@@ -128,7 +128,7 @@ function NotifyHarness(props: {
 	notifyPermission?: NotificationPermission | "unsupported";
 	hasNotifyEnabledRoutes?: boolean;
 	initialMinutes?: number;
-	/** commit 時に minutes 引数で呼ばれる。throw すると rollback される */
+	/** commit 成功時に minutes 引数で呼ばれる。throw すると rollback される */
 	onCommitSpy?: (minutes: number) => void;
 }) {
 	const {
@@ -137,38 +137,20 @@ function NotifyHarness(props: {
 		...componentProps
 	} = props;
 	const [minutes, setMinutes] = useState(initialMinutes);
-	const [inputValue, setInputValue] = useState(String(initialMinutes));
 
-	const parsed = Number(inputValue);
-	const isValid =
-		inputValue.trim() !== "" &&
-		Number.isInteger(parsed) &&
-		parsed >= 1 &&
-		parsed <= 60;
-	const canCommit = isValid && parsed !== minutes;
-
-	const commit = (): NotifyInputCommitResult => {
-		if (!canCommit) {
-			return { ok: false, error: new Error("invalid-or-unchanged") };
-		}
-		try {
-			onCommitSpy?.(parsed);
-			setMinutes(parsed);
-			return { ok: true, committedMinutes: parsed };
-		} catch (err) {
-			setInputValue(String(minutes));
-			return { ok: false, error: err };
-		}
+	const setNotifyBeforeMinutes = (value: number) => {
+		// onCommitSpy が throw すれば setMinutes に到達せず、
+		// RouteRegistration 内部の useNotifyBeforeMinutesInput が
+		// 入力値を元の minutes にロールバックする。
+		onCommitSpy?.(value);
+		setMinutes(value);
 	};
 
 	return (
 		<RouteRegistration
 			{...componentProps}
 			notifyBeforeMinutes={minutes}
-			notifyInputValue={inputValue}
-			onNotifyInputChange={setInputValue}
-			canCommitNotifyInput={canCommit}
-			onCommitNotifyInput={commit}
+			setNotifyBeforeMinutes={setNotifyBeforeMinutes}
 		/>
 	);
 }
@@ -1181,10 +1163,12 @@ describe("RouteRegistration コンポーネント", () => {
 			).toBeInTheDocument();
 		});
 
-		it("onCommitNotifyInput が未指定の場合は成功トーストが表示されない", async () => {
-			// 親が commit ハンドラを渡していないとき（例えば feature flag OFF 等）に
-			// 「設定しました」トーストが誤って表示されるとユーザーに未実施の操作が
-			// 完了したかのような誤情報を伝えてしまう。ハンドラ未指定時は no-op すべき。
+		it("setNotifyBeforeMinutes が未指定の場合は通知タイミング UI が表示されない", () => {
+			// 親が永続化ハンドラを渡していないとき（例えば feature flag OFF 等）に
+			// 通知タイミング入力 UI を描画してしまうと、入力はできるが保存されない
+			// という矛盾した挙動になり、確定後に「設定しました」トーストが出ても
+			// 実際には何も永続化されていないという誤情報をユーザーに伝えてしまう。
+			// そのため setNotifyBeforeMinutes 未指定時は UI 自体を非表示にする。
 			render(
 				<RouteRegistration
 					db={db}
@@ -1192,19 +1176,16 @@ describe("RouteRegistration コンポーネント", () => {
 					{...baseHandlers()}
 					hasNotifyEnabledRoutes={true}
 					notifyBeforeMinutes={5}
-					notifyInputValue="5"
-					onNotifyInputChange={() => {}}
-					canCommitNotifyInput={true}
-					// onCommitNotifyInput を意図的に渡さない
+					// setNotifyBeforeMinutes を意図的に渡さない
 				/>,
 			);
-			await userEvent.click(
-				screen.getByRole("button", { name: "通知タイミングを設定" }),
-			);
-			// 成功トーストが出てはならない
 			expect(
-				screen.queryByText(/発車の.*分前に通知するように設定しました/),
+				screen.queryByRole("spinbutton", { name: "通知タイミング" }),
 			).not.toBeInTheDocument();
+			expect(
+				screen.queryByRole("button", { name: "通知タイミングを設定" }),
+			).not.toBeInTheDocument();
+			expect(screen.queryByText(/現在、出発/)).not.toBeInTheDocument();
 		});
 
 		it("blur では commit が呼ばれない（確定は Enter / 設定ボタンのみ）", () => {
@@ -1571,12 +1552,11 @@ describe("RouteRegistration コンポーネント", () => {
 			// 従来 RouteRegistration は notifyBeforeMinutes の変化を useEffect で
 			// 内部 state に同期していたため、ユーザーが編集中に親の確定値が
 			// 変わると入力途中の値が上書きされるアンチパターンが存在した。
-			// リフトアップ後は制御コンポーネントとなり、親が notifyInputValue を
-			// 明示的に変更しない限り入力は保持される。
+			// Issue #93 以降は内部フック useNotifyBeforeMinutesInput の useState
+			// 初期化子がマウント時にのみ minutes を参照するため、外部から
+			// notifyBeforeMinutes が変わっても編集中の入力値は保持される。
 			function ExternalMinutesChanger() {
 				const [externalMinutes, setExternalMinutes] = useState(5);
-				// 入力値だけはローカル維持（親は inputValue を確定値と独立に扱う）
-				const [inputValue, setInputValue] = useState("5");
 				return (
 					<>
 						<button
@@ -1592,13 +1572,7 @@ describe("RouteRegistration コンポーネント", () => {
 							{...baseHandlers()}
 							hasNotifyEnabledRoutes={true}
 							notifyBeforeMinutes={externalMinutes}
-							notifyInputValue={inputValue}
-							onNotifyInputChange={setInputValue}
-							canCommitNotifyInput={false}
-							onCommitNotifyInput={() => ({
-								ok: true,
-								committedMinutes: Number(inputValue),
-							})}
+							setNotifyBeforeMinutes={setExternalMinutes}
 						/>
 					</>
 				);

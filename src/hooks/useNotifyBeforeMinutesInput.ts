@@ -3,7 +3,6 @@ import {
 	NOTIFY_MAX_MINUTES,
 	NOTIFY_MIN_MINUTES,
 } from "../constants/notification";
-import { useNotificationSettings } from "./useNotificationSettings";
 
 /**
  * commit() の戻り値。
@@ -23,14 +22,22 @@ export type NotifyInputCommitResult =
  * 場合に編集途中の値を破壊する典型的なアンチパターンである
  * （Issue #89）。
  *
- * 本フックは確定値（useNotificationSettings の minutes）と
- * 編集中の値（inputValue）を同一スコープで管理し、
- * 編集開始後は minutes が変わっても inputValue が書き換えられない
- * 性質を保証する。RouteRegistration は純粋な制御コンポーネントとなり
+ * 本フックは確定値（引数 minutes）と編集中の値（inputValue）を
+ * 同一スコープで管理し、編集開始後は minutes が変わっても inputValue が
+ * 書き換えられない性質を保証する（useState の初期化子は初回マウント時のみ
+ * 評価されるため）。RouteRegistration は純粋な制御コンポーネントとなり
  * useEffect 同期が不要になる。
+ *
+ * Issue #93: 本フックは従来 `useNotificationSettings()` を内部で呼び出して
+ * いたが、それにより useNotifyBeforeMinutesInput を呼ぶコンポーネント全体が
+ * minutes 更新で再レンダリングされてしまっていた。UI 上は RouteRegistration
+ * のみが minutes を必要とするため、呼び出し側から (minutes, setMinutes) を
+ * 受け取る形に変更し、再レンダの局所化を実現する。
  */
-export function useNotifyBeforeMinutesInput() {
-	const { minutes, setMinutes } = useNotificationSettings();
+export function useNotifyBeforeMinutesInput(
+	minutes: number,
+	setMinutes: (value: number) => void,
+) {
 	const [inputValue, setInputValue] = useState<string>(() => String(minutes));
 
 	const parsed = Number(inputValue);
