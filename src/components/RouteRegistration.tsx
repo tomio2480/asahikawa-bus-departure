@@ -45,6 +45,18 @@ type RouteRegistrationProps = {
 type FormState = {
 	fromStop: StopSearchResult | null;
 	toStop: StopSearchResult | null;
+	/**
+	 * 乗車バス停の入力欄に現在入っている文字列。
+	 *
+	 * `fromStop` が null でも query が非空のときは「ユーザーは文字を
+	 * 入力したが有効な候補を選択していない」状態であり、submit 時の
+	 * エラー文言を「選択してください」ではなく「入力された ... は候補に
+	 * ありません」に分岐させるために使う。StopSearch からは
+	 * onQueryChange 経由で同期する。
+	 */
+	fromStopQuery: string;
+	/** 降車バス停の入力欄に現在入っている文字列（用途は fromStopQuery と同じ）。 */
+	toStopQuery: string;
 	walkMinutes: string;
 	notifyEnabled: boolean;
 };
@@ -52,6 +64,8 @@ type FormState = {
 const initialFormState: FormState = {
 	fromStop: null,
 	toStop: null,
+	fromStopQuery: "",
+	toStopQuery: "",
 	walkMinutes: "10",
 	notifyEnabled: false,
 };
@@ -262,11 +276,26 @@ export function RouteRegistration({
 			setErrorMessage(null);
 
 			if (!form.fromStop) {
-				setErrorMessage("乗車バス停を選択してください");
+				// ユーザーが文字を入力済みの場合は、「選択してください」では
+				// 入力が無視されているような誤解を招く。query が非空なら
+				// 「入力された名称は候補にない」旨を明示する文言に分岐する。
+				if (form.fromStopQuery.trim() !== "") {
+					setErrorMessage(
+						`入力された乗車バス停「${form.fromStopQuery}」は候補にありません。候補から選択してください。`,
+					);
+				} else {
+					setErrorMessage("乗車バス停を選択してください");
+				}
 				return;
 			}
 			if (!form.toStop) {
-				setErrorMessage("降車バス停を選択してください");
+				if (form.toStopQuery.trim() !== "") {
+					setErrorMessage(
+						`入力された降車バス停「${form.toStopQuery}」は候補にありません。候補から選択してください。`,
+					);
+				} else {
+					setErrorMessage("降車バス停を選択してください");
+				}
 				return;
 			}
 			if (form.fromStop.stop_id === form.toStop.stop_id) {
@@ -364,17 +393,24 @@ export function RouteRegistration({
 
 	const handleEdit = useCallback(
 		(route: RegisteredRouteEntry) => {
+			const fromName = stopNameMap.get(route.fromStopId) ?? route.fromStopId;
+			const toName = stopNameMap.get(route.toStopId) ?? route.toStopId;
 			setForm({
 				fromStop: {
 					stop_id: route.fromStopId,
-					stop_name: stopNameMap.get(route.fromStopId) ?? route.fromStopId,
+					stop_name: fromName,
 					clusterStopIds: [route.fromStopId],
 				},
 				toStop: {
 					stop_id: route.toStopId,
-					stop_name: stopNameMap.get(route.toStopId) ?? route.toStopId,
+					stop_name: toName,
 					clusterStopIds: [route.toStopId],
 				},
+				// 編集開始時は入力欄にも stop_name が入るため、query も同じ値で
+				// 初期化する（StopSearch からの onQueryChange 同期を待つ間の
+				// 整合性を保つ）。
+				fromStopQuery: fromName,
+				toStopQuery: toName,
 				walkMinutes: String(route.walkMinutes),
 				notifyEnabled: route.notifyEnabled === true,
 			});
@@ -421,6 +457,9 @@ export function RouteRegistration({
 							onSelect={(stop) =>
 								setForm((prev) => ({ ...prev, fromStop: stop }))
 							}
+							onQueryChange={(q) =>
+								setForm((prev) => ({ ...prev, fromStopQuery: q }))
+							}
 							selectedStop={form.fromStop}
 							reachabilityFilter={fromStopFilter}
 						/>
@@ -429,6 +468,9 @@ export function RouteRegistration({
 							label="降車バス停"
 							onSelect={(stop) =>
 								setForm((prev) => ({ ...prev, toStop: stop }))
+							}
+							onQueryChange={(q) =>
+								setForm((prev) => ({ ...prev, toStopQuery: q }))
 							}
 							selectedStop={form.toStop}
 							reachabilityFilter={toStopFilter}

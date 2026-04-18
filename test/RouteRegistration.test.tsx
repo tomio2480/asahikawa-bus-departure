@@ -385,6 +385,42 @@ describe("RouteRegistration コンポーネント", () => {
 		await userEvent.click(screen.getByRole("button", { name: "登録" }));
 
 		expect(onAdd).not.toHaveBeenCalled();
+		// ユーザーが文字を入力しているのに「選択してください」と表示されると
+		// 「入力されていない」と誤認させる。入力内容が候補になかった旨を
+		// 明示する文言に分岐させる（候補にない点を理由として伝える）。
+		// 文言の前半・後半いずれの退化も検出できるよう完全文字列で固定する。
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された乗車バス停「旭川駅前xxx」は候補にありません。候補から選択してください。",
+		);
+	});
+
+	// 降車側でも同じ分岐が働くこと。ユーザー指摘の「降車バス停を選択して
+	// ください」という誤解を招く文言を防ぐ。
+	it("降車側で選択後に input を書き換えて submit すると「候補にありません」エラーが出る", async () => {
+		const { onAdd } = renderComponent();
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// 降車バス停を選択後に存在しない名称を追加入力
+		await userEvent.type(comboboxes[1], "zzz");
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		expect(onAdd).not.toHaveBeenCalled();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			"入力された降車バス停「市役所前zzz」は候補にありません。候補から選択してください。",
+		);
+	});
+
+	// 入力が空の場合は従来の「選択してください」文言を維持する
+	// （新分岐の追加で全てのエラーが置き換わらないことの回帰防止）。
+	it("入力が空のまま submit した場合は従来どおり「選択してください」が表示される", async () => {
+		renderComponent();
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
 		expect(screen.getByRole("alert")).toHaveTextContent(
 			"乗車バス停を選択してください",
 		);
