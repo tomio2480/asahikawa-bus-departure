@@ -113,14 +113,18 @@ export function RouteRegistration({
 	 * 通知分前入力の確定処理。
 	 * Enter キー押下 / 設定ボタンクリック時に呼び出され、onNotifyBeforeMinutesChange
 	 * に伝播する。呼び出し元が throw した場合はエラートーストで通知する。
+	 * コールバック未指定時は optional chaining で silently no-op するだけでは
+	 * 「設定しました」トーストが誤表示されるため、明示的にガードする。
 	 */
 	const commitNotifyInput = () => {
 		if (!canCommitNotifyInput) return;
+		if (!onNotifyBeforeMinutesChange) return;
 		try {
-			onNotifyBeforeMinutesChange?.(notifyInputParsed);
-			showToast(`通知タイミングを ${notifyInputParsed} 分前に設定しました`, {
-				variant: "success",
-			});
+			onNotifyBeforeMinutesChange(notifyInputParsed);
+			showToast(
+				`発車の ${notifyInputParsed} 分前に通知するように設定しました`,
+				{ variant: "success" },
+			);
 		} catch (err) {
 			const detail = err instanceof Error ? err.message : String(err);
 			showToast(`通知タイミングを設定できませんでした: ${detail}`, {

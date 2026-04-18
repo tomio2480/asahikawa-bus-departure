@@ -1091,7 +1091,9 @@ describe("RouteRegistration コンポーネント", () => {
 				screen.getByRole("button", { name: "通知タイミングを設定" }),
 			);
 			expect(
-				await screen.findByText(/通知タイミングを\s*15\s*分前に設定しました/),
+				await screen.findByText(
+					/発車の\s*15\s*分前に通知するように設定しました/,
+				),
 			).toBeInTheDocument();
 		});
 
@@ -1115,8 +1117,41 @@ describe("RouteRegistration コンポーネント", () => {
 			expect(onChange).toHaveBeenCalledTimes(1);
 			expect(onChange).toHaveBeenCalledWith(20);
 			expect(
-				await screen.findByText(/通知タイミングを\s*20\s*分前に設定しました/),
+				await screen.findByText(
+					/発車の\s*20\s*分前に通知するように設定しました/,
+				),
 			).toBeInTheDocument();
+		});
+
+		it("onNotifyBeforeMinutesChange が未指定の場合は成功トーストが表示されない", async () => {
+			// optional chaining で silently no-op するだけでは、コールバック未指定時に
+			// 「設定しました」トーストが誤って表示され、ユーザーに未実施の操作が
+			// 完了したかのような誤情報を伝えてしまう。コールバックが実際に呼ばれた
+			// 場合のみ成功トーストを出すべき。
+			render(
+				<RouteRegistration
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={vi.fn().mockResolvedValue(undefined)}
+					hasNotifyEnabledRoutes={true}
+					notifyBeforeMinutes={5}
+					// onNotifyBeforeMinutesChange を意図的に渡さない
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			fireEvent.change(input, { target: { value: "15" } });
+			await userEvent.click(
+				screen.getByRole("button", { name: "通知タイミングを設定" }),
+			);
+			// 成功トーストが出てはならない
+			expect(
+				screen.queryByText(/発車の\s*15\s*分前に通知するように設定しました/),
+			).not.toBeInTheDocument();
+			expect(
+				screen.queryByText(/通知タイミングを\s*15\s*分前に設定しました/),
+			).not.toBeInTheDocument();
 		});
 
 		it("blur では onNotifyBeforeMinutesChange が呼ばれない（確定は Enter / 設定ボタンのみ）", () => {
