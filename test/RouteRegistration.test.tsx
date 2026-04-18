@@ -1936,8 +1936,11 @@ describe("RouteRegistration（到達可能性フィルタ）", () => {
 		// 「更新」ボタンを押す → submit ガードでエラーが表示される
 		await userEvent.click(screen.getByRole("button", { name: "更新" }));
 
+		// UX 文言の意図しない退化を検出できるよう、実装側の実文言
+		// 「選択したバス停間に直通便がありません。別の組み合わせを選んでください」の
+		// 冒頭フレーズにマッチさせる（coderabbitai #96 nitpick）。
 		expect(screen.getByRole("alert")).toHaveTextContent(
-			/直通便|到達|経路がありません/,
+			/選択したバス停間に直通便がありません/,
 		);
 		expect(onUpdate).not.toHaveBeenCalled();
 	});
