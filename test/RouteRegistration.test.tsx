@@ -3,6 +3,7 @@ import {
 	fireEvent,
 	render as rtlRender,
 	screen,
+	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ReactElement, useState } from "react";
@@ -1120,9 +1121,12 @@ describe("RouteRegistration コンポーネント", () => {
 		resolveUpdate();
 	});
 
-	it("トグル処理中でも経路登録ボタンの表示（テキスト・disabled）は変わらない", async () => {
-		// 通知の ON/OFF をするたびに登録ボタンが「保存中...」になったり disabled になったり
-		// 揺れる問題を回避する。トグル操作はフォーム送信と独立した状態で管理すべき。
+	it("トグル処理中は登録ボタンが disabled になるがテキストは「登録」のまま変わらない", async () => {
+		// 通知の ON/OFF をするたびに登録ボタンのテキストが「保存中...」に
+		// 揺れる問題は引き続き回避する（submitting と togglingRouteId を
+		// 分離管理する元々の目的）。ただし Issue #103 の対称化により、
+		// disabled 状態はフォーム側と同じく isFormLocked=true の間
+		// 立つようになった（キャンセルボタンと同契約）。
 		const routes: RegisteredRouteEntry[] = [
 			{
 				id: 1,
@@ -1155,9 +1159,10 @@ describe("RouteRegistration コンポーネント", () => {
 			screen.getByRole("checkbox", { name: "通知の切り替え" }),
 		);
 
-		// トグル処理が保留中でも登録ボタンは「登録」のままで enabled
+		// トグル処理中でもテキストは「登録」のまま（submitting=false のため）。
+		// ただし Issue #103 によって disabled は立つ。
 		expect(submitButton).toHaveTextContent("登録");
-		expect(submitButton).not.toBeDisabled();
+		expect(submitButton).toBeDisabled();
 
 		resolveUpdate();
 	});
@@ -2336,5 +2341,134 @@ describe("RouteRegistration（到達可能性フィルタ）", () => {
 			/乗り換えなしで到達できる便が見つかりませんでした/,
 		);
 		expect(onUpdate).not.toHaveBeenCalled();
+	});
+});
+
+describe("RouteRegistration（送信中の入力系無効化 / Issue #103）", () => {
+	// Issue #103: submit 処理が pending の間、ユーザーの新しい入力が await
+	// 解決後の resetForm で吹き飛ぶレースを避けるため、入力系 3 種
+	// （乗車/降車 StopSearch × 2、徒歩時間 input、通知 checkbox）と
+	// フォーム側ボタン、一覧の通知トグルをすべて disabled にする。
+	// 派生値 `isFormLocked = submitting || togglingRouteId !== null` で
+	// 束ねることで、キャンセルボタンと登録/更新ボタンの disabled 条件の
+	// 非対称（submitting のみ vs submitting || togglingRouteId !== null）も
+	// 同じ契約に揃える。
+	it("onAdd 解決前は入力系 3 種とフォーム側ボタンが disabled になる", async () => {
+		const onAdd = vi.fn().mockReturnValue(new Promise<number>(() => {}));
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={[]}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+			/>,
+		);
+
+		// 乗車/降車を選択して submit 条件を満たす
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// 登録クリック → onAdd が pending のまま submitting=true が継続
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		// 3 入力系
+		const [fromCombo, toCombo] = screen.getAllByRole("combobox");
+		expect(fromCombo).toBeDisabled();
+		expect(toCombo).toBeDisabled();
+		expect(screen.getByLabelText("徒歩所要時間（分）")).toBeDisabled();
+		expect(screen.getByRole("checkbox", { name: "通知" })).toBeDisabled();
+
+		// フォーム側ボタン（登録中なので「保存中...」ラベル）
+		expect(screen.getByRole("button", { name: "保存中..." })).toBeDisabled();
+	});
+
+	it("通知トグル処理中（togglingRouteId !== null）は登録ボタンも disabled になる", async () => {
+		// キャンセルボタンは既に submitting || togglingRouteId !== null で
+		// disabled 化される契約になっているが、登録/更新ボタンは submitting
+		// のみで togglingRouteId を参照していなかった既存の非対称を揃える。
+		let resolveUpdate: () => void = () => {};
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn(
+			() =>
+				new Promise<void>((r) => {
+					resolveUpdate = r;
+				}),
+		);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
+		];
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+			/>,
+		);
+
+		// トグルクリックで togglingRouteId !== null
+		await userEvent.click(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		);
+
+		// 登録ボタンが disabled になることを検証（対称化）
+		expect(screen.getByRole("button", { name: "登録" })).toBeDisabled();
+
+		resolveUpdate();
+	});
+
+	it("onAdd 解決前は一覧の通知トグル・編集・削除ボタンも disabled になる", async () => {
+		// 既存の 3 箇所（一覧通知トグル・編集・削除）は submitting のみで
+		// disabled 化されていたが、派生値 isFormLocked で束ねても挙動が
+		// 変わらないことを回帰として保証する。
+		const onAdd = vi.fn().mockReturnValue(new Promise<number>(() => {}));
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+
+		const routes: RegisteredRouteEntry[] = [
+			{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 5 },
+		];
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={routes}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+			/>,
+		);
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		// 既登録ルートの表にも同名セルがあるため listbox 内で絞る
+		await userEvent.click(
+			within(screen.getByRole("listbox")).getByText("旭川駅前"),
+		);
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(
+			within(screen.getByRole("listbox")).getByText("市役所前"),
+		);
+
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		// submit 後、登録ボタンは「保存中...」ラベルに切り替わる
+		expect(screen.getByRole("button", { name: "保存中..." })).toBeDisabled();
+		expect(
+			screen.getByRole("checkbox", { name: "通知の切り替え" }),
+		).toBeDisabled();
+		expect(screen.getByRole("button", { name: "編集" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "削除" })).toBeDisabled();
 	});
 });
