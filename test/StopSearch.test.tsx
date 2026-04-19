@@ -339,10 +339,11 @@ describe("StopSearch コンポーネント", () => {
 		expect(onSelect).toHaveBeenCalledWith(null);
 	});
 
-	// selectedStop を渡して初期マウントした直後、useEffect 経由で query が
-	// selectedStop.stop_name に同期されるだけで、onSelect(null) が誤発火しない
-	// ことを確認する。ここで null が通知されると親の form state を破壊する
-	// ループになるため、マウント直後の防御的テストとして残す。
+	// selectedStop を渡して初期マウントした直後、ControlledStopSearch wrapper の
+	// useState 初期化子が selectedStop.stop_name を query に取り込んだ状態で
+	// onSelect(null) が誤発火しないことを確認する。ここで null が通知されると
+	// 親の form state を破壊するループになるため、マウント直後の防御的テスト
+	// として残す。
 	it("selectedStop 初期マウント時に onSelect(null) は呼ばれない", () => {
 		const onSelect = vi.fn();
 		const selected: StopSearchResult = {
