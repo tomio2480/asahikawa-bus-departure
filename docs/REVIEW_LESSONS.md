@@ -162,8 +162,8 @@
   - さらに既存コードでは，キャンセル・一覧通知トグル・編集・削除ボタンが `submitting || togglingRouteId !== null` を直書きしているのに対し，登録/更新ボタンのみ `submitting` 単独判定という非対称があり，「トグル処理中でも登録ボタンだけ押せる」状態が生じていた．
 - **対処パターン** ：
   - `isFormLocked = submitting || togglingRouteId !== null` のような派生値を 1 箇所で定義し，入力系・キャンセル・登録/更新・一覧のトグル/編集/削除・子コンポーネント（`NotifySettings` 等）の disabled 条件をすべて同値に揃える．子コンポーネント側も個別フラグ（`submitting` / `togglingRouteId`）ではなく派生値（`isFormLocked`）を受け取る契約にすることで，重複ロジックと対称性の崩れをまとめて解消する．
-  - `StopSearch` のような composite widget は `disabled` 化に合わせて開いている listbox を閉じる（WAI-ARIA：「操作不能なのに listbox が見えている」状態を作らない）．false→true 遷移のみで発火する `useEffect` で実装する．
-- **補足** ： ここで使う `useEffect` は「props の変化に応じた内部 state の一回性リセット」であり，Issue #99 で排除した「props→state 同期」（双方向・常時追従）とは別物．JSDoc で意図を明記して混同を防ぐ．
+  - `StopSearch` のような composite widget は `disabled` 化に合わせて開いている listbox を閉じる（WAI-ARIA：「操作不能なのに listbox が見えている」状態を作らない）．実装は listbox の描画条件を `const isListboxOpen = !disabled && isOpen && results.length > 0` のような派生値で表現し，`useEffect` による内部 state の書き戻しは行わない．
+- **補足** ： 「`disabled` 遷移で内部 state をリセットする `useEffect`」は一見「一回性の片方向反映」に見えるが，描画条件側に `!disabled` を AND するだけで同じ結果になる．`useEffect` を書く前に「派生値で表現できないか」を最初に検討すること（PR #104 gemini-code-assist 指摘）．Issue #99 で排除した「props→state 同期」（双方向・常時追従）を避けるのはもちろん，片方向であっても React 公式「You Might Not Need an Effect」の観点で `useEffect` は可能な限り減らす方針を徹底する．
 - **チェック観点** ：
   - 同じ真偽条件式（`a || b !== null` 等）が 3 箇所以上に重複していないか．派生値に束ねられないか．
   - フォーム送信・トグル処理などの async 操作中に，他の入力系が触れる状態になっていないか．
