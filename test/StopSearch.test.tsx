@@ -424,6 +424,73 @@ describe("StopSearch コンポーネント", () => {
 		fireEvent.mouseDown(screen.getByText("外側ボタン"));
 		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 	});
+
+	// Issue #103: 送信中などフォーム全体が操作禁止のとき、StopSearch も
+	// 無効化できるようにする。disabled prop を介して input の HTML disabled
+	// 属性が立ち、ハンドラが no-op になり、既に開いていたドロップダウンが
+	// 閉じることを保証する。WAI-ARIA 観点で「操作不能なのにリストが表示
+	// されている」状態を作らないようにする。
+	it("disabled={true} では input に disabled 属性が設定される", () => {
+		const onSelect = vi.fn();
+		render(
+			<ControlledStopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				disabled={true}
+			/>,
+		);
+		const input = screen.getByRole("combobox");
+		expect(input).toBeDisabled();
+	});
+
+	it("disabled={true} ではキー入力で onQueryChange が呼ばれない", async () => {
+		const onSelect = vi.fn();
+		const onQueryChange = vi.fn();
+		render(
+			<StopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				query=""
+				onQueryChange={onQueryChange}
+				disabled={true}
+			/>,
+		);
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "旭川");
+		expect(onQueryChange).not.toHaveBeenCalled();
+		expect(onSelect).not.toHaveBeenCalled();
+	});
+
+	it("disabled={false}→true 遷移で開いているドロップダウンが閉じる", async () => {
+		// disabled 化と同時に listbox を閉じる（設計判断）。
+		// false→true の一回性リアクションであり、Issue #99 で排除した
+		// props→state「同期」とは別物。
+		const onSelect = vi.fn();
+		const { rerender } = render(
+			<ControlledStopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				disabled={false}
+			/>,
+		);
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "旭川");
+		expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+		rerender(
+			<ControlledStopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				disabled={true}
+			/>,
+		);
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+		expect(input).toHaveAttribute("aria-expanded", "false");
+	});
 });
 
 describe("StopSearch（到達可能性フィルタ）", () => {

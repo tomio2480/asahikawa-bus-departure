@@ -60,6 +60,23 @@ type StopSearchProps = {
 	 * 親コンポーネントで構築して渡す。
 	 */
 	reachabilityFilter?: ReachabilityFilter;
+	/**
+	 * Issue #103: フォーム全体を一時的に操作禁止にしたいときに true を渡す。
+	 * 典型的には送信処理中（`submitting`）や他の副作用処理中
+	 * （`togglingRouteId !== null` など）のレースコンディション回避に使う。
+	 *
+	 * true のときの挙動：
+	 * - `input` に HTML `disabled` 属性を付与し、キー入力・フォーカス獲得
+	 *   経由のドロップダウン再オープンを防ぐ。
+	 * - `handleSearch` / `handleSelect` / `handleKeyDown` / `onFocus` は
+	 *   早期リターンして no-op になる。
+	 * - すでに開いていた listbox は閉じる（false→true 遷移を useEffect で
+	 *   観測）。これは「props→state 同期」ではなく片方向・一回性の
+	 *   リアクションであり、Issue #99 で排除したアンチパターンとは別物。
+	 *   WAI-ARIA 観点で「操作不能なのに listbox が見えている」状態を作らない
+	 *   ことが目的。
+	 */
+	disabled?: boolean;
 };
 
 /** バス停名のインクリメンタルサーチコンポーネント */
@@ -72,6 +89,7 @@ export function StopSearch({
 	selectedStop = null,
 	placeholder = "バス停名を入力",
 	reachabilityFilter,
+	disabled = false,
 }: StopSearchProps) {
 	const id = useId();
 	const [isOpen, setIsOpen] = useState(false);
@@ -97,6 +115,10 @@ export function StopSearch({
 
 	const handleSearch = useCallback(
 		(value: string) => {
+			// Issue #103: disabled 中は親 state を書き換えない。
+			// HTML disabled 属性で通常の入力経路は塞がれるが、プログラム的に
+			// value が来るケースも想定して早期リターンで二重に防ぐ。
+			if (disabled) return;
 			onQueryChange(value);
 			setActiveIndex(-1);
 			// 選択済み状態で入力値が選択 stop の名称と乖離したら、親側の
@@ -115,21 +137,25 @@ export function StopSearch({
 			// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
 			setIsOpen(true);
 		},
-		[selectedStop, onSelect, onQueryChange],
+		[selectedStop, onSelect, onQueryChange, disabled],
 	);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {
+			// Issue #103: disabled 中は候補クリックも無効化する。
+			// option 側の onClick 条件分岐と併せた二重ガード。
+			if (disabled) return;
 			onQueryChange(stop.stop_name);
 			setIsOpen(false);
 			setActiveIndex(-1);
 			onSelect(stop);
 		},
-		[onSelect, onQueryChange],
+		[onSelect, onQueryChange, disabled],
 	);
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent) => {
+			if (disabled) return;
 			if (!isOpen || results.length === 0) return;
 
 			switch (e.key) {
@@ -153,8 +179,21 @@ export function StopSearch({
 					break;
 			}
 		},
-		[isOpen, results, activeIndex, handleSelect],
+		[isOpen, results, activeIndex, handleSelect, disabled],
 	);
+
+	// Issue #103: disabled 化の瞬間に開いていた listbox を閉じる。
+	// WAI-ARIA 観点で「操作不能なのに listbox が見えている」状態を作らない
+	// ためのリアクションで、false→true の一回性の片方向フロー。
+	// 「props→state 同期」（Issue #99 で排除したアンチパターン）とは別物で、
+	// 内部 state（isOpen / activeIndex）と prop（disabled）の二重管理は
+	// 発生しない。
+	useEffect(() => {
+		if (disabled) {
+			setIsOpen(false);
+			setActiveIndex(-1);
+		}
+	}, [disabled]);
 
 	// ドロップダウン外クリックで閉じる
 	useEffect(() => {
@@ -186,8 +225,10 @@ export function StopSearch({
 				onChange={(e) => handleSearch(e.target.value)}
 				onKeyDown={handleKeyDown}
 				onFocus={() => {
+					if (disabled) return;
 					if (results.length > 0) setIsOpen(true);
 				}}
+				disabled={disabled}
 				role="combobox"
 				aria-autocomplete="list"
 				aria-expanded={isListboxOpen}
@@ -239,7 +280,15 @@ export function StopSearch({
 							role="option"
 							aria-selected={index === activeIndex}
 							tabIndex={-1}
-							onClick={() => handleSelect(stop)}
+							onClick={() => {
+								// Issue #103: disabled 中はクリックでも反応しない。
+								// handleSelect の早期リターンと合わせた二重ガード。
+								// 通常は disabled 化で listbox 自体が閉じるためここに
+								// 到達しないが、CSS の pointer-events を使う代替は
+								// DaisyUI 側のスタイルと衝突するためこちらを採る。
+								if (disabled) return;
+								handleSelect(stop);
+							}}
 							onMouseEnter={() => setActiveIndex(index)}
 						>
 							<span className="inline-flex flex-wrap items-center gap-1">
