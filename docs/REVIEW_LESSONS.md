@@ -1,6 +1,6 @@
 # 📘 過去レビューから抽出したセルフレビュー観点
 
-これまでの PR #92 / #95 / #96 / #97 / #98 で CodeRabbit・gemini-code-assist・ユーザーから受けた指摘を恒久化し，新規 PR を出す前のセルフレビューチェックリストとして機能させるための文書．実装エージェント・レビュー担当（自分自身含む）は，PR 作成前にここを最後に一読すること．
+これまでの PR #92 / #95 / #96 / #97 / #98 / Issue #99 で CodeRabbit・gemini-code-assist・ユーザーから受けた指摘を恒久化し，新規 PR を出す前のセルフレビューチェックリストとして機能させるための文書．実装エージェント・レビュー担当（自分自身含む）は，PR 作成前にここを最後に一読すること．
 
 本書は PR ごとに積まれる「移ろいやすい」知見を対象とする．設計判断の不変則は [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) に置き，本書で一定の汎用性が確認された事項をそちらへ蒸留する流れを取る．
 
@@ -136,7 +136,16 @@
   - `selectedStop` 経由の `useEffect` 同期と打鍵入力を同じテストで混ぜていないか．
 - **背景** ： `handleSearch` の中間 null 発火は `selectedStop` 無効化の仕様（入力が選択済みと乖離したら選択状態を破棄）を担う．この契約は変えない．
 
-### 17. セルフレビューは並列エージェントで多視点から行う
+### 17. 半制御コンポーネントを避け，入力系は完全制御に寄せる
+
+- **指摘例** （Issue #99， `src/components/StopSearch.tsx`）：内部で `useState<query>` を持ちつつ，`selectedStop` prop の変化を `useEffect` で同期するハイブリッド構造になっていた．さらに「内部発の `onSelect(null)` による selectedStop=null は query 反映させたくない」という要求に応えるため `suppressNextSelectedSyncRef` という escape-hatch が積まれ，意味論が不透明になっていた．
+- **対処パターン** ：React 公式「You Might Not Need an Effect」に従い，props→state 同期 useEffect を消す．query は親が完全に保持する完全制御コンポーネントにし，子は `value={query}` をそのまま input に渡すだけにする．親側（`RouteRegistration.tsx`）は form state に `fromStopQuery` / `toStopQuery` を持ち，`handleEdit` / `resetForm` 等の操作で stop と query を同一トランザクションで更新する．
+- **チェック観点** ：
+  - 子コンポーネント内に「親の prop を初期値として useState で受け，useEffect で prop 変化に追従」する構造があったら，それは半制御．親に state を上げて完全制御にできないか検討する．
+  - suppress フラグ / skip ref が必要になった時点で，状態の二重管理がバグを呼んでいるサイン．手続き的な打ち消しより構造を平らにする．
+- **テスト側の影響** ：完全制御化すると子単体のテストが `query` / `onQueryChange` を明示的に渡すか，state を保持する薄い wrapper（例: `ControlledStopSearch`）経由で render する必要がある．`<Component />` を `<ControlledComponent />` に置換するだけで旧挙動を再現できるよう wrapper を汎用化する．
+
+### 18. セルフレビューは並列エージェントで多視点から行う
 
 - **指摘例** （PR #98 ユーザー指示）：Draft PR 作成前のセルフレビューで，単一視点だと検知漏れが発生しやすい．a11y / 型安全 / デッドコード / テスト品質等の観点ごとに視点が独立しているため，並列実行で網羅性を上げられる．
 - **対処パターン** ：Draft 作成前に以下の 4 視点相当でエージェントを並列起動する．
@@ -155,6 +164,8 @@
 ### コード変更
 
 - [ ] `useEffect` で props→state 同期していないか． `useMemo` で派生値化できないか．
+- [ ] 子コンポーネント内で「prop を初期値とする `useState` + prop 変化を拾う `useEffect`」の半制御構造になっていないか．親に state を上げて完全制御にできないか．
+- [ ] 状態同期の打ち消しのために `suppress*Ref` / `skip*Ref` 等の escape-hatch を追加していないか．構造を平らにできないか．
 - [ ] WAI-ARIA 属性（`aria-expanded` / `aria-controls` / `aria-selected` 等）の値が，対応する DOM 描画条件と一致しているか．
 - [ ] 配列を扱うフィルタで `||` を使っていないか． `??` に置換できるか．
 - [ ] UI 文言を変えたら， `grep -rn '<旧文言>' test src` で残存が 0 件か．
@@ -205,3 +216,4 @@
 | #96 | 直通便で到達不能な組み合わせ除外 | クラスタ契約違反，`aria-expanded` 乖離，`useEffect` 同期排除，`??` vs `\|\|`，assertion の固定文字列化 |
 | #97 | main ホットフィックス（文言追従） | UI 文言変更時の test grep スイープ漏れ |
 | #98 | 経路登録 UX 改善（エラー・トースト・到達可能性告知） | `searchStops` limit のバリデーション用途誤用，エラー文末の句点揺れ，テスト名と本体の乖離，`handleSearch` 中間状態の `onSelect(null)` 契約 |
+| Issue #99 | `StopSearch` を完全制御コンポーネント化 | props→state 同期 `useEffect` の排除，`suppressNextSelectedSyncRef` escape-hatch の撤去，半制御 → 完全制御のテスト migration（`ControlledStopSearch` wrapper） |

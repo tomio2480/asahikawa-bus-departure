@@ -207,6 +207,16 @@ SELECT EXISTS (
 
 `StopSearch` は `ReachabilityFilter` prop を受け，候補サジェストをクラスタ単位で絞り込む．一方で `RouteRegistration` の送信時バリデーションは `searchStops(db, query, 100)` のようにフィルタ無し・limit 100 で広く名前一致を取り，「名称は存在するが到達不可能」のケースを明確に区別する（REVIEW_LESSONS 14）．
 
+### `StopSearch` は完全制御コンポーネント
+
+`StopSearch` は入力文字列 `query` を内部 state として持たず，親が保持する文字列をそのまま `value` prop として受け取る．候補選択やキー入力で発生する文字列変化は `onQueryChange` コールバックで親に通知する．親（`RouteRegistration`）の `FormState` が `fromStopQuery` / `toStopQuery` を含み，`StopSearchResult` の選択状態（`fromStop` / `toStop`）と一対で管理する（Issue #99）．
+
+半制御（内部 state ＋ `useEffect` による props→state 同期）の構成を採用しない．理由は以下のとおり．
+
+- `selectedStop` prop の変更を内部 `useState` に流し込む `useEffect` が必要になり，「内部発の `onSelect(null)` による `selectedStop=null` 遷移」と「外部発の `handleEdit` / `resetForm`」を区別するための escape-hatch（`suppressNextSelectedSyncRef` 等）が積み重なる．
+- 親の form state と子の query state が二重に存在することで，「選択済みのまま入力だけ書き換えて submit」の検知が状態遷移の順序に依存し，バグを誘発する．
+- React 公式「You Might Not Need an Effect」が推奨する「状態を親に上げて完全制御にする」パターンに整合する．
+
 ---
 
 ## 🕒 発車案内の生成

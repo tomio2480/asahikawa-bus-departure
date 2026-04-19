@@ -20,10 +20,28 @@ type StopSearchProps = {
 	/** 入力欄のラベル */
 	label: string;
 	/**
+	 * Issue #99: 完全制御コンポーネントとしての query state。
+	 * 親が保持する string をそのまま input の value として反映する。
+	 * 内部 useState による二重管理と props→state 同期 useEffect を
+	 * 排し、handleEdit / resetForm 等の親発の query 書き換えも
+	 * 単純な setState で完結させる（React 公式「You Might Not Need
+	 * an Effect」の推奨形）。
+	 */
+	query: string;
+	/**
+	 * query 文字列が変化したときのコールバック。
+	 *
+	 * ユーザーのキー入力・候補選択のいずれでも最新の query を
+	 * 親に通知する。親は「選択が無効だがユーザーは文字を入力
+	 * している」状態を検出し、エラー文言の分岐（「選択して
+	 * ください」/「存在しません」/「乗り換えなしで到達できま
+	 * せん」/「候補から選択してください」）に使う。
+	 */
+	onQueryChange: (query: string) => void;
+	/**
 	 * バス停の選択状態が変化したときのコールバック。
 	 *
-	 * - 候補クリック / Enter 押下 / selectedStop prop からの初期化時は
-	 *   `StopSearchResult` で呼び出す。
+	 * - 候補クリック / Enter 押下時は `StopSearchResult` で呼び出す。
 	 * - 選択済みの状態で入力値が `selectedStop.stop_name` と乖離した場合は
 	 *   `null` で呼び出し、親側の選択状態を無効化することを依頼する。
 	 *
@@ -32,17 +50,7 @@ type StopSearchProps = {
 	 * 選択の有効/無効は常に本コールバックの契約で一元化する。
 	 */
 	onSelect: (stop: StopSearchResult | null) => void;
-	/**
-	 * 入力欄の query 文字列が変化したときのコールバック。
-	 *
-	 * ユーザーのキー入力・候補選択・`selectedStop` prop 経由の同期の
-	 * いずれでも最新の query を親に通知する。親は「選択が無効だが
-	 * ユーザーは文字を入力している」状態を検出し、エラー文言の分岐
-	 * （「選択してください」/「存在しません」/「乗り換えなしで到達
-	 * できません」/「候補から選択してください」）に使う。
-	 */
-	onQueryChange?: (query: string) => void;
-	/** 選択済みのバス停（外部から制御する場合） */
+	/** 選択済みのバス停（「選択済み状態で入力値が乖離」検出に使う） */
 	selectedStop?: StopSearchResult | null;
 	/** placeholder テキスト */
 	placeholder?: string;
@@ -58,14 +66,14 @@ type StopSearchProps = {
 export function StopSearch({
 	db,
 	label,
-	onSelect,
+	query,
 	onQueryChange,
+	onSelect,
 	selectedStop = null,
 	placeholder = "バス停名を入力",
 	reachabilityFilter,
 }: StopSearchProps) {
 	const id = useId();
-	const [query, setQuery] = useState(selectedStop?.stop_name ?? "");
 	const [isOpen, setIsOpen] = useState(false);
 	const [activeIndex, setActiveIndex] = useState(-1);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -87,59 +95,17 @@ export function StopSearch({
 	// （coderabbitai #96 指摘）。
 	const isListboxOpen = isOpen && results.length > 0;
 
-	// 本コンポーネント自身が発する onSelect(null) による selectedStop=null
-	// への遷移と、外部起因の selectedStop 変更（handleEdit / resetForm 等）を
-	// 区別するためのフラグ。前者では query を空に戻したくないが、後者では
-	// query を新しい値に同期したい。
-	//
-	// 内部起因（ユーザーが選択済みの入力を書き換えた）の場合だけこのフラグを
-	// 立て、直後に発火する selectedStop 同期 useEffect でスキップさせる。
-	// これにより、選択後に input を書き換えたときユーザーの打鍵がそのまま
-	// 残り、到達不能・存在しないバス停で submit したときの再検証ガードも
-	// 正しく働くようになる。
-	const suppressNextSelectedSyncRef = useRef(false);
-
-	// 親が渡す onQueryChange は毎レンダ新規生成されるケースが多いため、
-	// 依存配列に直接入れると useEffect / useCallback が毎レンダ再実行・
-	// 再生成されてしまう（REVIEW_LESSONS #1 の派生値同期アンチパターンに
-	// 似た無駄を生む）。ref で最新関数を保持し、依存配列からは除外する
-	// useEventCallback パターンで切り離す。
-	const onQueryChangeRef = useRef(onQueryChange);
-	useEffect(() => {
-		onQueryChangeRef.current = onQueryChange;
-	}, [onQueryChange]);
-
-	// query を更新すると同時に親の onQueryChange にも通知するヘルパー。
-	// 空の依存配列で identity を固定し、handleSearch / handleSelect /
-	// selectedStop 同期 effect いずれから呼ばれても無駄な再生成を避ける。
-	const updateQuery = useCallback((newQuery: string) => {
-		setQuery(newQuery);
-		onQueryChangeRef.current?.(newQuery);
-	}, []);
-
-	// 外部から selectedStop が変更された場合に入力欄を同期する。
-	// 内部起因（handleSearch の onSelect(null)）経由の selectedStop=null
-	// 遷移ではスキップし、ユーザーが打鍵した中間状態の query を保持する。
-	useEffect(() => {
-		if (suppressNextSelectedSyncRef.current) {
-			suppressNextSelectedSyncRef.current = false;
-			return;
-		}
-		updateQuery(selectedStop?.stop_name ?? "");
-	}, [selectedStop, updateQuery]);
-
 	const handleSearch = useCallback(
 		(value: string) => {
-			updateQuery(value);
+			onQueryChange(value);
 			setActiveIndex(-1);
 			// 選択済み状態で入力値が選択 stop の名称と乖離したら、親側の
 			// 選択状態を無効化する。これにより「選択後に入力だけ書き換えて
 			// submit」された場合でも、親の form state が null に戻り、
 			// 実在性・到達可能性の再検証（= submit ガード）が正しく走る。
-			// 直後の useEffect が selectedStop=null を受けて query を空に
-			// 戻さないよう、suppress フラグを立ててから onSelect(null) を呼ぶ。
+			// 完全制御化（Issue #99）で query が外部 state になったため、
+			// 内部 state を書き戻す必要がなく suppress フラグは不要になった。
 			if (selectedStop && value !== selectedStop.stop_name) {
-				suppressNextSelectedSyncRef.current = true;
 				onSelect(null);
 			}
 			if (value.trim() === "") {
@@ -149,17 +115,17 @@ export function StopSearch({
 			// results は派生値として自動再計算されるため、ここでは開閉のみ制御する。
 			setIsOpen(true);
 		},
-		[selectedStop, onSelect, updateQuery],
+		[selectedStop, onSelect, onQueryChange],
 	);
 
 	const handleSelect = useCallback(
 		(stop: StopSearchResult) => {
-			updateQuery(stop.stop_name);
+			onQueryChange(stop.stop_name);
 			setIsOpen(false);
 			setActiveIndex(-1);
 			onSelect(stop);
 		},
-		[onSelect, updateQuery],
+		[onSelect, onQueryChange],
 	);
 
 	const handleKeyDown = useCallback(
