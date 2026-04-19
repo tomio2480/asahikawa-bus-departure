@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { type ComponentProps, useState } from "react";
 import initSqlJs from "sql.js";
 import {
 	afterEach,
@@ -14,6 +15,41 @@ import { StopSearch } from "../src/components/StopSearch";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { StopSearchResult } from "../src/lib/stop-search";
 import type { GtfsData } from "../src/types/gtfs";
+
+/**
+ * Issue #99: StopSearch を完全制御コンポーネント化した後のテスト用ラッパー。
+ *
+ * 従来（内部 useState 版）のテストは query/onQueryChange を意識せずに
+ * `<StopSearch ... />` を直接レンダリングしていた。新 API では親が
+ * query を保持する契約になったため、テスト側も query state を保持する
+ * 薄い wrapper を経由させる。初期値は selectedStop.stop_name から
+ * 引き出し、旧挙動（選択済み stop を渡すと input に名称が表示される）を
+ * そのまま再現する。
+ */
+type ControlledStopSearchProps = Omit<
+	ComponentProps<typeof StopSearch>,
+	"query" | "onQueryChange"
+> & {
+	initialQuery?: string;
+};
+
+function ControlledStopSearch({
+	initialQuery,
+	selectedStop,
+	...rest
+}: ControlledStopSearchProps) {
+	const [query, setQuery] = useState(
+		initialQuery ?? selectedStop?.stop_name ?? "",
+	);
+	return (
+		<StopSearch
+			{...rest}
+			selectedStop={selectedStop}
+			query={query}
+			onQueryChange={setQuery}
+		/>
+	);
+}
 
 const testStops: GtfsData["stops"] = [
 	{
@@ -70,20 +106,24 @@ afterEach(() => {
 describe("StopSearch コンポーネント", () => {
 	it("ラベルが表示される", () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 		expect(screen.getByText("乗車バス停")).toBeInTheDocument();
 	});
 
 	it("プレースホルダーが表示される", () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 		expect(screen.getByPlaceholderText("バス停名を入力")).toBeInTheDocument();
 	});
 
 	it("カスタムプレースホルダーを設定できる", () => {
 		const onSelect = vi.fn();
 		render(
-			<StopSearch
+			<ControlledStopSearch
 				db={db}
 				label="乗車バス停"
 				onSelect={onSelect}
@@ -93,9 +133,61 @@ describe("StopSearch コンポーネント", () => {
 		expect(screen.getByPlaceholderText("検索...")).toBeInTheDocument();
 	});
 
+	it("query prop が input の value として反映される（fully controlled API）", () => {
+		// Issue #99: StopSearch は props→state 同期 useEffect を排した
+		// 完全制御コンポーネントとする。親が保持する query state がそのまま
+		// input の value になり、内部 useState を介さないことを保証する。
+		const onSelect = vi.fn();
+		const onQueryChange = vi.fn();
+		render(
+			<StopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				query="旭川駅"
+				onQueryChange={onQueryChange}
+			/>,
+		);
+		const input = screen.getByRole("combobox") as HTMLInputElement;
+		expect(input.value).toBe("旭川駅");
+	});
+
+	it("query prop の変更が input の value に即時反映される（fully controlled API）", () => {
+		// Issue #99: 親が query を書き換えた場合（handleEdit / resetForm の
+		// 親側 setFormState 経由）、次の render で input.value が新しい値に
+		// 反映される。内部 state を介さないため、同期 useEffect も
+		// suppress フラグも不要になる。
+		const onSelect = vi.fn();
+		const onQueryChange = vi.fn();
+		const { rerender } = render(
+			<StopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				query=""
+				onQueryChange={onQueryChange}
+			/>,
+		);
+		const input = screen.getByRole("combobox") as HTMLInputElement;
+		expect(input.value).toBe("");
+
+		rerender(
+			<StopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				query="市役所前"
+				onQueryChange={onQueryChange}
+			/>,
+		);
+		expect(input.value).toBe("市役所前");
+	});
+
 	it("テキスト入力で検索結果が表示される", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "旭川");
@@ -107,7 +199,9 @@ describe("StopSearch コンポーネント", () => {
 
 	it("該当なしの場合はドロップダウンが表示されない", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "札幌");
@@ -117,7 +211,9 @@ describe("StopSearch コンポーネント", () => {
 
 	it("検索結果をクリックして選択できる", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "市役所");
@@ -136,7 +232,9 @@ describe("StopSearch コンポーネント", () => {
 
 	it("ArrowDown/ArrowUp でフォーカスを移動できる", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "旭川");
@@ -152,7 +250,9 @@ describe("StopSearch コンポーネント", () => {
 
 	it("Enter キーで選択できる", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "旭川");
@@ -165,7 +265,9 @@ describe("StopSearch コンポーネント", () => {
 
 	it("Escape キーでドロップダウンが閉じる", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "旭川");
@@ -183,7 +285,7 @@ describe("StopSearch コンポーネント", () => {
 			clusterStopIds: ["test:S001"],
 		};
 		render(
-			<StopSearch
+			<ControlledStopSearch
 				db={db}
 				label="乗車バス停"
 				onSelect={onSelect}
@@ -209,7 +311,7 @@ describe("StopSearch コンポーネント", () => {
 			clusterStopIds: ["test:S001"],
 		};
 		render(
-			<StopSearch
+			<ControlledStopSearch
 				db={db}
 				label="乗車バス停"
 				onSelect={onSelect}
@@ -236,7 +338,7 @@ describe("StopSearch コンポーネント", () => {
 			clusterStopIds: ["test:S001"],
 		};
 		render(
-			<StopSearch
+			<ControlledStopSearch
 				db={db}
 				label="乗車バス停"
 				onSelect={onSelect}
@@ -249,7 +351,9 @@ describe("StopSearch コンポーネント", () => {
 
 	it("入力を空にするとドロップダウンが閉じる", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "旭川");
@@ -261,7 +365,9 @@ describe("StopSearch コンポーネント", () => {
 
 	it("aria-expanded が正しく設定される", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		expect(input).toHaveAttribute("aria-expanded", "false");
@@ -275,7 +381,9 @@ describe("StopSearch コンポーネント", () => {
 		// WAI-ARIA combobox パターンに違反する。描画条件と aria-expanded は
 		// 「候補が 1 件以上かつユーザーが閉じていない」の派生値で一元化する。
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "該当しない文字列xyz");
@@ -290,7 +398,7 @@ describe("StopSearch コンポーネント", () => {
 		const onSelect = vi.fn();
 		render(
 			<div>
-				<StopSearch db={db} label="乗車バス停" onSelect={onSelect} />
+				<ControlledStopSearch db={db} label="乗車バス停" onSelect={onSelect} />
 				<button type="button">外側ボタン</button>
 			</div>,
 		);
@@ -384,7 +492,9 @@ describe("StopSearch（到達可能性フィルタ）", () => {
 
 	it("reachabilityFilter 未指定時は全候補を表示する", async () => {
 		const onSelect = vi.fn();
-		render(<StopSearch db={db} label="降車バス停" onSelect={onSelect} />);
+		render(
+			<ControlledStopSearch db={db} label="降車バス停" onSelect={onSelect} />,
+		);
 
 		const input = screen.getByRole("combobox");
 		await userEvent.type(input, "停");
@@ -397,7 +507,7 @@ describe("StopSearch（到達可能性フィルタ）", () => {
 	it("reachableFromOrigin 指定時は origin から直通で到達可能な候補のみ表示する", async () => {
 		const onSelect = vi.fn();
 		render(
-			<StopSearch
+			<ControlledStopSearch
 				db={db}
 				label="降車バス停"
 				onSelect={onSelect}
@@ -417,7 +527,7 @@ describe("StopSearch（到達可能性フィルタ）", () => {
 	it("reachableToDestination 指定時は destination に直通で到達できる候補のみ表示する", async () => {
 		const onSelect = vi.fn();
 		render(
-			<StopSearch
+			<ControlledStopSearch
 				db={db}
 				label="乗車バス停"
 				onSelect={onSelect}
@@ -437,7 +547,7 @@ describe("StopSearch（到達可能性フィルタ）", () => {
 	it("reachabilityFilter の変更時にドロップダウン表示が追従する", async () => {
 		const onSelect = vi.fn();
 		const { rerender } = render(
-			<StopSearch db={db} label="降車バス停" onSelect={onSelect} />,
+			<ControlledStopSearch db={db} label="降車バス停" onSelect={onSelect} />,
 		);
 
 		const input = screen.getByRole("combobox");
@@ -446,7 +556,7 @@ describe("StopSearch（到達可能性フィルタ）", () => {
 
 		// フィルタを追加して再描画 → D は除外されるべき
 		rerender(
-			<StopSearch
+			<ControlledStopSearch
 				db={db}
 				label="降車バス停"
 				onSelect={onSelect}

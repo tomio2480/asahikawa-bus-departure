@@ -563,9 +563,11 @@ export function RouteRegistration({
 					stop_name: toName,
 					clusterStopIds: [route.toStopId],
 				},
-				// 編集開始時は入力欄にも stop_name が入るため、query も同じ値で
-				// 初期化する（StopSearch からの onQueryChange 同期を待つ間の
-				// 整合性を保つ）。
+				// Issue #99 以降、StopSearch は完全制御コンポーネントであり、
+				// input.value は親が渡した query prop をそのまま反映する。
+				// 編集開始時は入力欄にも stop_name を表示するため、fromStop /
+				// toStop と fromStopQuery / toStopQuery を同一トランザクションで
+				// 更新し、フォーム状態の整合性を保つ。
 				fromStopQuery: fromName,
 				toStopQuery: toName,
 				walkMinutes: String(route.walkMinutes),
@@ -611,11 +613,12 @@ export function RouteRegistration({
 						<StopSearch
 							db={db}
 							label="乗車バス停"
-							onSelect={(stop) =>
-								updateForm((prev) => ({ ...prev, fromStop: stop }))
-							}
+							query={form.fromStopQuery}
 							onQueryChange={(q) =>
 								updateForm((prev) => ({ ...prev, fromStopQuery: q }))
+							}
+							onSelect={(stop) =>
+								updateForm((prev) => ({ ...prev, fromStop: stop }))
 							}
 							selectedStop={form.fromStop}
 							reachabilityFilter={fromStopFilter}
@@ -623,11 +626,12 @@ export function RouteRegistration({
 						<StopSearch
 							db={db}
 							label="降車バス停"
-							onSelect={(stop) =>
-								updateForm((prev) => ({ ...prev, toStop: stop }))
-							}
+							query={form.toStopQuery}
 							onQueryChange={(q) =>
 								updateForm((prev) => ({ ...prev, toStopQuery: q }))
+							}
+							onSelect={(stop) =>
+								updateForm((prev) => ({ ...prev, toStop: stop }))
 							}
 							selectedStop={form.toStop}
 							reachabilityFilter={toStopFilter}
