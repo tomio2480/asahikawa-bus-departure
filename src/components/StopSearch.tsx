@@ -70,11 +70,11 @@ type StopSearchProps = {
 	 *   経由のドロップダウン再オープンを防ぐ。
 	 * - `handleSearch` / `handleSelect` / `handleKeyDown` / `onFocus` は
 	 *   早期リターンして no-op になる。
-	 * - すでに開いていた listbox は閉じる（false→true 遷移を useEffect で
-	 *   観測）。これは「props→state 同期」ではなく片方向・一回性の
-	 *   リアクションであり、Issue #99 で排除したアンチパターンとは別物。
-	 *   WAI-ARIA 観点で「操作不能なのに listbox が見えている」状態を作らない
-	 *   ことが目的。
+	 * - listbox の描画条件 `isListboxOpen` に `!disabled` を AND しているため、
+	 *   開いていた listbox は disabled=true の瞬間から描画されない
+	 *   （派生値による表現。useEffect で isOpen を書き戻す必要はない）。
+	 *   WAI-ARIA 観点で「操作不能なのに listbox が見えている」状態を
+	 *   作らないことが目的。
 	 */
 	disabled?: boolean;
 };
@@ -107,11 +107,17 @@ export function StopSearch({
 	}, [db, query, reachabilityFilter]);
 
 	// listbox の実在状態。`isOpen` は「ユーザーが明示的に閉じていない」を表し、
-	// 実際に listbox を描画するか否かは候補の有無との AND で決まる。
+	// 実際に listbox を描画するか否かは候補の有無と disabled の否との AND で決まる。
 	// aria-expanded と描画条件をこの派生値で一元化することで、候補 0 件時に
 	// aria-expanded="true" のまま listbox が無いという WAI-ARIA 違反を防ぐ
 	// （coderabbitai #96 指摘）。
-	const isListboxOpen = isOpen && results.length > 0;
+	// Issue #103 / gemini-code-assist #104: `disabled` 中は listbox を
+	// 描画しない。以前は false→true 遷移を useEffect で観測して isOpen を
+	// 倒していたが、派生値で表現すれば useEffect による「props → state
+	// の片方向反映」すら不要になる（React 公式「You Might Not Need an
+	// Effect」の徹底）。ユーザーが disabled 解除後に input にフォーカス
+	// すれば onFocus → setIsOpen(true) で自然に復帰する。
+	const isListboxOpen = !disabled && isOpen && results.length > 0;
 
 	const handleSearch = useCallback(
 		(value: string) => {
@@ -181,19 +187,6 @@ export function StopSearch({
 		},
 		[isOpen, results, activeIndex, handleSelect, disabled],
 	);
-
-	// Issue #103: disabled 化の瞬間に開いていた listbox を閉じる。
-	// WAI-ARIA 観点で「操作不能なのに listbox が見えている」状態を作らない
-	// ためのリアクションで、false→true の一回性の片方向フロー。
-	// 「props→state 同期」（Issue #99 で排除したアンチパターン）とは別物で、
-	// 内部 state（isOpen / activeIndex）と prop（disabled）の二重管理は
-	// 発生しない。
-	useEffect(() => {
-		if (disabled) {
-			setIsOpen(false);
-			setActiveIndex(-1);
-		}
-	}, [disabled]);
 
 	// ドロップダウン外クリックで閉じる
 	useEffect(() => {
