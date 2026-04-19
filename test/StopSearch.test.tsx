@@ -25,6 +25,19 @@ import type { GtfsData } from "../src/types/gtfs";
  * 薄い wrapper を経由させる。初期値は selectedStop.stop_name から
  * 引き出し、旧挙動（選択済み stop を渡すと input に名称が表示される）を
  * そのまま再現する。
+ *
+ * **スコープの制約**（gemini-code-assist #102 レビュー対応）：
+ * 本 wrapper は「初回マウント時のみ `selectedStop.stop_name` を query の
+ * 初期値として取り込み、以降は query と selectedStop を同期しない」最小
+ * 変換器として設計している。`useEffect` による props→state 同期は敢えて
+ * 持たない（Issue #99 のリファクタ対象そのものであり、wrapper に戻すと
+ * 本末転倒になるため）。
+ *
+ * したがって、初回マウント後に `selectedStop` prop を差し替えるような
+ * テスト（`rerender` で `selectedStop` だけ変更するケース）には対応しない。
+ * 将来そのようなテストが必要になった場合は、本 wrapper を拡張せず、
+ * `StopSearch` を直接使用し、親テストコンポーネント側で `query` と
+ * `selectedStop` をまとめて制御する形（新 API 本来の使い方）で対応する。
  */
 type ControlledStopSearchProps = Omit<
 	ComponentProps<typeof StopSearch>,
