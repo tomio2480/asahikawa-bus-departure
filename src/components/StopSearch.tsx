@@ -70,11 +70,16 @@ type StopSearchProps = {
 	 *   経由のドロップダウン再オープンを防ぐ。
 	 * - `handleSearch` / `handleSelect` / `handleKeyDown` / `onFocus` は
 	 *   早期リターンして no-op になる。
-	 * - listbox の描画条件 `isListboxOpen` に `!disabled` を AND しているため、
-	 *   開いていた listbox は disabled=true の瞬間から描画されない
-	 *   （派生値による表現。useEffect で isOpen を書き戻す必要はない）。
+	 * - listbox は「派生値 + useEffect」の二段構えで閉じる：
+	 *   - 派生値 `isListboxOpen = !disabled && isOpen && results.length > 0`
+	 *     により、false→true 遷移のレンダリング段階から listbox を非表示に
+	 *     する（1 フレーム描画問題を回避）。
+	 *   - `useEffect([disabled])` で disabled=true の間に内部 `isOpen` を
+	 *     false に倒し、true→false 逆遷移時に listbox が自動再表示される
+	 *     UX バグを防ぐ（disabled 解除後の再オープンはユーザーの明示操作
+	 *     （focus/入力）を必要とする）。
 	 *   WAI-ARIA 観点で「操作不能なのに listbox が見えている」状態を
-	 *   作らないことが目的。
+	 *   作らないことと、ユーザーの意図しない listbox 復活を防ぐことが目的。
 	 */
 	disabled?: boolean;
 };
@@ -111,12 +116,13 @@ export function StopSearch({
 	// aria-expanded と描画条件をこの派生値で一元化することで、候補 0 件時に
 	// aria-expanded="true" のまま listbox が無いという WAI-ARIA 違反を防ぐ
 	// （coderabbitai #96 指摘）。
-	// Issue #103 / gemini-code-assist #104: `disabled` 中は listbox を
-	// 描画しない。以前は false→true 遷移を useEffect で観測して isOpen を
-	// 倒していたが、派生値で表現すれば useEffect による「props → state
-	// の片方向反映」すら不要になる（React 公式「You Might Not Need an
-	// Effect」の徹底）。ユーザーが disabled 解除後に input にフォーカス
-	// すれば onFocus → setIsOpen(true) で自然に復帰する。
+	// Issue #103 / gemini-code-assist #104（コメント2）：描画条件に `!disabled` を
+	// AND することで、disabled=false→true 遷移の 1 フレーム描画問題を防ぐ。
+	// これと対になる「disabled=true→false 逆遷移で内部 isOpen が残り listbox
+	// が自動再表示される問題」は下の useEffect で内部 state をリセットして
+	// 対応する（PR #104 coderabbitai 指摘）。両者は異なる遷移方向に対応する
+	// 二段構えで、相補的に「disabled 中は listbox が閉じ、解除後もユーザーの
+	// 明示操作があるまで再表示されない」契約を保つ。
 	const isListboxOpen = !disabled && isOpen && results.length > 0;
 
 	const handleSearch = useCallback(
@@ -187,6 +193,27 @@ export function StopSearch({
 		},
 		[isOpen, results, activeIndex, handleSelect, disabled],
 	);
+
+	// PR #104 coderabbitai 指摘対応：disabled=true 中に内部 `isOpen` を
+	// false にリセットする。派生値 `isListboxOpen = !disabled && ...` だけ
+	// では disabled=true→false の逆遷移時に内部 isOpen が保持され、
+	// query が残っていれば listbox が自動再表示されてしまう（submit 失敗時・
+	// toggleRoute 完了時に「触っていない listbox が勝手に復活」する UX バグ）。
+	// 本 useEffect と派生値は異なる遷移方向に対応する二段構え：
+	// - 派生値（`!disabled && ...`）：disabled=false→true 遷移のレンダリング
+	//   フレーム段階から listbox を非表示にし、gemini-code-assist #104 の
+	//   1 フレーム描画問題を防ぐ。
+	// - 本 useEffect：disabled=true の間に内部 `isOpen` を false に倒し、
+	//   disabled=false に戻ったときにユーザーの明示操作（focus/入力）なしで
+	//   listbox が再表示される UX バグを防ぐ。
+	// どちらも「props→state 同期」（双方向・常時追従）ではなく、`disabled`
+	// が true のときに限って内部 state を一方向にクリアする片方向リセット。
+	useEffect(() => {
+		if (disabled) {
+			setIsOpen(false);
+			setActiveIndex(-1);
+		}
+	}, [disabled]);
 
 	// ドロップダウン外クリックで閉じる
 	useEffect(() => {

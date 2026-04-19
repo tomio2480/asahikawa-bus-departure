@@ -491,6 +491,53 @@ describe("StopSearch コンポーネント", () => {
 		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
 		expect(input).toHaveAttribute("aria-expanded", "false");
 	});
+
+	// PR #104 CodeRabbit 指摘対応：派生値 isListboxOpen だけだと
+	// disabled=true→false の逆遷移時に内部 isOpen が保持されたまま、
+	// query が残っていれば listbox が勝手に再表示されてしまう。
+	// submit 失敗時や toggleRoute 完了時に「触っていない listbox が復活」
+	// する UX バグになるため、disabled=true 中に内部 isOpen を確実に
+	// リセットし、再表示にはユーザーの明示的な操作（focus など）を必要と
+	// する契約にする。
+	it("disabled={true}→false 逆遷移で listbox が自動再表示されない", async () => {
+		const onSelect = vi.fn();
+		const { rerender } = render(
+			<ControlledStopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				disabled={false}
+			/>,
+		);
+		const input = screen.getByRole("combobox");
+		await userEvent.type(input, "旭川");
+		expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+		// disabled を true に遷移（submit 中を模擬）
+		rerender(
+			<ControlledStopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				disabled={true}
+			/>,
+		);
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+		// disabled を false に戻す（submit 失敗や toggleRoute 完了を模擬）
+		// query は残っているので results は非空のまま、内部 isOpen が
+		// 保持されていると listbox が自動再表示されてしまう。
+		rerender(
+			<ControlledStopSearch
+				db={db}
+				label="乗車バス停"
+				onSelect={onSelect}
+				disabled={false}
+			/>,
+		);
+		expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+		expect(input).toHaveAttribute("aria-expanded", "false");
+	});
 });
 
 describe("StopSearch（到達可能性フィルタ）", () => {
