@@ -303,6 +303,7 @@ function NotifySettings({
 							commitNotifyInput();
 						}
 					}}
+					disabled={isFormLocked}
 				/>
 				<span id="notify-before-minutes-unit" className="text-base-content/70">
 					分前
@@ -321,6 +322,7 @@ function NotifySettings({
 						type="button"
 						className="btn btn-xs btn-outline"
 						onClick={onRequestNotificationPermission}
+						disabled={isFormLocked}
 					>
 						通知を許可
 					</button>

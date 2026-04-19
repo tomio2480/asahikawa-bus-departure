@@ -2000,6 +2000,76 @@ describe("RouteRegistration コンポーネント", () => {
 			resolveUpdate();
 		});
 
+		// gemini-code-assist PR #104 指摘:
+		// NotifySettings 内部の通知タイミング input と「通知を許可」ボタンも
+		// isFormLocked（= submitting || togglingRouteId !== null）で一律
+		// 無効化する。親の async 処理中に子コンポーネントの関連コントロールが
+		// 独立して操作可能な状態を残すと、Issue #103 の「フォーム全体を派生値で
+		// 束ねる」趣旨と矛盾する。
+		it("submitting=true 中は通知タイミング input が disabled になる", async () => {
+			let resolveDelete: () => void = () => {};
+			const onDelete = vi.fn(
+				() =>
+					new Promise<void>((r) => {
+						resolveDelete = r;
+					}),
+			);
+			render(
+				<NotifyHarness
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={onDelete}
+					hasNotifyEnabledRoutes={true}
+					initialMinutes={5}
+				/>,
+			);
+			const input = screen.getByRole("spinbutton", { name: "通知タイミング" });
+			expect(input).not.toBeDisabled();
+
+			// 削除をクリックして submitting=true を作る
+			await userEvent.click(screen.getByRole("button", { name: "削除" }));
+			expect(input).toBeDisabled();
+
+			resolveDelete();
+		});
+
+		it("submitting=true 中は「通知を許可」ボタンが disabled になる", async () => {
+			let resolveDelete: () => void = () => {};
+			const onDelete = vi.fn(
+				() =>
+					new Promise<void>((r) => {
+						resolveDelete = r;
+					}),
+			);
+			// notifyPermission="default" + onRequestNotificationPermission を渡すと
+			// 「通知を許可」ボタンが描画される。
+			const onRequestNotificationPermission = vi
+				.fn()
+				.mockResolvedValue("default" as NotificationPermission);
+			render(
+				<NotifyHarness
+					db={db}
+					routes={notifyEnabledRoutes}
+					onAdd={vi.fn().mockResolvedValue(1)}
+					onUpdate={vi.fn().mockResolvedValue(undefined)}
+					onDelete={onDelete}
+					onRequestNotificationPermission={onRequestNotificationPermission}
+					notifyPermission="default"
+					hasNotifyEnabledRoutes={true}
+					initialMinutes={5}
+				/>,
+			);
+			const allowButton = screen.getByRole("button", { name: "通知を許可" });
+			expect(allowButton).not.toBeDisabled();
+
+			await userEvent.click(screen.getByRole("button", { name: "削除" }));
+			expect(allowButton).toBeDisabled();
+
+			resolveDelete();
+		});
+
 		it("commit が失敗したとき入力欄の表示が元の値に戻る", async () => {
 			// 設定確定に失敗したのに入力欄だけ新しい値のまま残ると、
 			// 保存されている値と画面表示が乖離してユーザーの誤解を招く。
