@@ -521,12 +521,18 @@ export function RouteRegistration({
 			// permission 要求は副作用としてのみ呼び、結果で notifyEnabled を上書きしない
 			// （登録済み経路トグルと同じポリシー）。
 			const notifyEnabled = form.notifyEnabled;
-			if (notifyEnabled && onRequestNotificationPermission) {
-				await onRequestNotificationPermission();
-			}
 
+			// PR #104 CodeRabbit 指摘対応：permission プロンプトは秒〜分単位の
+			// ユーザー判断待ちになりうるため、await より前に setSubmitting(true)
+			// を呼んで isFormLocked=true にし、その間の入力レースを防ぐ。
+			// また permission 経路の reject も同じ try/catch で捕捉するため、
+			// await も try ブロック内に含める。
 			setSubmitting(true);
 			try {
+				if (notifyEnabled && onRequestNotificationPermission) {
+					await onRequestNotificationPermission();
+				}
+
 				const entry: Omit<RouteEntry, "id"> = {
 					fromStopId: form.fromStop.stop_id,
 					toStopId: form.toStop.stop_id,

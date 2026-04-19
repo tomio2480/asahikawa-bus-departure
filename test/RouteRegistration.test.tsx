@@ -2498,6 +2498,53 @@ describe("RouteRegistration（送信中の入力系無効化 / Issue #103）", (
 		resolveUpdate();
 	});
 
+	// PR #104 CodeRabbit 指摘対応：permission プロンプトは秒〜分単位の
+	// ユーザー判断待ちになりうるため、await 中も isFormLocked=true となって
+	// いないと入力レースが発生する。setSubmitting(true) を permission 要求の
+	// 前に移動した挙動を検証する（permission pending 中に入力系が disabled）。
+	it("通知 ON 送信で permission プロンプト pending 中も入力系 3 種が disabled になる", async () => {
+		const onAdd = vi.fn().mockResolvedValue(1);
+		const onUpdate = vi.fn().mockResolvedValue(undefined);
+		const onDelete = vi.fn().mockResolvedValue(undefined);
+		// permission プロンプトを pending のまま保持する（resolve しない）
+		const onRequestPermission = vi
+			.fn<() => Promise<NotificationPermission>>()
+			.mockReturnValue(new Promise<NotificationPermission>(() => {}));
+
+		render(
+			<RouteRegistration
+				db={db}
+				routes={[]}
+				onAdd={onAdd}
+				onUpdate={onUpdate}
+				onDelete={onDelete}
+				notifyPermission="default"
+				onRequestNotificationPermission={onRequestPermission}
+			/>,
+		);
+
+		const comboboxes = screen.getAllByRole("combobox");
+		await userEvent.type(comboboxes[0], "旭川駅");
+		await userEvent.click(screen.getByText("旭川駅前"));
+		await userEvent.type(comboboxes[1], "市役所");
+		await userEvent.click(screen.getByText("市役所前"));
+
+		// 通知 ON にしてから登録（= permission プロンプトを経由する経路）
+		await userEvent.click(screen.getByRole("checkbox", { name: "通知" }));
+		await userEvent.click(screen.getByRole("button", { name: "登録" }));
+
+		// permission プロンプトを呼んだが Promise は resolve していない
+		expect(onRequestPermission).toHaveBeenCalled();
+		expect(onAdd).not.toHaveBeenCalled();
+
+		// この時点で isFormLocked=true となって入力系 3 種が disabled
+		const [fromCombo, toCombo] = screen.getAllByRole("combobox");
+		expect(fromCombo).toBeDisabled();
+		expect(toCombo).toBeDisabled();
+		expect(screen.getByLabelText("徒歩所要時間（分）")).toBeDisabled();
+		expect(screen.getByRole("checkbox", { name: "通知" })).toBeDisabled();
+	});
+
 	it("onAdd 解決前は一覧の通知トグル・編集・削除ボタンも disabled になる", async () => {
 		// 既存の 3 箇所（一覧通知トグル・編集・削除）は submitting のみで
 		// disabled 化されていたが、派生値 isFormLocked で束ねても挙動が
