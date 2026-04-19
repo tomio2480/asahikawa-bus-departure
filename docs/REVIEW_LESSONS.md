@@ -162,12 +162,18 @@
   - さらに既存コードでは，キャンセル・一覧通知トグル・編集・削除ボタンが `submitting || togglingRouteId !== null` を直書きしているのに対し，登録/更新ボタンのみ `submitting` 単独判定という非対称があり，「トグル処理中でも登録ボタンだけ押せる」状態が生じていた．
 - **対処パターン** ：
   - `isFormLocked = submitting || togglingRouteId !== null` のような派生値を 1 箇所で定義し，入力系・キャンセル・登録/更新・一覧のトグル/編集/削除・子コンポーネント（`NotifySettings` 等）の disabled 条件をすべて同値に揃える．子コンポーネント側も個別フラグ（`submitting` / `togglingRouteId`）ではなく派生値（`isFormLocked`）を受け取る契約にすることで，重複ロジックと対称性の崩れをまとめて解消する．
-  - `StopSearch` のような composite widget は `disabled` 化に合わせて開いている listbox を閉じる（WAI-ARIA：「操作不能なのに listbox が見えている」状態を作らない）．実装は listbox の描画条件を `const isListboxOpen = !disabled && isOpen && results.length > 0` のような派生値で表現し，`useEffect` による内部 state の書き戻しは行わない．
-- **補足** ： 「`disabled` 遷移で内部 state をリセットする `useEffect`」は一見「一回性の片方向反映」に見えるが，描画条件側に `!disabled` を AND するだけで同じ結果になる．`useEffect` を書く前に「派生値で表現できないか」を最初に検討すること（PR #104 gemini-code-assist 指摘）．Issue #99 で排除した「props→state 同期」（双方向・常時追従）を避けるのはもちろん，片方向であっても React 公式「You Might Not Need an Effect」の観点で `useEffect` は可能な限り減らす方針を徹底する．
+  - 親の async 処理（例： permission 要求の `await`）は，`setSubmitting(true)` より **前** ではなく **後** に置いて try ブロック内に含める．前に置くと「プロンプト表示中は `isFormLocked=false`」の空白期間ができて入力レースが残り，さらに async の reject が下の try/catch 外に漏れる．`setSubmitting(true) → try { await permission; await save; } finally { setSubmitting(false); }` の順にする．
+  - `StopSearch` のような composite widget を `disabled` 化するときは，listbox を閉じる責務を「派生値」と「`useEffect` による内部 state リセット」の **二段構え** で担保する．
+    - 派生値 `const isListboxOpen = !disabled && isOpen && results.length > 0` は， `disabled=false→true` のレンダリング段階から listbox を非表示にする（`useEffect` は render 後に走るため 1 フレーム描画が残る問題を防ぐ）．
+    - `useEffect(() => { if (disabled) setIsOpen(false); }, [disabled])` は， `disabled=true→false` の逆遷移時に内部 `isOpen` が保持されたまま `results` が残っていて listbox が自動再表示される問題を防ぐ（再表示にはユーザーの明示操作（focus/入力）を要求する契約）．
+    - 片方だけだと異なる遷移方向のバグが残る（gemini-code-assist が 1 フレーム問題を，coderabbitai が逆遷移再表示問題を別々に指摘）．
+- **補足** ： `useEffect` を書くときは「派生値で表現できないか」を最初に検討する（React 公式「You Might Not Need an Effect」）．ただし本件の逆遷移リセットのように，描画条件だけでは「内部 state の保持」に起因する問題が残るケースもある．その場合は派生値で描画を保証したうえで， `useEffect` で内部 state を一方向にリセットして補う．両者が担う責務（1 フレーム問題 vs 逆遷移時の再表示）を JSDoc に明記して混同を防ぐ．Issue #99 で排除した「props→state 同期」（双方向・常時追従）とは依然として別物である．
 - **チェック観点** ：
   - 同じ真偽条件式（`a || b !== null` 等）が 3 箇所以上に重複していないか．派生値に束ねられないか．
   - フォーム送信・トグル処理などの async 操作中に，他の入力系が触れる状態になっていないか．
+  - フォーム送信ハンドラで， `setSubmitting(true)` より前に `await`（permission 要求等）していないか．プロンプト表示中の入力レースと reject の捕捉漏れの温床．
   - disabled になった composite widget が「見える」けれど「操作できない」中途半端な状態を作っていないか．
+  - disabled 化の実装が「 `disabled=false→true` 遷移時の描画フレーム」と「 `disabled=true→false` 逆遷移時の内部 state 保持」の両方向を閉じているか．
 
 ---
 
