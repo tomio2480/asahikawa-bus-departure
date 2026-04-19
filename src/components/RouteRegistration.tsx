@@ -209,10 +209,12 @@ type NotifySettingsProps = {
 	notifyBeforeMinutes: number;
 	/** 通知タイミングを永続化するハンドラ */
 	setNotifyBeforeMinutes: (value: number) => void;
-	/** フォーム送信中かどうか（設定ボタンの disabled 制御） */
-	submitting: boolean;
-	/** トグル処理中の経路 ID（設定ボタンの disabled 制御） */
-	togglingRouteId: number | null;
+	/**
+	 * Issue #103: フォーム全体が操作禁止状態か（設定ボタンと Enter 経路を
+	 * 同じ busy 条件でガードするため、個別フラグではなく派生値で受け取る）。
+	 * 親の `isFormLocked = submitting || togglingRouteId !== null` を直接渡す。
+	 */
+	isFormLocked: boolean;
 	/** 通知パーミッション要求 */
 	onRequestNotificationPermission?: () => Promise<NotificationPermission>;
 	/** 現在の通知パーミッション */
@@ -232,8 +234,7 @@ type NotifySettingsProps = {
 function NotifySettings({
 	notifyBeforeMinutes,
 	setNotifyBeforeMinutes,
-	submitting,
-	togglingRouteId,
+	isFormLocked,
 	onRequestNotificationPermission,
 	notifyPermission,
 }: NotifySettingsProps) {
@@ -251,7 +252,7 @@ function NotifySettings({
 	 * busy / validity を明示ガードし、Enter 経路でも誤トースト表示を防ぐ。
 	 */
 	const commitNotifyInput = () => {
-		if (submitting || togglingRouteId !== null) return;
+		if (isFormLocked) return;
 		if (!canCommit) return;
 		const result = internalCommit();
 		if (result.ok) {
@@ -302,6 +303,7 @@ function NotifySettings({
 							commitNotifyInput();
 						}
 					}}
+					disabled={isFormLocked}
 				/>
 				<span id="notify-before-minutes-unit" className="text-base-content/70">
 					分前
@@ -310,7 +312,7 @@ function NotifySettings({
 					type="button"
 					className="btn btn-xs btn-primary"
 					onClick={commitNotifyInput}
-					disabled={!canCommit || submitting || togglingRouteId !== null}
+					disabled={!canCommit || isFormLocked}
 					aria-label="通知タイミングを設定"
 				>
 					設定
@@ -320,6 +322,7 @@ function NotifySettings({
 						type="button"
 						className="btn btn-xs btn-outline"
 						onClick={onRequestNotificationPermission}
+						disabled={isFormLocked}
 					>
 						通知を許可
 					</button>
@@ -395,6 +398,24 @@ export function RouteRegistration({
 	// 「登録」ボタンが通知 ON/OFF のたびに「保存中...」へ切り替わるなどの
 	// 表示揺れを防ぐ。トグル処理は複数同時実行させないため null | number で十分。
 	const [togglingRouteId, setTogglingRouteId] = useState<number | null>(null);
+
+	/**
+	 * Issue #103: フォーム全体を操作禁止にすべき状態を一本化した派生値。
+	 *
+	 * - `submitting`：フォーム送信（handleSubmit / handleDelete）中。
+	 * - `togglingRouteId !== null`：一覧側の通知 ON/OFF 切替 await 中。
+	 *
+	 * 既存コードではキャンセル・一覧通知トグル・編集・削除ボタン・
+	 * NotifySettings 設定ボタンが各々 `submitting || togglingRouteId !== null`
+	 * を直書きしていたが、同じ条件式の重複は派生値に束ねる。
+	 * 登録/更新ボタンは従来 `submitting` のみで togglingRouteId を参照して
+	 * いなかった非対称を、本値で揃える（ユーザー指定）。
+	 *
+	 * 入力系 3 種（乗車/降車 StopSearch × 2・徒歩時間 input・通知 checkbox）
+	 * も本値で disabled 化することで、await 解決後の resetForm によってユーザー
+	 * の新規入力が吹き飛ぶレースを排除する。
+	 */
+	const isFormLocked = submitting || togglingRouteId !== null;
 
 	const { showToast } = useToast();
 
@@ -500,12 +521,18 @@ export function RouteRegistration({
 			// permission 要求は副作用としてのみ呼び、結果で notifyEnabled を上書きしない
 			// （登録済み経路トグルと同じポリシー）。
 			const notifyEnabled = form.notifyEnabled;
-			if (notifyEnabled && onRequestNotificationPermission) {
-				await onRequestNotificationPermission();
-			}
 
+			// PR #104 CodeRabbit 指摘対応：permission プロンプトは秒〜分単位の
+			// ユーザー判断待ちになりうるため、await より前に setSubmitting(true)
+			// を呼んで isFormLocked=true にし、その間の入力レースを防ぐ。
+			// また permission 経路の reject も同じ try/catch で捕捉するため、
+			// await も try ブロック内に含める。
 			setSubmitting(true);
 			try {
+				if (notifyEnabled && onRequestNotificationPermission) {
+					await onRequestNotificationPermission();
+				}
+
 				const entry: Omit<RouteEntry, "id"> = {
 					fromStopId: form.fromStop.stop_id,
 					toStopId: form.toStop.stop_id,
@@ -622,6 +649,7 @@ export function RouteRegistration({
 							}
 							selectedStop={form.fromStop}
 							reachabilityFilter={fromStopFilter}
+							disabled={isFormLocked}
 						/>
 						<StopSearch
 							db={db}
@@ -635,6 +663,7 @@ export function RouteRegistration({
 							}
 							selectedStop={form.toStop}
 							reachabilityFilter={toStopFilter}
+							disabled={isFormLocked}
 						/>
 					</div>
 					{/*
@@ -665,6 +694,7 @@ export function RouteRegistration({
 								}))
 							}
 							placeholder="10"
+							disabled={isFormLocked}
 						/>
 					</div>
 					<div className="form-control">
@@ -679,6 +709,7 @@ export function RouteRegistration({
 										notifyEnabled: e.target.checked,
 									}))
 								}
+								disabled={isFormLocked}
 							/>
 							<span className="label-text">通知</span>
 						</label>
@@ -700,7 +731,7 @@ export function RouteRegistration({
 								type="button"
 								className="btn btn-ghost"
 								onClick={resetForm}
-								disabled={submitting || togglingRouteId !== null}
+								disabled={isFormLocked}
 							>
 								キャンセル
 							</button>
@@ -708,7 +739,7 @@ export function RouteRegistration({
 						<button
 							type="submit"
 							className="btn btn-primary"
-							disabled={submitting}
+							disabled={isFormLocked}
 						>
 							{submitting ? "保存中..." : editingId != null ? "更新" : "登録"}
 						</button>
@@ -732,8 +763,7 @@ export function RouteRegistration({
 								<NotifySettings
 									notifyBeforeMinutes={notifyBeforeMinutes}
 									setNotifyBeforeMinutes={setNotifyBeforeMinutes}
-									submitting={submitting}
-									togglingRouteId={togglingRouteId}
+									isFormLocked={isFormLocked}
 									onRequestNotificationPermission={
 										onRequestNotificationPermission
 									}
@@ -816,7 +846,7 @@ export function RouteRegistration({
 															setTogglingRouteId(null);
 														}
 													}}
-													disabled={submitting || togglingRouteId !== null}
+													disabled={isFormLocked}
 													aria-label="通知の切り替え"
 												/>
 											</td>
@@ -825,7 +855,7 @@ export function RouteRegistration({
 													type="button"
 													className="btn btn-ghost btn-xs"
 													onClick={() => handleEdit(route)}
-													disabled={submitting || togglingRouteId !== null}
+													disabled={isFormLocked}
 												>
 													編集
 												</button>
@@ -833,7 +863,7 @@ export function RouteRegistration({
 													type="button"
 													className="btn btn-ghost btn-xs text-error"
 													onClick={() => handleDelete(route.id)}
-													disabled={submitting || togglingRouteId !== null}
+													disabled={isFormLocked}
 												>
 													削除
 												</button>

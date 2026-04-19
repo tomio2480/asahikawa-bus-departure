@@ -155,6 +155,26 @@
   - テストの assertion 強度（キーワード選言の不在，冒頭フレーズ固定の堅牢性，同時検証の網羅）．
 - **チェック観点** ：セルフレビューが 1 パスで済んでいる場合，視点の独立性が担保されているか疑う．レビュー結果を本文書のカテゴリに還元する．
 
+### 19. フォーム全体の無効化ポリシーを派生値で束ねる
+
+- **指摘例** （PR #102 gemini-code-assist / Issue #103，`src/components/RouteRegistration.tsx`）：
+  - 入力系 3 種（`StopSearch` × 2 / 徒歩時間 `input` / 通知 `checkbox`）が submit pending 中に disabled 化されておらず，`await` 解決後の `resetForm` でユーザーの新しい入力が吹き飛ぶレースがあった．
+  - さらに既存コードでは，キャンセル・一覧通知トグル・編集・削除ボタンが `submitting || togglingRouteId !== null` を直書きしているのに対し，登録/更新ボタンのみ `submitting` 単独判定という非対称があり，「トグル処理中でも登録ボタンだけ押せる」状態が生じていた．
+- **対処パターン** ：
+  - `isFormLocked = submitting || togglingRouteId !== null` のような派生値を 1 箇所で定義し，入力系・キャンセル・登録/更新・一覧のトグル/編集/削除・子コンポーネント（`NotifySettings` 等）の disabled 条件をすべて同値に揃える．子コンポーネント側も個別フラグ（`submitting` / `togglingRouteId`）ではなく派生値（`isFormLocked`）を受け取る契約にすることで，重複ロジックと対称性の崩れをまとめて解消する．
+  - 親の async 処理（例： permission 要求の `await`）は，`setSubmitting(true)` より **前** ではなく **後** に置いて try ブロック内に含める．前に置くと「プロンプト表示中は `isFormLocked=false`」の空白期間ができて入力レースが残り，さらに async の reject が下の try/catch 外に漏れる．`setSubmitting(true) → try { await permission; await save; } finally { setSubmitting(false); }` の順にする．
+  - `StopSearch` のような composite widget を `disabled` 化するときは，listbox を閉じる責務を「派生値」と「`useEffect` による内部 state リセット」の **二段構え** で担保する．
+    - 派生値 `const isListboxOpen = !disabled && isOpen && results.length > 0` は， `disabled=false→true` のレンダリング段階から listbox を非表示にする（`useEffect` は render 後に走るため 1 フレーム描画が残る問題を防ぐ）．
+    - `useEffect(() => { if (disabled) setIsOpen(false); }, [disabled])` は， `disabled=true→false` の逆遷移時に内部 `isOpen` が保持されたまま `results` が残っていて listbox が自動再表示される問題を防ぐ（再表示にはユーザーの明示操作（focus/入力）を要求する契約）．
+    - 片方だけだと異なる遷移方向のバグが残る（gemini-code-assist が 1 フレーム問題を，coderabbitai が逆遷移再表示問題を別々に指摘）．
+- **補足** ： `useEffect` を書くときは「派生値で表現できないか」を最初に検討する（React 公式「You Might Not Need an Effect」）．ただし本件の逆遷移リセットのように，描画条件だけでは「内部 state の保持」に起因する問題が残るケースもある．その場合は派生値で描画を保証したうえで， `useEffect` で内部 state を一方向にリセットして補う．両者が担う責務（1 フレーム問題 vs 逆遷移時の再表示）を JSDoc に明記して混同を防ぐ．Issue #99 で排除した「props→state 同期」（双方向・常時追従）とは依然として別物である．
+- **チェック観点** ：
+  - 同じ真偽条件式（`a || b !== null` 等）が 3 箇所以上に重複していないか．派生値に束ねられないか．
+  - フォーム送信・トグル処理などの async 操作中に，他の入力系が触れる状態になっていないか．
+  - フォーム送信ハンドラで， `setSubmitting(true)` より前に `await`（permission 要求等）していないか．プロンプト表示中の入力レースと reject の捕捉漏れの温床．
+  - disabled になった composite widget が「見える」けれど「操作できない」中途半端な状態を作っていないか．
+  - disabled 化の実装が「 `disabled=false→true` 遷移時の描画フレーム」と「 `disabled=true→false` 逆遷移時の内部 state 保持」の両方向を閉じているか．
+
 ---
 
 ## セルフレビューチェックリスト
@@ -172,6 +192,7 @@
 - [ ] 定数値（閾値・分数・回数等）を 2 箇所以上に直書きしていないか．
 - [ ] `new SQL.Database()` の直前・直後で， `close()` の対応が取れているか．
 - [ ] Enter key handler と onClick handler で，busy / validity ガードが対称か．
+- [ ] フォーム全体の disabled 条件（submit 中 / 別の async 処理中）が派生値で束ねられ，入力系・ボタン・子コンポーネントすべてで同値を参照しているか．
 - [ ] `useMemo` で計算した値を別関数で再計算していないか．
 - [ ] 存在判定・厳密一致判定（バリデーション目的）で `searchStops` を呼ぶ箇所は， `limit=100` を明示しているか（`undefined` プレースホルダを残していないか）．
 - [ ] ユーザー向けエラーメッセージ（生成関数・定数・直接記述）の全箇所で，句点有無・体言止め・敬体が揃っているか．
@@ -217,3 +238,4 @@
 | #97 | main ホットフィックス（文言追従） | UI 文言変更時の test grep スイープ漏れ |
 | #98 | 経路登録 UX 改善（エラー・トースト・到達可能性告知） | `searchStops` limit のバリデーション用途誤用，エラー文末の句点揺れ，テスト名と本体の乖離，`handleSearch` 中間状態の `onSelect(null)` 契約 |
 | Issue #99 | `StopSearch` を完全制御コンポーネント化 | props→state 同期 `useEffect` の排除，`suppressNextSelectedSyncRef` escape-hatch の撤去，半制御 → 完全制御のテスト migration（`ControlledStopSearch` wrapper） |
+| Issue #103 | 経路登録フォーム送信中の入力系無効化 | 派生値 `isFormLocked` によるフォーム全体 disabled の一本化，登録/更新ボタンの対称化，`StopSearch` の `disabled` prop 追加（disabled 化で listbox を閉じる） |
