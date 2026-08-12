@@ -42,7 +42,7 @@ jobs:
           rm hokkaido-latest.osm.pbf.md5
 
       - name: Save to cache
-        uses: actions/cache/save@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
         with:
           path: data/osm/hokkaido-latest.osm.pbf
           key: osm-hokkaido-${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') }}
