@@ -5,6 +5,7 @@ import {
 	screen,
 	within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DepartureBoard } from "../src/components/DepartureBoard";
 import type { DepartureGroup } from "../src/hooks/useDepartures";
@@ -12,6 +13,17 @@ import type { DepartureGroup } from "../src/hooks/useDepartures";
 afterEach(() => {
 	cleanup();
 });
+
+/**
+ * ソート可能な列見出しの操作対象を返す。
+ *
+ * 見出し自体を操作する形と、内側のボタンを操作する形の双方を許す。
+ * 検証したいのは「見出しからソートを切り替えられる」振る舞いであり、
+ * どちらの DOM 構造で実現するかではない。
+ */
+function getSortControl(header: HTMLElement): HTMLElement {
+	return within(header).queryByRole("button") ?? header;
+}
 
 function makeGroup(overrides?: Partial<DepartureGroup>): DepartureGroup {
 	return {
@@ -275,7 +287,7 @@ describe("DepartureBoard コンポーネント", () => {
 
 		// 降順に切り替えても翌日便は末尾のまま
 		const departureHeader = screen.getAllByRole("columnheader")[2];
-		fireEvent.click(departureHeader);
+		fireEvent.click(getSortControl(departureHeader));
 		const rowsDesc = within(tbody).getAllByRole("row");
 		const headsignsDesc = rowsDesc.map(
 			(row) => within(row).getAllByRole("cell")[6].textContent,
@@ -920,7 +932,7 @@ describe("DepartureBoard コンポーネント", () => {
 		);
 		expect(timesBefore).toEqual(["08:00", "09:00"]);
 		// クリックで降順に
-		fireEvent.click(departureHeader);
+		fireEvent.click(getSortControl(departureHeader));
 		expect(departureHeader.textContent).toContain("▼");
 		const rowsAfter = within(tbody).getAllByRole("row");
 		const timesAfter = rowsAfter.map(
@@ -945,9 +957,48 @@ describe("DepartureBoard コンポーネント", () => {
 		expect(departureHeader.textContent).toContain("▲");
 		expect(leaveByHeader.textContent).not.toContain("▲");
 		// 出発目安をクリック
-		fireEvent.click(leaveByHeader);
+		fireEvent.click(getSortControl(leaveByHeader));
 		expect(leaveByHeader.textContent).toContain("▲");
 		expect(departureHeader.textContent).not.toContain("▲");
+	});
+
+	it("発車ヘッダーはキーボードでフォーカスでき Enter でソートが切り替わる", async () => {
+		const user = userEvent.setup();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		const departureHeader = screen.getAllByRole("columnheader")[2];
+		expect(departureHeader.textContent).toContain("▲");
+
+		const target = getSortControl(departureHeader);
+		target.focus();
+		expect(document.activeElement).toBe(target);
+
+		await user.keyboard("{Enter}");
+		expect(departureHeader.textContent).toContain("▼");
+	});
+
+	it("発車ヘッダーは Space でもソートが切り替わる", async () => {
+		const user = userEvent.setup();
+		render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		const departureHeader = screen.getAllByRole("columnheader")[2];
+		const target = getSortControl(departureHeader);
+		target.focus();
+
+		await user.keyboard(" ");
+		expect(departureHeader.textContent).toContain("▼");
 	});
 
 	it("Asaca 乗り継ぎ割引の注釈が表示される", () => {
