@@ -386,9 +386,12 @@ function main(): void {
 					console.log(`  Converting previous period for ${operator.name}...`);
 					try {
 						const prevData = convertOperator(prevDir);
+						// 前期間の JSON も地図の描画に使われる．現行期間と同じ検査を課す．
+						assertShapesPresent(prevData, `${operator.id} (previous period)`);
 						writeFileSync(prevOutputPath, JSON.stringify(prevData), "utf-8");
 						console.log(`  Previous period output: ${prevOutputPath}`);
 					} catch (e) {
+						hasError = true;
 						console.error(
 							`  Error converting previous period for ${operator.name}:`,
 							e instanceof Error ? e.message : e,

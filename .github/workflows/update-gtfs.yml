@@ -65,25 +65,32 @@ jobs:
           restore-keys: |
             gtfs-prev-
 
-      # 期間が変わらなくても再生成したい場合がある．経路形状が欠けたまま
-      # 公開された回の復旧が該当する．その手段を force 入力として用意する．
       - name: Compare calendar periods
         id: calendar
+        run: bash scripts/compare-calendar.sh data/gtfs data/gtfs-prev
+
+      # 期間が変わらなくても再生成したい場合がある．経路形状が欠けたまま
+      # 公開された回の復旧が該当する．その手段が force 入力である．
+      # 比較の結果は上書きせず別の出力として持つ．前期間データの扱いは
+      # 強制かどうかではなく，期間が実際に変わったかで決めるためである．
+      - name: Decide whether to regenerate
+        id: gate
         env:
           FORCE: ${{ inputs.force }}
+          CHANGED: ${{ steps.calendar.outputs.changed }}
         run: |
-          if [ "$FORCE" = "true" ]; then
-            echo "Forced regeneration requested; skipping calendar comparison."
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          if [ "$FORCE" = "true" ] || [ "$CHANGED" = "true" ]; then
+            echo "regenerate=true" >> "$GITHUB_OUTPUT"
           else
-            bash scripts/compare-calendar.sh data/gtfs data/gtfs-prev
+            echo "regenerate=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "force=${FORCE:-false} changed=${CHANGED}"
 
       # Actions のキャッシュは 7 日間アクセスがないと退避される．
       # update-osm.yml は月次のため，本ワークフロー実行時には存在しないことが多い．
       # 見つからない場合は run-pfaedle.sh が Geofabrik から直接取得する．
       - name: Restore OSM data from cache
-        if: steps.calendar.outputs.changed == 'true'
+        if: steps.gate.outputs.regenerate == 'true'
         id: osm-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -93,35 +100,48 @@ jobs:
             osm-hokkaido-
 
       - name: Generate shapes with pfaedle
-        if: steps.calendar.outputs.changed == 'true'
+        if: steps.gate.outputs.regenerate == 'true'
         run: |
           docker pull ghcr.io/ad-freiburg/pfaedle:latest
           bash scripts/run-pfaedle.sh data/osm/hokkaido-latest.osm.pbf data/gtfs
 
       # キャッシュミス時に取得した OSM データを次回実行のため保存する
       - name: Save OSM data to cache
-        if: steps.calendar.outputs.changed == 'true' && steps.osm-cache.outputs.cache-matched-key == ''
+        if: steps.gate.outputs.regenerate == 'true' && steps.osm-cache.outputs.cache-matched-key == ''
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: data/osm/hokkaido-latest.osm.pbf
           key: osm-hokkaido-${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') }}
 
+      # 期間が変わっていない強制実行では前期間ディレクトリを渡さない．
+      # 渡すと convert-gtfs.ts が保持中の *_prev.json を不要とみなして消す．
+      # 次期ダイヤが先に公開されている場合，消えるのは現に走っている方である．
       - name: Convert GTFS to JSON
-        if: steps.calendar.outputs.changed == 'true'
-        run: npx tsx scripts/convert-gtfs.ts data/gtfs public/data data/gtfs-prev
+        if: steps.gate.outputs.regenerate == 'true'
+        env:
+          CHANGED: ${{ steps.calendar.outputs.changed }}
+        run: |
+          if [ "$CHANGED" = "true" ]; then
+            npx tsx scripts/convert-gtfs.ts data/gtfs public/data data/gtfs-prev
+          else
+            npx tsx scripts/convert-gtfs.ts data/gtfs public/data
+          fi
 
       - name: Save current GTFS as previous for next run
-        if: steps.calendar.outputs.changed == 'true'
+        if: steps.gate.outputs.regenerate == 'true'
         run: |
           rm -rf data/gtfs-prev
           cp -r data/gtfs data/gtfs-prev
 
+      # キャッシュの項目は書き換えられない．期間が同じ強制実行では
+      # calendar.txt のハッシュも同じになり，保存が黙って捨てられる．
+      # 実行 ID を付けて別の項目にし，復元は接頭辞で最新を拾う．
       - name: Cache current GTFS for next run
-        if: steps.calendar.outputs.changed == 'true'
+        if: steps.gate.outputs.regenerate == 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: data/gtfs-prev
-          key: gtfs-prev-${{ hashFiles('data/gtfs/*/calendar.txt') }}
+          key: gtfs-prev-${{ hashFiles('data/gtfs/*/calendar.txt') }}-${{ github.run_id }}
 
       - name: Check for changes
         id: diff
