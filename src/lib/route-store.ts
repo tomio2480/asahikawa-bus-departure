@@ -159,11 +159,17 @@ export async function exportRoutes(): Promise<RouteEntryExport> {
 	const routes = await getAllRoutes();
 	return {
 		version: EXPORT_VERSION,
-		routes: routes.map(({ fromStopId, toStopId, walkMinutes, notifyEnabled }) => {
-			const route: Omit<RouteEntry, "id"> = { fromStopId, toStopId, walkMinutes };
-			if (notifyEnabled != null) route.notifyEnabled = notifyEnabled;
-			return route;
-		}),
+		routes: routes.map(
+			({ fromStopId, toStopId, walkMinutes, notifyEnabled }) => {
+				const route: Omit<RouteEntry, "id"> = {
+					fromStopId,
+					toStopId,
+					walkMinutes,
+				};
+				if (notifyEnabled != null) route.notifyEnabled = notifyEnabled;
+				return route;
+			},
+		),
 	};
 }
 

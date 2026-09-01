@@ -318,9 +318,7 @@ function main(): void {
 		console.error(
 			"  <input-dir> should contain subdirectories for each operator",
 		);
-		console.error(
-			"  [prev-dir] optional: previous period GTFS data directory",
-		);
+		console.error("  [prev-dir] optional: previous period GTFS data directory");
 		process.exit(1);
 	}
 
@@ -398,7 +396,9 @@ function main(): void {
 						);
 					}
 				} else {
-					console.log(`  Same calendar period, skipping previous for ${operator.name}`);
+					console.log(
+						`  Same calendar period, skipping previous for ${operator.name}`,
+					);
 					// 同一期間の場合、既存の _prev.json を削除
 					if (existsSync(prevOutputPath)) {
 						unlinkSync(prevOutputPath);

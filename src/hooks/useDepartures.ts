@@ -233,13 +233,11 @@ export function useDepartures(
 			const currentStartResult = currentDb.exec(
 				"SELECT MIN(start_date) FROM calendar WHERE service_id NOT LIKE '%prev~%'",
 			);
-			const prevStart =
-				(prevStartResult[0]?.values[0]?.[0] as string) || "";
+			const prevStart = (prevStartResult[0]?.values[0]?.[0] as string) || "";
 			const currentStart =
 				(currentStartResult[0]?.values[0]?.[0] as string) || "";
 			const prevIsActive = prevStart !== "" && prevStart <= todayStr;
-			const currentIsActive =
-				currentStart !== "" && currentStart <= todayStr;
+			const currentIsActive = currentStart !== "" && currentStart <= todayStr;
 			// 片方のみ開始済みならその期間を優先する
 			// 両方開始済みなら、より最近に適用開始された方が現行ダイヤとして優先する
 			const preferPrev =
@@ -260,10 +258,7 @@ export function useDepartures(
 				});
 				const unique = Array.from(
 					new Map(
-						sorted.map((d) => [
-							`${stripPrev(d.tripId)}-${d.departureTime}`,
-							d,
-						]),
+						sorted.map((d) => [`${stripPrev(d.tripId)}-${d.departureTime}`, d]),
 					).values(),
 				);
 				// prev~ プレフィックスを除去し、ハイライト・地図で一貫した ID を使う

@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DepartureBoard } from "../src/components/DepartureBoard";
 import type { DepartureGroup } from "../src/hooks/useDepartures";

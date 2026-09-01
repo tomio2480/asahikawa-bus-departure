@@ -4,11 +4,7 @@ import type { Database, SqlJsStatic } from "sql.js";
 import { createSchema, loadGtfsData } from "../lib/gtfs-loader";
 import type { GtfsData } from "../types/gtfs";
 
-const OPERATORS = [
-	"asahikawa_denkikido",
-	"dohoku_bus",
-	"furano_bus",
-] as const;
+const OPERATORS = ["asahikawa_denkikido", "dohoku_bus", "furano_bus"] as const;
 
 let sqlJsPromise: Promise<SqlJsStatic> | null = null;
 
@@ -73,9 +69,7 @@ export function useDatabase(): {
 				database = new SQL.Database();
 				createSchema(database);
 
-				const { current, prev } = await fetchGtfsData(
-					import.meta.env.BASE_URL,
-				);
+				const { current, prev } = await fetchGtfsData(import.meta.env.BASE_URL);
 				if (cancelled) {
 					database.close();
 					database = null;

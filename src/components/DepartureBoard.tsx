@@ -75,14 +75,11 @@ export function DepartureBoard({
 	selectedDestinations = EMPTY_DESTINATIONS,
 	onDestinationToggle,
 }: DepartureBoardProps) {
-
 	// 行先の選択肢（ドロップダウン用。フィルタ中も全選択肢を表示する）
 	const destinations = useMemo(
 		() =>
 			new Map(
-				groups.map(
-					(group) => [group.toStopId, group.toStopName] as const,
-				),
+				groups.map((group) => [group.toStopId, group.toStopName] as const),
 			),
 		[groups],
 	);
@@ -224,17 +221,14 @@ export function DepartureBoard({
 									aria-label="行き先で絞り込む"
 								>
 									{[...destinations.entries()].map(([stopId, name]) => {
-										const isActive =
-											selectedDestinations.has(stopId);
+										const isActive = selectedDestinations.has(stopId);
 										return (
 											<button
 												key={stopId}
 												type="button"
 												aria-pressed={isActive}
 												className={`badge cursor-pointer hover:opacity-80 transition-opacity ${isActive ? "badge-primary" : "badge-outline"}`}
-												onClick={() =>
-													onDestinationToggle?.(stopId)
-												}
+												onClick={() => onDestinationToggle?.(stopId)}
 											>
 												{name || stopId}
 											</button>
@@ -281,7 +275,9 @@ export function DepartureBoard({
 													}
 												}}
 											>
-												<td className={`font-mono ${sortKey === "leaveByTime" ? "bg-base-300/50" : ""}`}>
+												<td
+													className={`font-mono ${sortKey === "leaveByTime" ? "bg-base-300/50" : ""}`}
+												>
 													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
 													{dep.isDeparted && (
 														<span className="ml-1 badge badge-sm badge-ghost">
@@ -295,10 +291,14 @@ export function DepartureBoard({
 													)}
 												</td>
 												<td>{dep.fromStopName ?? "-"}</td>
-												<td className={`font-mono ${sortKey === "departureTime" ? "bg-base-300/50" : ""}`}>
+												<td
+													className={`font-mono ${sortKey === "departureTime" ? "bg-base-300/50" : ""}`}
+												>
 													{formatTime(dep.departureTime)}
 												</td>
-												<td className={`font-mono ${sortKey === "arrivalTime" ? "bg-base-300/50" : ""}`}>
+												<td
+													className={`font-mono ${sortKey === "arrivalTime" ? "bg-base-300/50" : ""}`}
+												>
 													{formatTime(dep.arrivalTime)}
 												</td>
 												<td>

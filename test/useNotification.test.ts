@@ -1,6 +1,14 @@
 import { renderHook } from "@testing-library/react";
 import initSqlJs from "sql.js";
-import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 import { useNotification } from "../src/hooks/useNotification";
 import type { Departure } from "../src/lib/departure-query";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
@@ -29,7 +37,9 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-function makeDeparture(overrides?: Partial<Departure & { toStopName: string; isNextDay?: boolean }>): Departure & { toStopName: string; isNextDay?: boolean } {
+function makeDeparture(
+	overrides?: Partial<Departure & { toStopName: string; isNextDay?: boolean }>,
+): Departure & { toStopName: string; isNextDay?: boolean } {
 	return {
 		tripId: "T001",
 		routeId: "R001",
@@ -47,7 +57,9 @@ function makeDeparture(overrides?: Partial<Departure & { toStopName: string; isN
 	};
 }
 
-function makeRoute(overrides?: Partial<RegisteredRouteEntry>): RegisteredRouteEntry {
+function makeRoute(
+	overrides?: Partial<RegisteredRouteEntry>,
+): RegisteredRouteEntry {
 	return {
 		id: 1,
 		fromStopId: "test:S001",
@@ -97,14 +109,11 @@ describe("useNotification", () => {
 		const departures = [makeDeparture()];
 		const routes = [makeRoute()];
 
-		const { rerender } = renderHook(
-			({ deps }) => useNotification(deps),
-			{
-				initialProps: {
-					deps: { departures, routes, notifyBeforeMinutes: 5, enabled: true },
-				},
+		const { rerender } = renderHook(({ deps }) => useNotification(deps), {
+			initialProps: {
+				deps: { departures, routes, notifyBeforeMinutes: 5, enabled: true },
 			},
-		);
+		});
 
 		expect(mockNotificationConstructor).toHaveBeenCalledOnce();
 
@@ -117,7 +126,8 @@ describe("useNotification", () => {
 
 	it("パーミッションが denied の場合は通知しない", () => {
 		vi.setSystemTime(new Date("2026-04-17T08:05:00+09:00"));
-		(globalThis.Notification as unknown as { permission: string }).permission = "denied";
+		(globalThis.Notification as unknown as { permission: string }).permission =
+			"denied";
 
 		renderHook(() =>
 			useNotification({
@@ -289,7 +299,10 @@ describe("useNotification", () => {
 				useNotification({
 					db,
 					departures: [
-						makeDeparture({ fromStopId: "test:S001-alt", toStopId: "test:S002" }),
+						makeDeparture({
+							fromStopId: "test:S001-alt",
+							toStopId: "test:S002",
+						}),
 					],
 					routes: [makeRoute()],
 					notifyBeforeMinutes: 5,

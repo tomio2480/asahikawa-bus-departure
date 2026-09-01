@@ -35,12 +35,10 @@ const mockMapInstance = {
 vi.mock("leaflet", () => ({
 	default: {
 		Icon: vi.fn(),
-		latLngBounds: vi.fn(
-			(positions: [number, number][]) => ({
-				_positions: positions,
-				isValid: () => positions.length > 0,
-			}),
-		),
+		latLngBounds: vi.fn((positions: [number, number][]) => ({
+			_positions: positions,
+			isValid: () => positions.length > 0,
+		})),
 	},
 }));
 
@@ -369,9 +367,7 @@ describe("MapView", () => {
 					]}
 				/>,
 			);
-			const style = document.querySelector(
-				"[data-testid='map-tile-filter']",
-			);
+			const style = document.querySelector("[data-testid='map-tile-filter']");
 			expect(style).toBeInTheDocument();
 			expect(style?.textContent).toContain("sepia(1)");
 			expect(style?.textContent).toContain("saturate(0.4)");
@@ -394,9 +390,7 @@ describe("MapView", () => {
 					]}
 				/>,
 			);
-			const style = document.querySelector(
-				"[data-testid='map-tile-filter']",
-			);
+			const style = document.querySelector("[data-testid='map-tile-filter']");
 			expect(style).toBeInTheDocument();
 			expect(style?.textContent).toContain("sepia(1)");
 			expect(style?.textContent).toContain("brightness(0.55)");
