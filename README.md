@@ -150,7 +150,7 @@ npm run check:fix # 自動修正
 
 Biome によるリントとフォーマットを実行する．版は `package.json` で固定してある．整形の結果が版によって動き，リポジトリの現状とずれるためである．
 
-Pull Request では `ci.yml` が同じ検査を実行する．main への push は `deploy.yml` が受け持つ．
+Pull Request では `ci.yml` が同じ内容を検査する．main への push は `deploy.yml` が受け持つ．
 
 ---
 
