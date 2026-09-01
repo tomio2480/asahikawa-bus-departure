@@ -1,4 +1,5 @@
 import { copyFileSync } from "node:fs";
+import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
@@ -36,18 +37,25 @@ function injectCsp(): Plugin {
 	};
 }
 
+/**
+ * sql.js の wasm を `public/` へ配置する。
+ *
+ * 開発サーバーは `public/` の一覧を起動時に 1 度だけ走査し、その一覧に無い
+ * パスは静的配信を素通しして index.html へフォールバックする。走査は
+ * `configResolved` の後・`buildStart` の前に走るため、`buildStart` で
+ * コピーすると初回起動時に間に合わず wasm の代わりに HTML が返る（Issue #132）。
+ * コピーは `configResolved` で済ませる。
+ */
 function copySqlWasm(): Plugin {
 	return {
 		name: "copy-sql-wasm",
-		buildStart() {
-			copyFileSync(
-				"node_modules/sql.js/dist/sql-wasm.wasm",
-				"public/sql-wasm.wasm",
-			);
-			copyFileSync(
-				"node_modules/sql.js/dist/sql-wasm-browser.wasm",
-				"public/sql-wasm-browser.wasm",
-			);
+		configResolved({ publicDir }) {
+			for (const name of ["sql-wasm.wasm", "sql-wasm-browser.wasm"]) {
+				copyFileSync(
+					`node_modules/sql.js/dist/${name}`,
+					resolve(publicDir, name),
+				);
+			}
 		},
 	};
 }
