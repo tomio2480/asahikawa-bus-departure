@@ -17,13 +17,14 @@ jobs:
       - name: Download hokkaido-latest.osm.pbf
         run: |
           mkdir -p data/osm
+          # Geofabrik が 502 等を返す一時障害を吸収するため再試行を厚めに取る
           curl -fSL \
-            --retry 3 --retry-delay 5 \
+            --retry 5 --retry-delay 20 --retry-all-errors --retry-max-time 600 \
             --connect-timeout 30 --max-time 600 \
             -o data/osm/hokkaido-latest.osm.pbf \
             "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf"
           curl -fSL \
-            --retry 3 --retry-delay 5 \
+            --retry 5 --retry-delay 20 --retry-all-errors --retry-max-time 600 \
             --connect-timeout 30 --max-time 30 \
             -o data/osm/hokkaido-latest.osm.pbf.md5 \
             "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf.md5"
