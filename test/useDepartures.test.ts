@@ -416,3 +416,138 @@ describe("useDepartures", () => {
 		expect(result.current.groups).toBe(groupsBefore);
 	});
 });
+
+describe("現行期間と前期間が重なるとき", () => {
+	/** 分単位の値を HH:MM:SS へ整形する */
+	function timeStr(minutesFromMidnight: number): string {
+		const h = Math.floor(minutesFromMidnight / 60);
+		const m = minutesFromMidnight % 60;
+		return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+	}
+
+	/** S001 → S002 の便だけを持つダイヤを組み立てる */
+	function buildScheduleGtfs(
+		startDate: string,
+		trips: { tripId: string; departureMinutes: number }[],
+	): GtfsData {
+		return {
+			agency: baseGtfs.agency,
+			stops: baseGtfs.stops,
+			routes: baseGtfs.routes,
+			trips: trips.map((t) => ({
+				trip_id: t.tripId,
+				route_id: "R001",
+				service_id: "WD",
+				trip_headsign: "市役所方面",
+			})),
+			stop_times: trips.flatMap((t) => [
+				{
+					trip_id: t.tripId,
+					arrival_time: timeStr(t.departureMinutes),
+					departure_time: timeStr(t.departureMinutes),
+					stop_id: "S001",
+					stop_sequence: 1,
+				},
+				{
+					trip_id: t.tripId,
+					arrival_time: timeStr(t.departureMinutes + 30),
+					departure_time: timeStr(t.departureMinutes + 30),
+					stop_id: "S002",
+					stop_sequence: 2,
+				},
+			]),
+			calendar: [
+				{
+					service_id: "WD",
+					monday: 1,
+					tuesday: 1,
+					wednesday: 1,
+					thursday: 1,
+					friday: 1,
+					saturday: 0,
+					sunday: 0,
+					start_date: startDate,
+					end_date: "20281231",
+				},
+			],
+			calendar_dates: [],
+			shapes: [],
+			fare_attributes: [],
+			fare_rules: [],
+		};
+	}
+
+	/** 08:00 から 10 分間隔で 20 便 */
+	const twentyTrips = Array.from({ length: 20 }, (_, i) => ({
+		tripId: `T${String(i + 1).padStart(2, "0")}`,
+		departureMinutes: 8 * 60 + i * 10,
+	}));
+
+	const routes: RegisteredRouteEntry[] = [
+		{ id: 1, fromStopId: "test:S001", toStopId: "test:S002", walkMinutes: 0 },
+	];
+
+	let overlapDb: InstanceType<(typeof SQL)["Database"]>;
+
+	beforeEach(() => {
+		overlapDb = new SQL.Database();
+		createSchema(overlapDb);
+	});
+
+	afterEach(() => {
+		overlapDb.close();
+	});
+
+	it("同一内容の前期間データがあっても取得上限が重複便に食われない", () => {
+		loadGtfsData(overlapDb, buildScheduleGtfs("20260401", twentyTrips), "test");
+		loadGtfsData(
+			overlapDb,
+			buildScheduleGtfs("20260101", twentyTrips),
+			"test",
+			"prev~",
+		);
+
+		const { result } = renderHook(() => useDepartures(overlapDb, routes));
+
+		// getDepartures の取得上限は 15 件。重複便が混じると半分ほどに目減りする
+		expect(result.current.groups[0].departures).toHaveLength(15);
+	});
+
+	it("改定で消えた便は現行ダイヤ開始後に表示しない", () => {
+		loadGtfsData(overlapDb, buildScheduleGtfs("20260401", twentyTrips), "test");
+		loadGtfsData(
+			overlapDb,
+			buildScheduleGtfs("20260101", [
+				...twentyTrips,
+				{ tripId: "T900", departureMinutes: 8 * 60 + 5 },
+			]),
+			"test",
+			"prev~",
+		);
+
+		const { result } = renderHook(() => useDepartures(overlapDb, routes));
+
+		const times = result.current.groups[0].departures.map(
+			(d) => d.departureTime,
+		);
+		expect(times).not.toContain("08:05:00");
+	});
+
+	it("現行ダイヤ開始前は前期間の便を表示する", () => {
+		const threeTrips = twentyTrips.slice(0, 3);
+		loadGtfsData(overlapDb, buildScheduleGtfs("20260501", threeTrips), "test");
+		loadGtfsData(
+			overlapDb,
+			buildScheduleGtfs("20260101", threeTrips),
+			"test",
+			"prev~",
+		);
+
+		const { result } = renderHook(() => useDepartures(overlapDb, routes));
+
+		const departures = result.current.groups[0].departures;
+		expect(departures).toHaveLength(3);
+		// prev~ を除いた ID で返る（ハイライト・地図と ID を揃えるため）
+		expect(departures[0].tripId).toBe("test:T01");
+	});
+});

@@ -48,9 +48,66 @@ function getJstWeekday(date: Date): number {
 	return weekday;
 }
 
-export function formatDate(date: Date): string {
+function formatDate(date: Date): string {
 	const { year, month, day } = getJstParts(date);
 	return `${year}${String(month).padStart(2, "0")}${String(day).padStart(2, "0")}`;
+}
+
+/** 前期間データの ID に付く接頭辞（useDatabase の loadGtfsData と対応） */
+const PREV_PREFIX = "prev~";
+
+function isPrevServiceId(serviceId: string): boolean {
+	return serviceId.includes(PREV_PREFIX);
+}
+
+/** service_id の事業者部分（"denkikido:prev~WD" → "denkikido"）を返す */
+function getOperatorId(serviceId: string): string {
+	const colonIndex = serviceId.indexOf(":");
+	return colonIndex < 0 ? "" : serviceId.substring(0, colonIndex);
+}
+
+/** 現行ダイヤの適用が始まっている事業者を返す */
+function getOperatorsWithStartedSchedule(
+	db: Database,
+	dateStr: string,
+): Set<string> {
+	const operators = new Set<string>();
+	const result = db.exec(
+		"SELECT DISTINCT service_id FROM calendar WHERE start_date <= ?",
+		[dateStr],
+	);
+	if (result.length === 0) {
+		return operators;
+	}
+	for (const row of result[0].values) {
+		const serviceId = row[0] as string;
+		if (isPrevServiceId(serviceId)) continue;
+		operators.add(getOperatorId(serviceId));
+	}
+	return operators;
+}
+
+/**
+ * 現行ダイヤが開始済みの事業者について、前期間の service_id を落とす。
+ *
+ * 前期間データは、次期データが先に公開されて現行期間が上書きされる事情への
+ * 対処であり、現行ダイヤの開始前を埋めるために保持する。開始後も混ぜると、
+ * 改定で消えた便が残り、取得上限も重複した便に食われる。
+ */
+function excludeSupersededPrevServiceIds(
+	db: Database,
+	serviceIds: string[],
+	dateStr: string,
+): string[] {
+	if (!serviceIds.some(isPrevServiceId)) {
+		return serviceIds;
+	}
+	const startedOperators = getOperatorsWithStartedSchedule(db, dateStr);
+	return serviceIds.filter(
+		(serviceId) =>
+			!isPrevServiceId(serviceId) ||
+			!startedOperators.has(getOperatorId(serviceId)),
+	);
 }
 
 export function getActiveServiceIds(db: Database, date: Date): string[] {
@@ -72,5 +129,6 @@ export function getActiveServiceIds(db: Database, date: Date): string[] {
 	if (result.length === 0) {
 		return [];
 	}
-	return result[0].values.map((row) => row[0] as string);
+	const serviceIds = result[0].values.map((row) => row[0] as string);
+	return excludeSupersededPrevServiceIds(db, serviceIds, dateStr);
 }
