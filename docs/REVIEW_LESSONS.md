@@ -177,7 +177,7 @@
 
 ### 20. workflow のトリガ範囲と検査範囲の一致
 
-- **指摘例** （PR #131 セルフレビュー）： `deploy.yml` のトリガが `push: main` だけだったため，Pull Request では Biome に限らず `npm test` も `tsc -b` も走っていなかった．マージされるまで JavaScript 側の検査が働かない状態が続いていた．チェック欄は緑に見える．実際に走っていたのは Markdown lint のみである．
+- **指摘例** （PR #131 セルフレビュー）： `deploy.yml` のトリガは `push: main` だけだった．そのため Pull Request では Biome に限らず，`npm test` と `tsc -b` も走らない．マージされるまで JavaScript 側の検査は働かない．チェック欄は緑に見える．実際に走っていたのは Markdown lint のみである．
 - **対処パターン** ： workflow を新設・変更したら， `on:` のイベントと，そのジョブが担う検査項目（整形・lint・テスト・ビルド）を突き合わせる．Pull Request の時点で欠ける検査があれば， `pull_request` 用の workflow を新設する．同じ検査を `push` と `pull_request` の双方で走らせると二重に実行されるため，担当を分ける．
 - **補足** ： 経緯は [PR に検査が掛かっていなかった構造](notes/2026-09-01-pr-check-gap.md) を参照．
 - **チェック観点** ：
@@ -222,7 +222,7 @@
 - [ ] `git push` のタイミングはユーザー指示を受けたあとか．
 - [ ] PR 本文に Test plan が入っているか．
 - [ ] Draft 作成前に，独立視点（a11y / 型安全 / デッドコード / テスト品質）で並列セルフレビューを回したか．
-- [ ] workflow を触ったら，意図したイベントで実際に検査が走るか確認したか．
+- [ ] workflow を触ったら，意図したイベントで検査が走ることを確認したか．
 - [ ] reviewdog は CI を落とさない．緑でも lint summary の件数を読んだか．
 
 ---
