@@ -215,8 +215,8 @@ GTFS データは GitHub Actions で自動更新される。
 
 | ワークフロー | 頻度 | 内容 |
 |-------------|------|------|
-| `update-gtfs.yml` | 毎週月曜 3:00 UTC | HODA から GTFS データをダウンロードし JSON に変換。更新があれば自動デプロイ |
-| `update-osm.yml` | 毎月 1 日 2:00 UTC | Geofabrik から北海道の OSM データを取得し pfaedle で経路形状を生成 |
+| `update-gtfs.yml` | 毎週月曜 3:00 UTC | HODA から GTFS データをダウンロードし、pfaedle で経路形状を生成して JSON に変換。更新があれば自動デプロイ |
+| `update-osm.yml` | 毎月 1 日 2:00 UTC | Geofabrik から北海道の OSM データを取得しキャッシュへ保存 |
 
 データソースは [HODA（北海道オープンデータプラットフォーム）](https://ckan.hoda.jp)の [公共交通GTFSデータ](https://ckan.hoda.jp/dataset/gtfs-data)を使用している（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja)）。
 

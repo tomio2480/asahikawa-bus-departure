@@ -38,6 +38,7 @@
 | `README.md` | 利用者向けの機能説明と開発手順 | 機能追加・UI 変更時 |
 | `docs/ARCHITECTURE.md` | 実装の設計判断と不変則 | 設計判断が追加・変更された時 |
 | `docs/REVIEW_LESSONS.md` | PR ごとのレビュー指摘と対処パターン | PR レビュー対応のたびに追記 |
+| `docs/notes/` | 個別の調査・障害対応で得た観察の記録 | 調査や障害対応を終えたとき |
 
 ---
 
@@ -493,6 +494,8 @@ React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分
 pfaedle が使う `hokkaido-latest.osm.pbf` は約 190 MB あり，毎回の取得を避けるため Actions のキャッシュへ置く．ただし Actions のキャッシュは 7 日間アクセスがないと退避される．月次の `update-osm.yml` による保存だけでは，週次の `update-gtfs.yml` が必要とする時点で失われていることが多い．
 
 そのため取得経路を二段構えにする．キャッシュがあればそれを使い，無ければ `scripts/run-pfaedle.sh` が Geofabrik から直接取得して md5 で検証する．取得した実体は次回のためキャッシュへ保存し直す．pfaedle の実行自体はキャッシュの有無で分岐させない．分岐させると shapes 生成の失敗が無言のスキップとして埋もれるためである．
+
+この設計に至った経緯は [調査記録](notes/2026-09-01-osm-cache-eviction.md) に残した．
 
 ### `GITHUB_TOKEN` の制限
 
