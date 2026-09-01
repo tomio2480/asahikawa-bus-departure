@@ -1,9 +1,13 @@
 name: Markdown Lint
 
 # tomio2480/github-workflows v2 の composite action を呼び出す caller workflow．
-# 参照は @<SHA> # <version> 形式の SHA pin で，Dependabot が更新 PR を起票する．
+# 参照は @<SHA> # v2 形式の SHA pin で，Dependabot が更新 PR を起票する．
+# 版コメントは major のみを書く．patch まで書くと，中央がテンプレートを触らない
+# リリースを出すたびに 1 世代ずれ続けるためである．
+# pin した SHA の正確な版は git tag --points-at で引ける．
 # 設定の上書きが必要な場合はリポジトリルートに以下のいずれかを置けば優先される：
 #   .markdownlint-cli2.yaml / .textlintrc.json / prh.yml / .textlintignore
+# .textlint-allowlist.yml と .prh-extra.yml は置き換えではなく加算で効く．
 # 詳細は https://github.com/tomio2480/github-workflows の README を参照．
 
 on:
@@ -15,15 +19,20 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: md-lint-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     name: Markdown Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Markdown Lint via composite action
-        uses: tomio2480/github-workflows/.github/actions/markdown-lint@20a93b5ca42235c26c13e742ccfcdee2ac999b99 # v2.6.0
+        uses: tomio2480/github-workflows/.github/actions/markdown-lint@bfc410e234a59d248b6f893a1914eafbca87f698 # v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
