@@ -5,3 +5,20 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # patterns を省略すると全依存が対象になる．
+      # minor と patch を 1 本へ束ね，major だけ個別 PR として残す．
+      npm-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # 2.x は設定スキーマとルールが変わる．移行は別途計画して行う．
+      - dependency-name: "@biomejs/biome"
+        update-types:
+          - "version-update:semver-major"
