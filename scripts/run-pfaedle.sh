@@ -8,6 +8,36 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OPERATORS=("asahikawa_denkikido" "dohoku_bus" "furano_bus")
 PFAEDLE_IMAGE="ghcr.io/ad-freiburg/pfaedle:latest"
 
+# --- ジョブサマリ用の記録 ---
+# 生成規模を実行間で比較できるよう，事業者ごとの結果を集めてジョブサマリへ残す．
+# GITHUB_STEP_SUMMARY が未設定のローカル実行では何も書かない．
+# CI では OSM ファイルの有無がキャッシュヒットの有無と一致する．
+osm_source="キャッシュ"
+summary_rows=()
+
+add_summary_row() {
+  summary_rows+=("| ${1} | ${2} | ${3} | ${4} |")
+}
+
+write_job_summary() {
+  if [ -z "${GITHUB_STEP_SUMMARY:-}" ]; then
+    return 0
+  fi
+  {
+    echo "## 経路形状の生成規模"
+    echo ""
+    echo "OSM データの取得元: ${osm_source}"
+    echo ""
+    echo "| 事業者 | shapes.txt 行数 | pfaedle 所要時間 | 結果 |"
+    echo "|---|---|---|---|"
+    if [ ${#summary_rows[@]} -gt 0 ]; then
+      printf '%s\n' "${summary_rows[@]}"
+    fi
+    echo ""
+    echo "処理できた事業者: ${processed}/${#OPERATORS[@]}"
+  } >> "$GITHUB_STEP_SUMMARY"
+}
+
 # --- OSM ファイル取得 ---
 OSM_BASE_URL="https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf"
 
@@ -40,6 +70,7 @@ if [ ! -f "$OSM_FILE" ]; then
   fi
 
   mv "${OSM_FILE}.tmp" "$OSM_FILE"
+  osm_source="Geofabrik"
   echo "Download complete."
 fi
 
@@ -86,6 +117,7 @@ for operator in "${OPERATORS[@]}"; do
 
   if [ ! -d "$gtfs_dir" ]; then
     echo "Error: required directory not found: ${gtfs_dir}"
+    add_summary_row "$operator" "-" "-" "GTFS ディレクトリ無し"
     has_error=true
     continue
   fi
@@ -100,11 +132,13 @@ for operator in "${OPERATORS[@]}"; do
   done
 
   pfaedle_ok=true
+  pfaedle_start=$SECONDS
   if ! run_pfaedle "$OSM_FILE" "$gtfs_dir"; then
     echo "Error: pfaedle failed for ${operator}"
     pfaedle_ok=false
     has_error=true
   fi
+  pfaedle_elapsed="$((SECONDS - pfaedle_start)) 秒"
 
   # 成功・失敗に関わらず退避したファイルを復元
   for f in "${PRESERVE_FILES[@]}"; do
@@ -115,12 +149,14 @@ for operator in "${OPERATORS[@]}"; do
   rm -rf "$backup_dir"
 
   if [ "$pfaedle_ok" = false ]; then
+    add_summary_row "$operator" "-" "$pfaedle_elapsed" "pfaedle 失敗"
     continue
   fi
 
   shapes_file="${gtfs_dir}/shapes.txt"
   if [ ! -f "$shapes_file" ]; then
     echo "Error: shapes.txt was not generated for ${operator}"
+    add_summary_row "$operator" "-" "$pfaedle_elapsed" "shapes.txt 未生成"
     has_error=true
     continue
   fi
@@ -130,15 +166,20 @@ for operator in "${OPERATORS[@]}"; do
   if npx tsx "${SCRIPT_DIR}/validate-shapes.ts" "$shapes_file"; then
     line_count=$(wc -l < "$shapes_file")
     echo "  OK: ${line_count} lines in shapes.txt"
+    add_summary_row "$operator" "$line_count" "$pfaedle_elapsed" "OK"
     processed=$((processed + 1))
   else
     echo "Error: shapes.txt validation failed for ${operator}"
+    line_count=$(wc -l < "$shapes_file")
+    add_summary_row "$operator" "$line_count" "$pfaedle_elapsed" "バリデーション失敗"
     has_error=true
   fi
 done
 
 echo ""
 echo "Processed: ${processed}/${#OPERATORS[@]} operators"
+
+write_job_summary
 
 if [ "$has_error" = true ]; then
   echo "Some operators had errors."
