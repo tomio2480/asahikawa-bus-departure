@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv, validateCoordinate } from "../scripts/convert-gtfs";
+import {
+	assertShapesPresent,
+	parseCsv,
+	validateCoordinate,
+} from "../scripts/convert-gtfs";
+import type { GtfsData } from "../src/types/gtfs";
 
 describe("parseCsv", () => {
 	it("CSV をパースしてレコード配列を返す", () => {
@@ -92,6 +97,47 @@ describe("validateCoordinate", () => {
 		);
 		expect(() => validateCoordinate(43.0, Number.NaN, "S001")).toThrow(
 			/Invalid coordinate \(NaN\)/,
+		);
+	});
+});
+
+describe("assertShapesPresent", () => {
+	const buildData = (shapes: GtfsData["shapes"]): GtfsData => ({
+		agency: [{ agency_id: "A001", agency_name: "テストバス" }],
+		stops: [],
+		routes: [],
+		trips: [],
+		stop_times: [],
+		calendar: [],
+		calendar_dates: [],
+		shapes,
+		fare_attributes: [],
+		fare_rules: [],
+	});
+
+	it("経路形状が 1 件以上あれば通す", () => {
+		const data = buildData([
+			{
+				shape_id: "SH001",
+				shape_pt_lat: 43.7631,
+				shape_pt_lon: 142.3582,
+				shape_pt_sequence: 1,
+			},
+		]);
+		expect(() =>
+			assertShapesPresent(data, "asahikawa_denkikido"),
+		).not.toThrow();
+	});
+
+	it("経路形状が空ならエラーを投げる", () => {
+		expect(() => assertShapesPresent(buildData([]), "dohoku_bus")).toThrow(
+			/No shapes/,
+		);
+	});
+
+	it("エラーメッセージに事業者 ID を含める", () => {
+		expect(() => assertShapesPresent(buildData([]), "furano_bus")).toThrow(
+			/furano_bus/,
 		);
 	});
 });

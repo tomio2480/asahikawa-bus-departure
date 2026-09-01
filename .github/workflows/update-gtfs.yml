@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 3 * * 1"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "カレンダー期間が変わっていなくても再生成する"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -60,9 +65,19 @@ jobs:
           restore-keys: |
             gtfs-prev-
 
+      # 期間が変わらなくても再生成したい場合がある．経路形状が欠けたまま
+      # 公開された回の復旧が該当する．その手段を force 入力として用意する．
       - name: Compare calendar periods
         id: calendar
-        run: bash scripts/compare-calendar.sh data/gtfs data/gtfs-prev
+        env:
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ "$FORCE" = "true" ]; then
+            echo "Forced regeneration requested; skipping calendar comparison."
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            bash scripts/compare-calendar.sh data/gtfs data/gtfs-prev
+          fi
 
       # Actions のキャッシュは 7 日間アクセスがないと退避される．
       # update-osm.yml は月次のため，本ワークフロー実行時には存在しないことが多い．

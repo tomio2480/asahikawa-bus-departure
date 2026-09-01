@@ -283,6 +283,21 @@ function convertOperator(inputDir: string): GtfsData {
 	};
 }
 
+/**
+ * 経路形状を持たない変換結果を公開しないための検査．
+ *
+ * HODA が配布する GTFS に shapes.txt は含まれず，pfaedle が生成する．
+ * 生成が行われないまま変換すると shapes が空の JSON ができあがり，
+ * ジョブは緑のまま地図から経路が消える（2026-08-24 に発生）．
+ */
+function assertShapesPresent(data: GtfsData, operatorId: string): void {
+	if (data.shapes.length === 0) {
+		throw new Error(
+			`No shapes for ${operatorId}: shapes.txt が無いか空のまま変換された．pfaedle による生成結果を確認する`,
+		);
+	}
+}
+
 /** calendar.txt から start_date の集合を取得する */
 function getCalendarStartDates(operatorDir: string): Set<string> {
 	const calendarPath = join(operatorDir, "calendar.txt");
@@ -328,6 +343,7 @@ function main(): void {
 		let data: GtfsData;
 		try {
 			data = convertOperator(operatorDir);
+			assertShapesPresent(data, operator.id);
 		} catch (e) {
 			console.error(
 				`Error converting ${operator.name} (${operator.id}):`,
@@ -401,6 +417,7 @@ export {
 	parseCsv,
 	validateCoordinate,
 	convertOperator,
+	assertShapesPresent,
 	getCalendarStartDates,
 	OPERATORS,
 };
