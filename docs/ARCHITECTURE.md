@@ -472,6 +472,7 @@ export const NOTIFY_DEFAULT_MINUTES = 5;
 | `scripts/` | GTFS 変換・形状生成・検証など CLI ツール |
 | `test/` | 全テスト（コンポーネント・フック・lib を横断） |
 | `public/data/` | 事業者ごとの GTFS JSON（Actions が更新） |
+| `public/sql-wasm*.wasm` | sql.js の wasm（Vite の `configResolved` でコピー．Git 管理外） |
 
 ### hooks / lib の線引き
 
