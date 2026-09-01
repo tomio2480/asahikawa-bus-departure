@@ -199,7 +199,8 @@ scripts/
 
 docs/
 ├── ARCHITECTURE.md                 # 設計判断と実装上の勘所
-└── REVIEW_LESSONS.md               # PR レビューから抽出したセルフレビュー観点
+├── REVIEW_LESSONS.md               # PR レビューから抽出したセルフレビュー観点
+└── notes/                          # 調査・障害対応で得た観察の記録
 
 public/data/                        # 事業者ごとの GTFS JSON
 test/                               # テストファイル
