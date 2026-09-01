@@ -3,12 +3,12 @@ name: CI
 # Pull Request に対する検査をまとめる．
 # deploy.yml は main への push でしか動かないため，PR の時点では
 # 整形・lint・型・テストのいずれも検証されない状態だった．
-# 本 workflow が PR の関門を担い，deploy.yml は公開の責務だけを持つ．
+#
+# main への push は deploy.yml が同じ検査を行う．
+# 本 workflow を push でも動かすと二重に実行されるため，PR のみとする．
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read

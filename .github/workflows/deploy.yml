@@ -27,6 +27,9 @@ jobs:
 
       - run: npm ci
 
+      # 公開直前の関門．PR 側は ci.yml が同じ検査を担う．
+      - run: npm run check
+
       - run: npm test
 
       - run: npm run build

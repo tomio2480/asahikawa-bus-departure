@@ -14,15 +14,9 @@ afterEach(() => {
 	cleanup();
 });
 
-/**
- * ソート可能な列見出しの操作対象を返す。
- *
- * 見出し自体を操作する形と、内側のボタンを操作する形の双方を許す。
- * 検証したいのは「見出しからソートを切り替えられる」振る舞いであり、
- * どちらの DOM 構造で実現するかではない。
- */
+/** ソート可能な列見出しの操作対象（見出し内のボタン）を返す。 */
 function getSortControl(header: HTMLElement): HTMLElement {
-	return within(header).queryByRole("button") ?? header;
+	return within(header).getByRole("button");
 }
 
 function makeGroup(overrides?: Partial<DepartureGroup>): DepartureGroup {
