@@ -1,0 +1,13 @@
+# 中央 textlint 設定（tomio2480/github-workflows）を上書きせず，本リポジトリ固有の
+# 例外だけを差分追加する．composite action が runtime config の filters.allowlist へ
+# inject する．スキーマは textlint-filter-rule-allowlist に従う．
+# https://github.com/textlint/textlint-filter-rule-allowlist
+
+allow:
+  # 図表キャプション末尾の句点なし：ja-no-mixed-period 例外．
+  # CLAUDE.md は「図表キャプションは体言止めとし，句点を付けない」と定めるが，
+  # ja-no-mixed-period はキャプションと本文の地の文を構造的に区別できない．
+  # 中央の判断は tomio2480/github-workflows の Issue #57 を参照．
+  # 後読みでキャプション行に限定し，マッチは末尾 1 文字に絞る．行全体へ当てると
+  # 同じ行の他ルールの指摘まで消えるため避ける．
+  - '/(?<=^[表図] [0-9]+[.] .*)[^．。.]$/m'

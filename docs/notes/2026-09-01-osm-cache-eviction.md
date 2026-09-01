@@ -41,8 +41,6 @@ if: steps.calendar.outputs.changed == 'true' && hashFiles('data/osm/hokkaido-lat
 
 ## 🧩 原因の構造
 
-<!-- 図表キャプションは体言止めとし句点を付けない．該当行のみ規則を外す． -->
-<!-- textlint-disable-next-line ja-technical-writing/ja-no-mixed-period -->
 表 1. 2 つの前提と，それらが噛み合って生んだ結果
 
 | 前提 | 単体では妥当 | 組み合わせた結果 |
@@ -58,7 +56,6 @@ if: steps.calendar.outputs.changed == 'true' && hashFiles('data/osm/hokkaido-lat
 
 対処は [PR #119][pr119] で行った．
 
-<!-- textlint-disable-next-line ja-technical-writing/ja-no-mixed-period -->
 表 2. 変更の内容と意図
 
 | 変更 | 意図 |
