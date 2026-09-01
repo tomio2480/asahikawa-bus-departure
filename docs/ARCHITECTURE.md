@@ -430,6 +430,8 @@ if (typeof window.matchMedia !== "function") return "light";
 
 一覧行はキーボードフォーカスで同じハイライトを起こせるよう `tabIndex` と `onKeyDown` を付与する．ホバーに相当する挙動をポインタ以外からも再現できるようにする．
 
+この扱いは一覧行に限る．並び替え可能な列見出しでは逆の方針を採る．非対話要素である `th` はフォーカス可能にせず，操作を内側のボタンへ委ねる．Enter と Space の扱いはボタンの既定の挙動が担う．`aria-sort` は列の状態であるため `th` に残す．実装は `DepartureBoard.tsx` の `sortableHeader` を参照．
+
 ---
 
 ## 📦 定数の一元管理

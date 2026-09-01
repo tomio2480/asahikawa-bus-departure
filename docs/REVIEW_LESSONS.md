@@ -175,6 +175,16 @@
   - disabled になった composite widget が「見える」けれど「操作できない」中途半端な状態を作っていないか．
   - disabled 化の実装が「 `disabled=false→true` 遷移時の描画フレーム」と「 `disabled=true→false` 逆遷移時の内部 state 保持」の両方向を閉じているか．
 
+### 20. workflow のトリガ範囲と検査範囲の一致
+
+- **指摘例** （PR #131 セルフレビュー）： `deploy.yml` のトリガが `push: main` だけだったため，Pull Request では Biome に限らず `npm test` も `tsc -b` も走っていなかった．マージされるまで JavaScript 側の検査が働かない状態が続いていた．チェック欄は緑に見える．実際に走っていたのは Markdown lint のみである．
+- **対処パターン** ： workflow を新設・変更したら， `on:` のイベントと，そのジョブが担う検査項目（整形・lint・テスト・ビルド）を突き合わせる．Pull Request の時点で欠ける検査があれば， `pull_request` 用の workflow を新設する．同じ検査を `push` と `pull_request` の双方で走らせると二重に実行されるため，担当を分ける．
+- **補足** ： 経緯は [PR に検査が掛かっていなかった構造](notes/2026-09-01-pr-check-gap.md) を参照．
+- **チェック観点** ：
+  - `.github/workflows/*.yml` を触ったら，Draft PR の Checks 欄に出るジョブ名と `on:` の記述が一致しているか．
+  - 「マージ後にしか検査されない」項目が残っていないか．
+  - 同じ検査が複数の workflow で重複して走っていないか．
+
 ---
 
 ## セルフレビューチェックリスト
@@ -212,6 +222,8 @@
 - [ ] `git push` のタイミングはユーザー指示を受けたあとか．
 - [ ] PR 本文に Test plan が入っているか．
 - [ ] Draft 作成前に，独立視点（a11y / 型安全 / デッドコード / テスト品質）で並列セルフレビューを回したか．
+- [ ] workflow を触ったら，意図したイベントで実際に検査が走るか確認したか．
+- [ ] reviewdog は CI を落とさない．緑でも lint summary の件数を読んだか．
 
 ---
 
@@ -239,3 +251,4 @@
 | #98 | 経路登録 UX 改善（エラー・トースト・到達可能性告知） | `searchStops` limit のバリデーション用途誤用，エラー文末の句点揺れ，テスト名と本体の乖離，`handleSearch` 中間状態の `onSelect(null)` 契約 |
 | Issue #99 | `StopSearch` を完全制御コンポーネント化 | props→state 同期 `useEffect` の排除，`suppressNextSelectedSyncRef` escape-hatch の撤去，半制御 → 完全制御のテスト migration（`ControlledStopSearch` wrapper） |
 | Issue #103 | 経路登録フォーム送信中の入力系無効化 | 派生値 `isFormLocked` によるフォーム全体 disabled の一本化，登録/更新ボタンの対称化，`StopSearch` の `disabled` prop 追加（disabled 化で listbox を閉じる） |
+| #131 | Pull Request の検査を整え Biome の整形ドリフトを塞ぐ | workflow のトリガ範囲と検査範囲の乖離，検査の二重実行，移行用の抽象を畳み忘れ |
