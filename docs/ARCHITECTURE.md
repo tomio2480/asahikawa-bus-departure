@@ -489,6 +489,8 @@ React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分
 
 `scripts/compare-calendar.sh` が前回キャッシュの `calendar.txt` と比較する．`start_date` が変わっていなければ pfaedle と変換をスキップする．
 
+ただし比較の結果に関わらず再生成したい場合がある．公開中のデータが壊れた回の復旧が該当する．手動実行の `force` 入力を真にすると，比較を行わず変更ありとして扱う．比較による節約と，人が状態を直す手段とを両立させる．
+
 ### OSM データの取得経路
 
 pfaedle が使う `hokkaido-latest.osm.pbf` は約 190 MB あり，毎回の取得を避けるため Actions のキャッシュへ置く．ただし Actions のキャッシュは 7 日間アクセスがないと退避される．月次の `update-osm.yml` による保存だけでは，週次の `update-gtfs.yml` が必要とする時点で失われていることが多い．
@@ -513,6 +515,14 @@ pfaedle が使う `hokkaido-latest.osm.pbf` は約 190 MB あり，毎回の取�
 行数に閾値を設けて自動で落とすことはしない．GTFS の改定でバス停や便が減れば行数も正当に減るためである．異常かどうかの判断は人が行う．
 
 `GITHUB_STEP_SUMMARY` が未設定のローカル実行では何も書かない．
+
+### 経路形状を欠いた公開の遮断
+
+pfaedle が動かなかった回でも，変換そのものは成功する．`scripts/convert-gtfs.ts` は `shapes.txt` が無ければ空として扱うためである．結果として経路形状を持たない JSON がコミットされ，地図から線が消える．2026-08-24 の更新で実際に起きた．
+
+そこで変換結果を書き出す前に `assertShapesPresent` で検査する．`shapes` が空の事業者があれば，その JSON を書かずジョブを失敗させる．欠けたデータが公開へ進む経路を塞ぐ狙いである．
+
+同じ役目の `scripts/validate-shapes.ts` は `run-pfaedle.sh` の中でしか動かない．pfaedle のステップごとスキップされた回には効かなかった．検査は生成の内側だけでなく，変換と公開の境界にも要る．
 
 ### `GITHUB_TOKEN` の制限
 
