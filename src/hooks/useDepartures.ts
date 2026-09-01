@@ -182,10 +182,7 @@ export function useDepartures(
 					for (const route of currentRoutes) {
 						// 既にグループがあり、未出発の便が残っていればスキップ
 						const existingGroup = groupMap.get(route.toStopId);
-						if (
-							existingGroup &&
-							existingGroup.departures.some((d) => !d.isDeparted)
-						) {
+						if (existingGroup?.departures.some((d) => !d.isDeparted)) {
 							continue;
 						}
 
