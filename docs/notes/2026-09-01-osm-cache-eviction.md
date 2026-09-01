@@ -41,7 +41,7 @@ if: steps.calendar.outputs.changed == 'true' && hashFiles('data/osm/hokkaido-lat
 
 ## 🧩 原因の構造
 
-表 1: 二つの前提と，それらが噛み合って生んだ結果
+表 1. 2 つの前提と，それらが噛み合って生んだ結果
 
 | 前提 | 単体では妥当 | 組み合わせた結果 |
 |---|---|---|
@@ -56,7 +56,7 @@ if: steps.calendar.outputs.changed == 'true' && hashFiles('data/osm/hokkaido-lat
 
 対処は [PR #119][pr119] で行った．
 
-表 2: 変更の内容と意図
+表 2. 変更の内容と意図
 
 | 変更 | 意図 |
 |---|---|
@@ -66,7 +66,7 @@ if: steps.calendar.outputs.changed == 'true' && hashFiles('data/osm/hokkaido-lat
 | フォールバック取得へ md5 検証を追加 | 破損した pbf で劣化した経路形状を作らない |
 | 作業用の `/data/` を `.gitignore` へ追加 | 190 MB の pbf を誤って追跡しない |
 
-`.gitignore` は `/data/` と先頭スラッシュ付きで書く．`data/` と書くと追跡下の `public/data/` まで巻き込む．結果としてワークフローの `git add public/data/` が新規ファイルを拾えなくなる．
+`.gitignore` は `/data/` と先頭スラッシュ付きで書く．`data/` と書いた場合，追跡下の `public/data/` まで巻き込む．結果としてワークフローの `git add public/data/` が新規ファイルを拾えなくなる．
 
 ---
 
