@@ -218,13 +218,13 @@ GTFS データは GitHub Actions で自動更新される．
 | `update-gtfs.yml` | 毎週月曜 3:00 UTC | HODA から GTFS データをダウンロードし，pfaedle で経路形状を生成して JSON に変換．更新があれば自動デプロイ |
 | `update-osm.yml` | 毎月 1 日 2:00 UTC | Geofabrik から北海道の OSM データを取得しキャッシュへ保存 |
 
-データソースは [HODA（北海道オープンデータプラットフォーム）](https://ckan.hoda.jp)の [公共交通GTFSデータ](https://ckan.hoda.jp/dataset/gtfs-data)を使用している（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja)）．
+データソースは [HODA（北海道オープンデータプラットフォーム）](https://ckan.hoda.jp) の [公共交通GTFSデータ](https://ckan.hoda.jp/dataset/gtfs-data) を使用している（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja)）．
 
 `update-gtfs.yml` はカレンダーの期間が変わった週だけ再生成する．期間が変わっていなくても再生成したい場合は，手動実行の `force` 入力をオンにする．公開中のデータが壊れた際の復旧手段として用意している．
 
 ### 複数期間データの保持
 
-HODA がダイヤ改正時に次期データで上書きすると，現行ダイヤのデータが失われる場合がある．これを防ぐため，最新の GTFS データに加えて一期間前のデータをキャッシュで保持する．カレンダーの `start_date` が変化した場合のみデータを更新し，ダイヤ開始日が今日以前のデータを優先して表示する．
+HODA はダイヤ改正時に次期データで上書きする．このとき現行ダイヤのデータは失われることがある．これを防ぐため，最新の GTFS データに加えて一期間前のデータをキャッシュで保持する．カレンダーの `start_date` が変化した場合のみデータを更新し，ダイヤ開始日が今日以前のデータを優先して表示する．
 
 ---
 
