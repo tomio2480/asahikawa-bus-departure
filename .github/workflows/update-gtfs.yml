@@ -64,6 +64,9 @@ jobs:
         id: calendar
         run: bash scripts/compare-calendar.sh data/gtfs data/gtfs-prev
 
+      # Actions のキャッシュは 7 日間アクセスがないと退避される．
+      # update-osm.yml は月次のため，本ワークフロー実行時には存在しないことが多い．
+      # 見つからない場合は run-pfaedle.sh が Geofabrik から直接取得する．
       - name: Restore OSM data from cache
         if: steps.calendar.outputs.changed == 'true'
         id: osm-cache
@@ -75,10 +78,18 @@ jobs:
             osm-hokkaido-
 
       - name: Generate shapes with pfaedle
-        if: steps.calendar.outputs.changed == 'true' && hashFiles('data/osm/hokkaido-latest.osm.pbf') != ''
+        if: steps.calendar.outputs.changed == 'true'
         run: |
           docker pull ghcr.io/ad-freiburg/pfaedle:latest
           bash scripts/run-pfaedle.sh data/osm/hokkaido-latest.osm.pbf data/gtfs
+
+      # キャッシュミス時に取得した OSM データを次回実行のため保存する
+      - name: Save OSM data to cache
+        if: steps.calendar.outputs.changed == 'true' && steps.osm-cache.outputs.cache-matched-key == ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: data/osm/hokkaido-latest.osm.pbf
+          key: osm-hokkaido-${{ hashFiles('data/osm/hokkaido-latest.osm.pbf') }}
 
       - name: Convert GTFS to JSON
         if: steps.calendar.outputs.changed == 'true'

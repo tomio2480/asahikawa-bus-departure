@@ -480,13 +480,19 @@ React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分
 
 | ワークフロー | トリガ | 内容 |
 |---|---|---|
-| `update-gtfs.yml` | 毎週月曜 03:00 UTC / 手動 | GTFS 取得・変換・コミット |
-| `update-osm.yml` | 毎月 1 日 / 手動 | OSM データ更新と pfaedle 生成 |
+| `update-gtfs.yml` | 毎週月曜 03:00 UTC / 手動 | GTFS 取得・pfaedle 生成・変換・コミット |
+| `update-osm.yml` | 毎月 1 日 / 手動 | OSM データのキャッシュ更新 |
 | `deploy.yml` | main push / 手動 | GitHub Pages デプロイ |
 
 ### カレンダー比較による不要実行の回避
 
 `scripts/compare-calendar.sh` が前回キャッシュの `calendar.txt` と比較する．`start_date` が変わっていなければ pfaedle と変換をスキップする．
+
+### OSM データの取得経路
+
+pfaedle が使う `hokkaido-latest.osm.pbf` は約 190 MB あり，毎回の取得を避けるため Actions のキャッシュへ置く．ただし Actions のキャッシュは 7 日間アクセスがないと退避される．月次の `update-osm.yml` による保存だけでは，週次の `update-gtfs.yml` が必要とする時点で失われていることが多い．
+
+そのため取得経路を二段構えにする．キャッシュがあればそれを使い，無ければ `scripts/run-pfaedle.sh` が Geofabrik から直接取得して md5 で検証する．取得した実体は次回のためキャッシュへ保存し直す．pfaedle の実行自体はキャッシュの有無で分岐させない．分岐させると shapes 生成の失敗が無言のスキップとして埋もれるためである．
 
 ### `GITHUB_TOKEN` の制限
 

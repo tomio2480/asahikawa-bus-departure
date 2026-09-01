@@ -2,5 +2,9 @@ node_modules
 dist
 *.tsbuildinfo
 
+# ワークフローの作業用データ（GTFS 原本・OSM pbf）
+# public/data/ を巻き込まないよう先頭スラッシュでリポジトリ直下へ固定する
+/data/
+
 # Claude Code のローカル状態
 .claude/

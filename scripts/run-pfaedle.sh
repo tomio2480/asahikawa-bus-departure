@@ -9,15 +9,36 @@ OPERATORS=("asahikawa_denkikido" "dohoku_bus" "furano_bus")
 PFAEDLE_IMAGE="ghcr.io/ad-freiburg/pfaedle:latest"
 
 # --- OSM ファイル取得 ---
+OSM_BASE_URL="https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf"
+
 if [ ! -f "$OSM_FILE" ]; then
   echo "OSM file not found: ${OSM_FILE}"
   echo "Downloading hokkaido-latest.osm.pbf from Geofabrik..."
   mkdir -p "$(dirname "$OSM_FILE")"
+  # Geofabrik が 502 等を返す一時障害を吸収するため再試行を厚めに取る
   curl -fSL \
-    --retry 3 --retry-delay 5 \
+    --retry 5 --retry-delay 20 --retry-all-errors --retry-max-time 600 \
     --connect-timeout 30 --max-time 600 \
     -o "${OSM_FILE}.tmp" \
-    "https://download.geofabrik.de/asia/japan/hokkaido-latest.osm.pbf"
+    "$OSM_BASE_URL"
+  curl -fSL \
+    --retry 5 --retry-delay 20 --retry-all-errors --retry-max-time 600 \
+    --connect-timeout 30 --max-time 30 \
+    -o "${OSM_FILE}.tmp.md5" \
+    "${OSM_BASE_URL}.md5"
+
+  # md5 ファイルは配布時のファイル名を含むため、一時ファイル名へ読み替えて検証する
+  expected_md5=$(cut -d' ' -f1 < "${OSM_FILE}.tmp.md5")
+  actual_md5=$(md5sum "${OSM_FILE}.tmp" | cut -d' ' -f1)
+  rm -f "${OSM_FILE}.tmp.md5"
+  if [ "$expected_md5" != "$actual_md5" ]; then
+    echo "Error: md5 mismatch for downloaded OSM file"
+    echo "  expected: ${expected_md5}"
+    echo "  actual:   ${actual_md5}"
+    rm -f "${OSM_FILE}.tmp"
+    exit 1
+  fi
+
   mv "${OSM_FILE}.tmp" "$OSM_FILE"
   echo "Download complete."
 fi
