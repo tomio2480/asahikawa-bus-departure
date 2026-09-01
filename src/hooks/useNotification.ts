@@ -94,7 +94,8 @@ export function useNotification({
 	});
 
 	const requestPermission = useCallback(async () => {
-		if (typeof globalThis.Notification === "undefined") return "denied" as NotificationPermission;
+		if (typeof globalThis.Notification === "undefined")
+			return "denied" as NotificationPermission;
 		const result = await globalThis.Notification.requestPermission();
 		setPermission(result);
 		return result;
@@ -113,9 +114,7 @@ export function useNotification({
 			const fromSiblings = db
 				? getSiblingStopIds(db, r.fromStopId)
 				: [r.fromStopId];
-			const toSiblings = db
-				? getSiblingStopIds(db, r.toStopId)
-				: [r.toStopId];
+			const toSiblings = db ? getSiblingStopIds(db, r.toStopId) : [r.toStopId];
 			for (const f of fromSiblings) {
 				for (const t of toSiblings) {
 					map.set(`${f}-${t}`, r);

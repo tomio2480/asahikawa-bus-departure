@@ -75,14 +75,11 @@ export function DepartureBoard({
 	selectedDestinations = EMPTY_DESTINATIONS,
 	onDestinationToggle,
 }: DepartureBoardProps) {
-
 	// 行先の選択肢（ドロップダウン用。フィルタ中も全選択肢を表示する）
 	const destinations = useMemo(
 		() =>
 			new Map(
-				groups.map(
-					(group) => [group.toStopId, group.toStopName] as const,
-				),
+				groups.map((group) => [group.toStopId, group.toStopName] as const),
 			),
 		[groups],
 	);
@@ -161,10 +158,11 @@ export function DepartureBoard({
 	const allNextDay =
 		visibleGroups.length > 0 && visibleGroups.every((g) => g.isNextDay);
 
+	// 並び替えの操作はボタンが担う。th 自体をフォーカス可能にすると
+	// 非対話要素をキーボード操作の流れへ入れることになるため避ける。
 	const sortableHeader = (key: SortKey, label: string) => (
 		<th
-			className={`cursor-pointer select-none ${sortKey === key ? "bg-base-300" : ""}`}
-			tabIndex={0}
+			className={sortKey === key ? "bg-base-300" : ""}
 			aria-sort={
 				sortKey === key
 					? sortDirection === "asc"
@@ -172,16 +170,15 @@ export function DepartureBoard({
 						: "descending"
 					: "none"
 			}
-			onClick={() => handleSortToggle(key)}
-			onKeyDown={(e) => {
-				if (e.key === "Enter" || e.key === " ") {
-					e.preventDefault();
-					handleSortToggle(key);
-				}
-			}}
 		>
-			{label}
-			{sortKey === key && (sortDirection === "asc" ? " ▲" : " ▼")}
+			<button
+				type="button"
+				className="w-full cursor-pointer select-none text-left"
+				onClick={() => handleSortToggle(key)}
+			>
+				{label}
+				{sortKey === key && (sortDirection === "asc" ? " ▲" : " ▼")}
+			</button>
 		</th>
 	);
 
@@ -218,29 +215,27 @@ export function DepartureBoard({
 								</span>
 							)}
 							{destinations.size > 1 && (
-								<div
-									className="flex flex-wrap gap-1"
-									role="group"
+								// fieldset の既定は min-inline-size: min-content のため、
+								// 従来の div と同じ縮み方になるよう min-w-0 で打ち消す
+								<fieldset
+									className="flex min-w-0 flex-wrap gap-1"
 									aria-label="行き先で絞り込む"
 								>
 									{[...destinations.entries()].map(([stopId, name]) => {
-										const isActive =
-											selectedDestinations.has(stopId);
+										const isActive = selectedDestinations.has(stopId);
 										return (
 											<button
 												key={stopId}
 												type="button"
 												aria-pressed={isActive}
 												className={`badge cursor-pointer hover:opacity-80 transition-opacity ${isActive ? "badge-primary" : "badge-outline"}`}
-												onClick={() =>
-													onDestinationToggle?.(stopId)
-												}
+												onClick={() => onDestinationToggle?.(stopId)}
 											>
 												{name || stopId}
 											</button>
 										);
 									})}
-								</div>
+								</fieldset>
 							)}
 						</div>
 						<div
@@ -281,7 +276,9 @@ export function DepartureBoard({
 													}
 												}}
 											>
-												<td className={`font-mono ${sortKey === "leaveByTime" ? "bg-base-300/50" : ""}`}>
+												<td
+													className={`font-mono ${sortKey === "leaveByTime" ? "bg-base-300/50" : ""}`}
+												>
 													{dep.leaveByTime ? formatTime(dep.leaveByTime) : "-"}
 													{dep.isDeparted && (
 														<span className="ml-1 badge badge-sm badge-ghost">
@@ -295,10 +292,14 @@ export function DepartureBoard({
 													)}
 												</td>
 												<td>{dep.fromStopName ?? "-"}</td>
-												<td className={`font-mono ${sortKey === "departureTime" ? "bg-base-300/50" : ""}`}>
+												<td
+													className={`font-mono ${sortKey === "departureTime" ? "bg-base-300/50" : ""}`}
+												>
 													{formatTime(dep.departureTime)}
 												</td>
-												<td className={`font-mono ${sortKey === "arrivalTime" ? "bg-base-300/50" : ""}`}>
+												<td
+													className={`font-mono ${sortKey === "arrivalTime" ? "bg-base-300/50" : ""}`}
+												>
 													{formatTime(dep.arrivalTime)}
 												</td>
 												<td>

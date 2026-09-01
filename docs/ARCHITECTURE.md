@@ -481,9 +481,14 @@ React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分
 
 | ワークフロー | トリガ | 内容 |
 |---|---|---|
+| `ci.yml` | Pull Request | 整形・lint・テスト・ビルドの検査 |
+| `md-lint.yml` | Pull Request（`*.md` を含む場合） | Markdown の lint |
+| `claude-review.yml` | `@claude` メンション | レビューの副担当 |
 | `update-gtfs.yml` | 毎週月曜 03:00 UTC / 手動 | GTFS 取得・pfaedle 生成・変換・コミット |
 | `update-osm.yml` | 毎月 1 日 / 手動 | OSM データのキャッシュ更新 |
-| `deploy.yml` | main push / 手動 | GitHub Pages デプロイ |
+| `deploy.yml` | main push / 手動 | 検査と GitHub Pages へのデプロイ |
+
+検査の担当は 2 つに分かれる．Pull Request は `ci.yml` が受け持つ．main への push は `deploy.yml` が受け持つ．同じトリガで両方を動かすと二重に実行されるため，担当は分けてある．
 
 ### カレンダー比較による不要実行の回避
 

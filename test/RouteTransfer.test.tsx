@@ -64,7 +64,10 @@ describe("RouteTransfer", () => {
 		const exportBtn = screen.getByRole("button", { name: /エクスポート/ });
 		const importBtn = screen.getByRole("button", { name: /インポート/ });
 		expect(exportBtn).toHaveAttribute("data-tip", "経路データをファイルに保存");
-		expect(importBtn).toHaveAttribute("data-tip", "経路データをファイルから読込");
+		expect(importBtn).toHaveAttribute(
+			"data-tip",
+			"経路データをファイルから読込",
+		);
 	});
 
 	describe("エクスポート", () => {
@@ -120,12 +123,13 @@ describe("RouteTransfer", () => {
 			vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-url");
 			vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
 
-			let capturedAnchor: HTMLAnchorElement | null = null;
+			// 配列へ溜めることで、非 null 表明なしに要素の型を確定させる
+			const capturedAnchors: HTMLAnchorElement[] = [];
 			const origCreateElement = document.createElement.bind(document);
 			vi.spyOn(document, "createElement").mockImplementation((tag: string) => {
 				const el = origCreateElement(tag);
 				if (tag === "a") {
-					capturedAnchor = el as HTMLAnchorElement;
+					capturedAnchors.push(el as HTMLAnchorElement);
 					vi.spyOn(el, "click").mockImplementation(() => {});
 				}
 				return el;
@@ -135,11 +139,10 @@ describe("RouteTransfer", () => {
 			fireEvent.click(screen.getByRole("button", { name: /エクスポート/ }));
 
 			await waitFor(() => {
-				expect(capturedAnchor).not.toBeNull();
+				expect(capturedAnchors).toHaveLength(1);
 			});
 
-			// waitFor で null でないことを検証済み
-			expect(capturedAnchor!.download).toBe("routes-2026-04-08.json");
+			expect(capturedAnchors[0].download).toBe("routes-2026-04-08.json");
 		});
 
 		it("エクスポートに失敗した場合エラーメッセージを表示する", async () => {

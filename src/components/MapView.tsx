@@ -109,16 +109,13 @@ function getStopInfo(
 
 /** タイルペインにセピアフィルタを適用するための CSS フィルタ */
 const TILE_FILTER_LIGHT = "sepia(1) saturate(0.4) brightness(1.0)";
-const TILE_FILTER_DARK =
-	"sepia(1) saturate(0.4) brightness(0.55)";
+const TILE_FILTER_DARK = "sepia(1) saturate(0.4) brightness(0.55)";
 
 /**
  * 全マーカー・ポリラインの座標から地図の表示範囲を自動調整する。
  * ルートやマーカーが存在しない場合はデフォルトの中心・ズームを維持する。
  */
-function FitBounds({
-	positions,
-}: { positions: [number, number][] }) {
+function FitBounds({ positions }: { positions: [number, number][] }) {
 	const map = useMap();
 
 	useEffect(() => {
@@ -246,7 +243,11 @@ function MapView({
 			if (existingBase) {
 				existingBase.routeKeys.add(routeKey);
 			} else {
-				const pl: PolylineData = { key: baseKey, positions, routeKeys: new Set([routeKey]) };
+				const pl: PolylineData = {
+					key: baseKey,
+					positions,
+					routeKeys: new Set([routeKey]),
+				};
 				baseArr.push(pl);
 				baseMap.set(baseKey, pl);
 			}
@@ -366,27 +367,25 @@ function MapView({
 			))}
 			{(() => {
 				const hoveredRouteFromKey = hoveredKey
-					? routeKeyMap.get(hoveredKey) ?? null
+					? (routeKeyMap.get(hoveredKey) ?? null)
 					: null;
 				return basePolylines.map((pl) => {
-				const isBaseActive =
-					(hoveredRouteKey && pl.routeKeys.has(hoveredRouteKey)) ||
-					(pinnedRouteKey && pl.routeKeys.has(pinnedRouteKey)) ||
-					(hoveredRouteFromKey && pl.routeKeys.has(hoveredRouteFromKey));
-				return (
-					<Polyline
-						key={`base-${pl.key}`}
-						positions={pl.positions}
-						pathOptions={{
-							color: isBaseActive
-								? ROUTE_COLOR_BASE_HOVER
-								: ROUTE_COLOR_BASE,
-							weight: BASE_WEIGHT,
-							opacity: 0.25,
-						}}
-					/>
-				);
-			});
+					const isBaseActive =
+						(hoveredRouteKey && pl.routeKeys.has(hoveredRouteKey)) ||
+						(pinnedRouteKey && pl.routeKeys.has(pinnedRouteKey)) ||
+						(hoveredRouteFromKey && pl.routeKeys.has(hoveredRouteFromKey));
+					return (
+						<Polyline
+							key={`base-${pl.key}`}
+							positions={pl.positions}
+							pathOptions={{
+								color: isBaseActive ? ROUTE_COLOR_BASE_HOVER : ROUTE_COLOR_BASE,
+								weight: BASE_WEIGHT,
+								opacity: 0.25,
+							}}
+						/>
+					);
+				});
 			})()}
 			{/* 非アクティブなハイライト区間 */}
 			<Pane name="highlight-inactive" style={{ zIndex: 450 }}>
@@ -452,8 +451,7 @@ function MapView({
 			<Pane name="highlight-hovered" style={{ zIndex: 470 }}>
 				{highlightPolylines
 					.filter(
-						(pl) =>
-							hoveredKey === pl.key || hoveredRouteKey === pl.routeKey,
+						(pl) => hoveredKey === pl.key || hoveredRouteKey === pl.routeKey,
 					)
 					.map((pl) => (
 						<Polyline
