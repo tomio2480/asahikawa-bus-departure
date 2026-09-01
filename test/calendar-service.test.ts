@@ -201,4 +201,90 @@ describe("getActiveServiceIds", () => {
 			expect(result).toContain("furano:weekday");
 		});
 	});
+
+	describe("前期間データとの期間重複", () => {
+		// 前期間データは useDatabase が "prev~" 接頭辞を付けて同じ DB へ入れる。
+		// 現行期間の開始前を埋めるための保持であり、開始後も混ぜる想定ではない。
+		it("現行ダイヤが開始済みなら前期間の service_id を返さない", () => {
+			insertCalendar(
+				"denkikido:weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260401",
+				"20280331",
+			);
+			insertCalendar(
+				"denkikido:prev~weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260301",
+				"20280228",
+			);
+
+			const result = getActiveServiceIds(db, new Date(2026, 3, 6));
+			expect(result).toEqual(["denkikido:weekday"]);
+		});
+
+		it("現行ダイヤが未開始なら前期間の service_id を返す", () => {
+			insertCalendar(
+				"denkikido:weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260501",
+				"20280331",
+			);
+			insertCalendar(
+				"denkikido:prev~weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260301",
+				"20280228",
+			);
+
+			const result = getActiveServiceIds(db, new Date(2026, 3, 6));
+			expect(result).toEqual(["denkikido:prev~weekday"]);
+		});
+
+		it("前期間を落とすかどうかは事業者ごとに判定する", () => {
+			// 電気軌道は現行ダイヤ開始済み、道北は未開始
+			insertCalendar(
+				"denkikido:weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260401",
+				"20280331",
+			);
+			insertCalendar(
+				"denkikido:prev~weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260301",
+				"20280228",
+			);
+			insertCalendar(
+				"dohoku:weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260501",
+				"20280331",
+			);
+			insertCalendar(
+				"dohoku:prev~weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260301",
+				"20280228",
+			);
+
+			const result = getActiveServiceIds(db, new Date(2026, 3, 6));
+			expect(result).toHaveLength(2);
+			expect(result).toContain("denkikido:weekday");
+			expect(result).toContain("dohoku:prev~weekday");
+		});
+
+		it("calendar_dates 由来の前期間 service_id も除外する", () => {
+			insertCalendar(
+				"denkikido:weekday",
+				[1, 1, 1, 1, 1, 0, 0],
+				"20260401",
+				"20280331",
+			);
+			insertCalendarDate("denkikido:prev~0770-1_2026/03/01", "20260406", 1);
+
+			const result = getActiveServiceIds(db, new Date(2026, 3, 6));
+			expect(result).toEqual(["denkikido:weekday"]);
+		});
+	});
 });

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Database } from "sql.js";
-import { formatDate, getActiveServiceIds } from "../lib/calendar-service";
+import { getActiveServiceIds } from "../lib/calendar-service";
 import {
 	type Departure,
 	calculateBoardingTime,
@@ -220,42 +220,19 @@ export function useDepartures(
 				}
 			}
 
-			// ダイヤ開始日が今日以前の期間を優先する
-			// Map は同一キーで後から挿入した値を保持するため、
-			// 優先度の低い便を先に、高い便を後に並べる
-			const todayStr = formatDate(now);
-			const prevStartResult = currentDb.exec(
-				"SELECT MIN(start_date) FROM calendar WHERE service_id LIKE '%prev~%'",
-			);
-			const currentStartResult = currentDb.exec(
-				"SELECT MIN(start_date) FROM calendar WHERE service_id NOT LIKE '%prev~%'",
-			);
-			const prevStart = (prevStartResult[0]?.values[0]?.[0] as string) || "";
-			const currentStart =
-				(currentStartResult[0]?.values[0]?.[0] as string) || "";
-			const prevIsActive = prevStart !== "" && prevStart <= todayStr;
-			const currentIsActive = currentStart !== "" && currentStart <= todayStr;
-			// 片方のみ開始済みならその期間を優先する
-			// 両方開始済みなら、より最近に適用開始された方が現行ダイヤとして優先する
-			const preferPrev =
-				prevIsActive && (!currentIsActive || prevStart > currentStart);
-
 			const result: DepartureGroup[] = [];
 			for (const [toStopId, data] of groupMap) {
 				const stripPrev = (id: string) => id.replace(/:prev~/, ":");
-				// 優先度の低い便を先に、高い便を後に並べて Map で上書きさせる
-				const sorted = [...data.departures].sort((a, b) => {
-					const aIsPrev = a.tripId.includes(":prev~");
-					const bIsPrev = b.tripId.includes(":prev~");
-					if (aIsPrev === bIsPrev) return 0;
-					if (preferPrev) {
-						return aIsPrev ? 1 : -1; // prev を後ろに（優先）
-					}
-					return aIsPrev ? -1 : 1; // current を後ろに（優先）
-				});
+				// 同じ便が兄弟バス停の組み合わせの数だけ返るため、
+				// 便と発車時刻をキーに 1 件へ畳む。
+				// 現行期間と前期間の便が混ざることはない。現行ダイヤが開始済みの
+				// 事業者では getActiveServiceIds が前期間の service_id を落とす。
 				const unique = Array.from(
 					new Map(
-						sorted.map((d) => [`${stripPrev(d.tripId)}-${d.departureTime}`, d]),
+						data.departures.map((d) => [
+							`${stripPrev(d.tripId)}-${d.departureTime}`,
+							d,
+						]),
 					).values(),
 				);
 				// prev~ プレフィックスを除去し、ハイライト・地図で一貫した ID を使う
