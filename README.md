@@ -109,7 +109,8 @@ Leaflet + OpenStreetMap で経路の形状を地図上に描画する．タイ�
 
 ### 前提条件
 
-- Node.js 22 以上
+- Node.js 22 系の 22.22.2 以上．範囲は `package.json` の `engines` が持つ
+- 対象のメジャー版は `.nvmrc` にあり，`nvm use` で 22 系の最新へ切り替えられる
 - npm
 
 ### セットアップ
