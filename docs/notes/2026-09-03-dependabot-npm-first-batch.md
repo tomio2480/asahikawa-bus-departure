@@ -54,7 +54,7 @@ major は破壊的変更の精査を経てから通す．今回は 3 本を受�
 | `jest-dom` 7 | `@testing-library/dom` が必須 peer へ | 推移的に解決済み．宣言は別途 [Issue #152][i152] で明示 |
 | `jsdom` 30 | `element.click()` が `PointerEvent` を発火．CSSOM を全面刷新．Node の下限が上昇 | テストは `fireEvent`・`userEvent` 経由で `HTMLElement.click()` に触れない．`toHaveStyle`・`getComputedStyle` の使用は 0 件 |
 
-大事なのは「破壊的変更の一覧」ではない．その変更が自分のコードのどこへ当たるかで決める．jsdom の CSSOM 刷新は大きな変更だが，スタイルを検査していなければ当たらない．一覧を読むだけでは可否は決まらない．
+大事なのは「破壊的変更の一覧」ではない．その変更が自分のコードのどこへ当たるかで決める．jsdom の CSSOM 刷新は大きな変更だが，スタイルを検査していなければ当たらない．一覧を読むだけで可否は決まらない．
 
 Node の下限だけは当たった．これは別の問題として [Issue #151][i151] へ切り出した．
 
