@@ -33,6 +33,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Markdown Lint via composite action
-        uses: tomio2480/github-workflows/.github/actions/markdown-lint@bfc410e234a59d248b6f893a1914eafbca87f698 # v2
+        uses: tomio2480/github-workflows/.github/actions/markdown-lint@eb8870016b55d298ddd5677e2c7bf6b531a5c186 # v2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
