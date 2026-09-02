@@ -35,13 +35,17 @@ describe("Node の版指定", () => {
 		expect(nvmrc).toMatch(/^\d+$/);
 	});
 
-	it("engines.node の下限が .nvmrc と同じメジャー版を指す", () => {
+	/**
+	 * `>=` で書くと jsdom が拒む 23 系・25 系まで対象へ含めてしまう。
+	 * 開発と CI は 22 系だけを使うため、範囲もその 1 本へ閉じる。
+	 */
+	it("engines.node が .nvmrc と同じメジャー版の系へ閉じている", () => {
 		const nvmrc = readRepoFile(".nvmrc").trim();
 		const engines = readPackageJson().engines?.node;
 
 		expect(engines).toBeDefined();
-		expect(engines).toMatch(/^>=\d+\.\d+\.\d+$/);
-		expect(engines?.replace(">=", "").split(".")[0]).toBe(nvmrc);
+		expect(engines).toMatch(/^\^\d+\.\d+\.\d+$/);
+		expect(engines?.replace("^", "").split(".")[0]).toBe(nvmrc);
 	});
 
 	it.each(WORKFLOWS_USING_NODE)(
