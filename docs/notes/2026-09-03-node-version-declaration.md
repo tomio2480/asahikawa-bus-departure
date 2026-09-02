@@ -1,6 +1,6 @@
 # 🔒 Node の版宣言を 1 か所へ寄せた
 
-`jsdom` 30 が Node の下限を上げ，ローカルの版が要求を満たさなくなった．警告は出ていたが，リポジトリに版の記録が無いため，どこを直せばよいか決められない状態だった．本書に残すのは，宣言を `.nvmrc` へ寄せた判断，範囲を `>=` から `^` へ狭めた理由，そして `package-lock.json` を Windows で再生成してはならない理由である．
+`jsdom` 30 が Node の下限を上げ，ローカルの版が要求を満たさなくなった．警告は出ていたが，リポジトリに版の記録が無いため，どこを直せばよいか決められない状態だった．残すのは 3 点である．宣言の寄せ先，`>=` から `^` へ狭めた経緯，そして Windows での再生成を避けた理由である．
 
 ## 📚 目次
 
@@ -68,7 +68,7 @@ npm warn EBADENGINE   current: { node: 'v22.20.0', npm: '11.6.1' }
 
 ## 🪟 ロックファイルを Windows で再生成しない
 
-`@testing-library/dom` を `devDependencies` へ足す際，`npm install` を Windows で実行した．`package.json` へ 1 行入る一方，`package-lock.json` から 78 行が消えた．
+`@testing-library/dom` を `devDependencies` へ足す際，`npm install` を Windows で実行した．`package.json` へ 1 行入る一方，`package-lock.json` は 19 行の追加と 78 行の削除になった．
 
 表 2. Windows での再生成で失われた情報
 
