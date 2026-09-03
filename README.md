@@ -209,7 +209,7 @@ public/data/                        # 事業者ごとの GTFS JSON
 test/                               # テストファイル
 ```
 
-設計判断の詳細や実装上の勘所は [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照．
+設計判断の詳細や実装上の勘所は [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) を参照．アクセシビリティの準拠目標は [`ACCESSIBILITY.md`](ACCESSIBILITY.md) にある．
 
 ---
 
