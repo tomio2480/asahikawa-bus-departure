@@ -59,7 +59,7 @@
 | 発車案内の表 | 並び替え列へ `aria-sort` を付与．操作は `th` 内のボタンへ委ねる |
 | 経路ハイライト | 一覧行へ `tabIndex` と `onKeyDown` を付与する |
 | 地図（`MapView.tsx`）| 移動と拡大縮小は Leaflet 既定のキーボード操作が担う．経路ポリラインの選択と，内容の代替表現は未整備 |
-| 自動検出 | Biome の `lint/a11y` が `recommended` 経由で有効 |
+| 自動検出 | Biome の `lint/a11y` が `recommended` 経由で有効．`axe-core` が主要 4 部品のテストで走る |
 
 地図の基本操作は Leaflet 1.9.4 が既定で備える．コンテナは `tabindex="0"` を持ち，フォーカスを受け取る．矢印キーによる移動と，`+` / `-` による拡大縮小が使える．ズームボタンにも `role="button"` と `aria-label` が付く．`MapView.tsx` に ARIA 属性を書いていなくても，描画後の地図が配慮を欠くわけではない．
 
@@ -71,18 +71,20 @@
 
 現行の検出手段は Biome の `lint/a11y` である．`biome.json` が `recommended: true` を指定するため，a11y の規則群も有効になる．`ci.yml` の Biome check が Pull Request ごとに走る．
 
-上位の手段として `axe-core` の導入を予定する．本書の作成時点では方針の決定にとどめ，実装は Issue #164 へ切り出す．
+上位の手段として `axe-core` を Vitest のコンポーネントテストで走らせる（Issue #164）．`test/a11y.ts` の `findA11yViolations` が接続済みの要素を検査し，違反を 1 件 1 行で返す．対象は `DepartureBoard`・`StopSearch`・`RouteRegistration`・`Toast` の 4 部品である．部品を足したときは，同じ形で検査を 1 件加える．
 
 表 3. 検討した自動検出ツールと採否
 
 | ツール | 採否 | 理由 |
 |---|---|---|
 | Biome `lint/a11y` | 採用済み | 静的解析で JSX の誤りを拾う．依存を増やさずに済む |
-| `axe-core`（Vitest 経由）| 導入予定 | Testing Library と `jsdom` が既にある．`ci.yml` の Test へ載る |
+| `axe-core`（Vitest 経由）| 採用済み | Testing Library と `jsdom` が既にある．`ci.yml` の Test で走る |
 | Lighthouse CI | 見送り | ページ単位のスコア計測が主目的．単一画面の SPA では得るものが少ない |
 | pa11y | 見送り | ブラウザの実行環境を別途要する．`axe-core` と守備範囲が重なる |
 
 `jsdom` は要素の配置と描画済みの CSS を持たない．そのため `axe-core` を Vitest 経由で動かしても，色のコントラストなど描画に依存する検査は働かない．この範囲は CI の外でブラウザにより補う．手段は「手動確認の運用」に定める．
+
+部品単体のテストでは `region` 規則も外している．部品は `App` の `header` / `main` / `footer` に包まれて初めてランドマークを持つため，単体で描画すると全部品で偽陽性になる．外した規則と理由は `test/a11y.ts` に書き添えてある．
 
 自動修正はいずれのツールでも行わない．検出した指摘はまず妥当性を確かめ，そのうえで修正方針を決める．規則を外す場合は `biome-ignore` へ理由を書き添える．`StopSearch.tsx` の `useSemanticElements` が先例である．WAI-ARIA の combobox パターンが `div` と `role` の組を標準とするため，規則の側を外した．
 
