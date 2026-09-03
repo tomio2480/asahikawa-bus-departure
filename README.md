@@ -80,7 +80,7 @@ Leaflet + OpenStreetMap で経路の形状を地図上に描画する．タイ�
 | データベース | sql.js（ブラウザ内 SQLite） |
 | 永続化 | IndexedDB（経路登録） |
 | 地図 | Leaflet + React-Leaflet |
-| テスト | Vitest + Testing Library |
+| テスト | Vitest + Testing Library + axe-core |
 | リント | Biome |
 
 ---

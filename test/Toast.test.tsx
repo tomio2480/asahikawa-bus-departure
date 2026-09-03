@@ -186,6 +186,9 @@ describe("ToastContainer", () => {
 	});
 
 	it("表示中のトーストに axe-core の違反が無い", async () => {
+		// axe.run は内部で setTimeout を使う．beforeEach の fake timers の
+		// 設定に依存しないよう，この検査だけ実時間へ戻す．
+		vi.useRealTimers();
 		const { container } = render(
 			<ToastProvider>
 				<ToastContainer />

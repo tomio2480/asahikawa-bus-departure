@@ -58,7 +58,7 @@
 | 地図 | Leaflet + React-Leaflet |
 | データ仕様 | GTFS（General Transit Feed Specification）|
 | 経路形状生成 | pfaedle（Docker）+ OpenStreetMap |
-| テスト | Vitest + Testing Library |
+| テスト | Vitest + Testing Library + axe-core |
 | リント・整形 | Biome |
 | CI/CD | GitHub Actions + GitHub Pages |
 
