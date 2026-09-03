@@ -36,7 +36,7 @@
 
 ### 1. React の状態管理 -- `useEffect` による props→state 同期を避ける
 
-- **指摘例**（PR #96 gemini-code-assist）：`useEffect` で `results` を同期していた．同期先は `query` と `reachabilityFilter` である．そのため二重検索と不整合の原因になっていた．
+- **指摘例**（PR #96 gemini-code-assist）：`results` を `useEffect` で同期していた．`query` と `reachabilityFilter` の変化に応じて `results` を更新する作りである．そのため二重検索と不整合の原因になっていた．
 - **対処パターン**：`useMemo` による派生値化で依存関係を型レベルで可視化する．`setResults` 経由の伝播を廃止する．
 - **適用範囲**：「入力から派生する検索結果」「入力から派生する有効性フラグ」等，単方向で計算可能な値は全て `useMemo` に寄せる．
 - **除外**：ユーザーの明示的操作（選択・送信）で決まる UI 状態（ドロップダウンの開閉等）は `useState` のまま残す．
@@ -123,15 +123,16 @@
 ### 15. エラーメッセージの句点・文体統一
 
 <!-- 引用したコード片に「です。」を含むため no-mix-dearu-desumasu が誤検出する． -->
-<!-- 地の文はである調で揃っている．引用を崩さないため，この箇条書きだけ外す． -->
+<!-- 地の文はである調で揃っている．引用を崩さないため，指摘例 A の 1 項だけ外す． -->
 <!-- textlint-disable ja-technical-writing/no-mix-dearu-desumasu -->
 
 - **指摘例 A**（PR #98 CodeRabbit）：`describeUnselectedStopError` の空クエリ分岐だけ句点がない．`src/components/RouteRegistration.tsx` L145 での指摘である．該当は `${sideLabel}を選択してください` である．他分岐（`...してください。` / `...です。`）と不揃いだった．`\n` 連結時に可視化される．
+
+<!-- textlint-enable ja-technical-writing/no-mix-dearu-desumasu -->
+
 - **指摘例 B**（PR #98 ユーザー指示）：`SAME_STOP_ERROR_MESSAGE` の末尾に「。」を追加．
 - **対処パターン**：同一コンポーネント内のユーザー向け文字列は句点有無・体言止め・敬体を揃える．複数行を `\n` で連結する可能性があるメッセージは句点で閉じる．
 - **チェック観点**：エラーメッセージ生成関数を追加・変更したら，該当関数内の全分岐と既存定数で文末形が一致しているか．
-
-<!-- textlint-enable ja-technical-writing/no-mix-dearu-desumasu -->
 
 ### 16. `handleSearch` 中間状態で `onSelect(null)` は発火する契約
 
@@ -172,14 +173,14 @@
   - `StopSearch` のような composite widget を `disabled` 化するときがある．listbox を閉じる責務は **二段構え** で担保する．「派生値」と「`useEffect` による内部 state リセット」の 2 つである．
     - 派生値を次のように定義する．`const isListboxOpen = !disabled && isOpen && results.length > 0` である．`disabled=false→true` のレンダリング段階から listbox を非表示にする．`useEffect` は render 後に走るため，1 フレーム描画が残る問題を防ぐ．
     - 次の `useEffect` を置く．`useEffect(() => { if (disabled) setIsOpen(false); }, [disabled])` である．`disabled=true→false` の逆遷移時に，内部 `isOpen` が保持されたまま `results` が残る．listbox が自動再表示される問題を防ぐ．再表示にはユーザーの明示操作（focus/入力）を要求する契約である．
-    - 片方だけだと異なる遷移方向のバグが残る．gemini-code-assist が 1 フレーム問題を指摘した．coderabbitai が逆遷移の再表示問題を別々に指摘した．
+    - 片方だけだと異なる遷移方向のバグが残る．この 2 つは別々に指摘された．1 フレーム問題は gemini-code-assist による．逆遷移の再表示問題は coderabbitai による．
 - **補足**：`useEffect` を書くときは「派生値で表現できないか」を最初に検討する．React 公式「You Might Not Need an Effect」を参照する．ただし本件の逆遷移リセットのように，描画条件だけでは「内部 state の保持」に起因する問題が残るケースもある．その場合は派生値で描画を保証したうえで，`useEffect` で内部 state を一方向にリセットして補う．両者が担う責務（1 フレーム問題 vs 逆遷移時の再表示）を JSDoc に明記して混同を防ぐ．Issue #99 で排除した「props→state 同期」（双方向・常時追従）とは依然として別物である．
 - **チェック観点**：
   - 同じ真偽条件式（`a || b !== null` 等）が 3 箇所以上に重複していないか．派生値に束ねられないか．
   - フォーム送信・トグル処理などの async 操作中に，他の入力系が触れる状態になっていないか．
   - フォーム送信ハンドラで， `setSubmitting(true)` より前に `await`（permission 要求等）していないか．プロンプト表示中の入力レースと reject の捕捉漏れの温床．
   - disabled になった composite widget が「見える」けれど「操作できない」中途半端な状態を作っていないか．
-  - disabled 化の実装が両方向を閉じているか．`disabled=false→true` 遷移時の描画フレームが 1 つ．`disabled=true→false` 逆遷移時の内部 state 保持がもう 1 つ．
+  - disabled 化の実装が両方向を閉じているか．一方は `disabled=false→true` 遷移時の描画フレームである．もう一方は `disabled=true→false` 逆遷移時の内部 state 保持である．
 
 ### 20. workflow のトリガ範囲と検査範囲の一致
 
