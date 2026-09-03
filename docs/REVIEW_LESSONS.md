@@ -204,6 +204,8 @@
 - [ ] 子コンポーネント内で「prop を初期値とする `useState` + prop 変化を拾う `useEffect`」の半制御構造になっていないか．親に state を上げて完全制御にできないか．
 - [ ] 状態同期の打ち消しのために `suppress*Ref` / `skip*Ref` 等の escape-hatch を追加していないか．構造を平らにできないか．
 - [ ] WAI-ARIA 属性の値が，対応する DOM 描画条件と一致しているか．対象は `aria-expanded` / `aria-controls` / `aria-selected` 等．
+- [ ] UI を触る PR では，キーボードだけで目的を達成できることを確かめたか（`ACCESSIBILITY.md`「手動確認の運用」）．
+- [ ] 配色を変えたら，ブラウザの DevTools で色のコントラストを確かめたか．対象はライトとダークの両テーマ．
 - [ ] 配列を扱うフィルタで `||` を使っていないか． `??` に置換できるか．
 - [ ] UI 文言を変えたら， `grep -rn '<旧文言>' test src` で残存が 0 件か．
 - [ ] 定数値（閾値・分数・回数等）を 2 箇所以上に直書きしていないか．
@@ -220,6 +222,7 @@
 - [ ] 新規テストファイルは既存の `afterEach(cleanup)` パターンに揃っているか．
 - [ ] ネストされた `beforeEach` が外側で作った `db` を上書きする場合，先頭で `db.close()` を呼んでいるか．
 - [ ] Red ステップを必ず踏んだか（失敗出力を一度確認したか）．
+- [ ] 部品を足したら，`test/a11y.ts` の `findA11yViolations` による検査を 1 件加えたか．`document.body` を渡すときは `region` の偽陽性に注意する．
 - [ ] 選択済みフィールドに対する「`onSelect(null)` 不発火」の検証がある．`userEvent.type` ではなく初期マウント時点で assertion しているか．
 - [ ] テスト名（`it` 文字列）と本体の操作・assertion が一致しているか．
 
