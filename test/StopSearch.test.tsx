@@ -15,6 +15,7 @@ import { StopSearch } from "../src/components/StopSearch";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { StopSearchResult } from "../src/lib/stop-search";
 import type { GtfsData } from "../src/types/gtfs";
+import { findA11yViolations } from "./a11y";
 
 /**
  * Issue #99: StopSearch を完全制御コンポーネント化した後のテスト用ラッパー。
@@ -694,5 +695,23 @@ describe("StopSearch（到達可能性フィルタ）", () => {
 		// 既に開いているドロップダウンがフィルタ変更に応じて更新される
 		expect(screen.queryByText("D停")).not.toBeInTheDocument();
 		expect(screen.getByText("B停")).toBeInTheDocument();
+	});
+});
+
+describe("StopSearch のアクセシビリティ", () => {
+	it("候補を閉じた状態に axe-core の違反が無い", async () => {
+		const { container } = render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={vi.fn()} />,
+		);
+		await expect(findA11yViolations(container)).resolves.toEqual([]);
+	});
+
+	it("候補一覧を開いた状態に axe-core の違反が無い", async () => {
+		const { container } = render(
+			<ControlledStopSearch db={db} label="乗車バス停" onSelect={vi.fn()} />,
+		);
+		await userEvent.type(screen.getByRole("combobox"), "旭川");
+		await screen.findByRole("listbox");
+		await expect(findA11yViolations(container)).resolves.toEqual([]);
 	});
 });

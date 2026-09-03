@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DepartureBoard } from "../src/components/DepartureBoard";
 import type { DepartureGroup } from "../src/hooks/useDepartures";
+import { findA11yViolations } from "./a11y";
 
 afterEach(() => {
 	cleanup();
@@ -1022,5 +1023,35 @@ describe("通知設定 UI（DepartureBoard からの排除）", () => {
 		expect(
 			screen.queryByRole("spinbutton", { name: /通知/ }),
 		).not.toBeInTheDocument();
+	});
+});
+
+describe("DepartureBoard のアクセシビリティ", () => {
+	afterEach(() => {
+		cleanup();
+	});
+
+	it("経路未登録の表示に axe-core の違反が無い", async () => {
+		const { container } = render(
+			<DepartureBoard
+				groups={[]}
+				lastUpdated={null}
+				error={null}
+				hasRoutes={false}
+			/>,
+		);
+		await expect(findA11yViolations(container)).resolves.toEqual([]);
+	});
+
+	it("発車案内の表に axe-core の違反が無い", async () => {
+		const { container } = render(
+			<DepartureBoard
+				groups={[makeGroup()]}
+				lastUpdated={new Date()}
+				error={null}
+				hasRoutes={true}
+			/>,
+		);
+		await expect(findA11yViolations(container)).resolves.toEqual([]);
 	});
 });

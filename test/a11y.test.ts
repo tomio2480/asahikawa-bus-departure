@@ -40,6 +40,14 @@ describe("findA11yViolations", () => {
 		await expect(findA11yViolations(root)).resolves.toEqual([]);
 	});
 
+	it("ランドマークを持たない部品単体の描画を region 違反にしない", async () => {
+		// 部品はページ全体（App）の中で main などのランドマークに包まれる．
+		// 単体で描画したときにその不在を咎めると，全部品で偽陽性になる．
+		document.body.innerHTML = "<h2>見出し</h2><p>本文</p>";
+
+		await expect(findA11yViolations(document.body)).resolves.toEqual([]);
+	});
+
 	it("複数の違反をそれぞれ 1 行で返す", async () => {
 		const root = document.createElement("div");
 		root.innerHTML = '<img src="a.png"><input type="text">';

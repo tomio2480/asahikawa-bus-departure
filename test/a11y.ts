@@ -1,11 +1,16 @@
 import axe from "axe-core";
 
 /**
- * jsdom には要素の配置と描画済みの CSS が無く，色のコントラストを判定できない．
- * この規則はブラウザの DevTools で確かめる（ACCESSIBILITY.md「手動確認の運用」）．
+ * 部品単体のテストでは判定できない規則を外す．
+ *
+ * - color-contrast: jsdom には要素の配置と描画済みの CSS が無く，色を判定できない．
+ *   ブラウザの DevTools で確かめる（ACCESSIBILITY.md「手動確認の運用」）．
+ * - region: 部品は App の header / main / footer に包まれて初めてランドマークを持つ．
+ *   単体で描画したときにその不在を咎めると，全部品で偽陽性になる．
  */
-const RULES_UNAVAILABLE_IN_JSDOM: axe.RunOptions["rules"] = {
+const RULES_DISABLED_FOR_COMPONENT_TESTS: axe.RunOptions["rules"] = {
 	"color-contrast": { enabled: false },
+	region: { enabled: false },
 };
 
 /**
@@ -17,7 +22,7 @@ export async function findA11yViolations(
 	container: Element,
 ): Promise<string[]> {
 	const results = await axe.run(container, {
-		rules: RULES_UNAVAILABLE_IN_JSDOM,
+		rules: RULES_DISABLED_FOR_COMPONENT_TESTS,
 	});
 	return results.violations.map((violation) => {
 		const targets = violation.nodes
