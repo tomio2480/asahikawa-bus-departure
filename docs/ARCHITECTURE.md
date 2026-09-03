@@ -100,9 +100,9 @@ HODA（北海道オープンデータプラットフォーム）から 3 事業�
 
 ### shapes.txt の生成
 
-GTFS には経路の地理的形状（shapes）が含まれない場合がある．pfaedle を用い，OpenStreetMap の道路ネットワークから推定 shapes を生成する．pfaedle は Docker イメージ `ghcr.io/ad-freiburg/pfaedle:latest` を使用する．
+GTFS には経路の地理的形状（shapes）を含まない場合がある．pfaedle を用い，OpenStreetMap の道路ネットワークから推定 shapes を生成する．pfaedle は Docker イメージ `ghcr.io/ad-freiburg/pfaedle:latest` を使用する．
 
-`-o` オプションで出力時に GTFS ファイルを上書きするため，運賃関連ファイル等を事前に退避し実行後に復元する．退避対象は `fare_attributes.txt`・`fare_rules.txt`・`feed_info.txt`・`translations.txt`・`attributions.txt` の 5 種．
+`-o` オプションは出力時に GTFS ファイルを上書きする．そのため運賃関連ファイル等をあらかじめ退避し，実行を終えてから復元する．退避対象は `fare_attributes.txt`・`fare_rules.txt`・`feed_info.txt`・`translations.txt`・`attributions.txt` の 5 種．
 
 ### JSON 変換
 
@@ -114,7 +114,7 @@ GTFS には経路の地理的形状（shapes）が含まれない場合がある
 
 ### 背景
 
-バス事業者のダイヤ改正は一斉に行われない．GTFS データが更新されると，新ダイヤの適用開始前に旧ダイヤが消える空白期間が生じる．ユーザー体験として，ダイヤ改正直前にもかかわらず運行中の便が見えなくなるのは避けたい．
+バス事業者のダイヤ改正は一斉に行われない．GTFS データを更新すると，新ダイヤの適用開始前に旧ダイヤが消える空白期間を生じる．ユーザー体験として，ダイヤ改正直前にもかかわらず運行中の便が見えなくなるのは避けたい．
 
 ### 設計
 
@@ -206,7 +206,7 @@ SELECT EXISTS (
 ) AS reachable
 ```
 
-`EXISTS` は最初のヒットで探索を止めるため，停留所選択・フォーム送信時のリアルタイム判定に適した計算量になる．乗り換えは対象外で，同一 trip 内で乗車バス停の後に降車バス停が出現することを条件とする（Issue #90）．
+`EXISTS` は最初のヒットで探索を止めるため，停留所選択・フォーム送信時のリアルタイム判定に適した計算量で済む．乗り換えは対象外で，同一 trip 内で乗車バス停の後に降車バス停が出現することを条件とする（Issue #90）．
 
 ### 候補フィルタとバリデーションの分離
 
@@ -218,7 +218,7 @@ SELECT EXISTS (
 
 半制御（内部 state ＋ `useEffect` による props→state 同期）の構成を採用しない．理由は以下のとおり．
 
-- `selectedStop` prop の変更を内部 `useState` に流し込む `useEffect` が必要になり，「内部発の `onSelect(null)` による `selectedStop=null` 遷移」と「外部発の `handleEdit` / `resetForm`」を区別するための escape-hatch（`suppressNextSelectedSyncRef` 等）が積み重なる．
+- `selectedStop` prop の変更を内部 `useState` へ流し込む `useEffect` が必要になり，「内部発の `onSelect(null)` による `selectedStop=null` 遷移」と「外部発の `handleEdit` / `resetForm`」を区別するための escape-hatch（`suppressNextSelectedSyncRef` 等）が積み重なる．
 - 親の form state と子の query state が二重に存在することで，「選択済みのまま入力だけ書き換えて submit」の検知が状態遷移の順序に依存し，バグを誘発する．
 - React 公式「You Might Not Need an Effect」が推奨する「状態を親に上げて完全制御にする」パターンに整合する．
 
@@ -564,7 +564,7 @@ GTFS の `fare_rules` は出発ゾーンと到着ゾーンの組み合わせで�
 
 ### pfaedle の shapes 精度
 
-OSM の道路ネットワークから経路を推定するため，実際のバス路線と異なる経路が生成される場合がある．地図表示はあくまで参考情報である旨を UI 側で暗黙的に伝える（実線一本で正確なルートは示さない配色）．
+OSM の道路ネットワークから経路を推定するため，実際のバス路線と異なる経路を生成する場合がある．地図表示はあくまで参考情報である旨を UI 側で暗黙的に伝える（実線一本で正確なルートは示さない配色）．
 
 ### 前期間データは作り直せない
 

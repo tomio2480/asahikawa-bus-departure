@@ -122,10 +122,16 @@
 
 ### 15. エラーメッセージの句点・文体統一
 
+<!-- 引用したコード片に「です。」を含むため no-mix-dearu-desumasu が誤検出する． -->
+<!-- 地の文はである調で揃っている．引用を崩さないため，この箇条書きだけ外す． -->
+<!-- textlint-disable ja-technical-writing/no-mix-dearu-desumasu -->
+
 - **指摘例 A**（PR #98 CodeRabbit， `src/components/RouteRegistration.tsx` L145）：`describeUnselectedStopError` の空クエリ分岐だけ `${sideLabel}を選択してください` と句点なしで，他分岐（`...してください。` / `...です。`）と不揃いだった．`\n` 連結時に可視化される．
 - **指摘例 B**（PR #98 ユーザー指示）：`SAME_STOP_ERROR_MESSAGE` の末尾に「。」を追加．
 - **対処パターン**：同一コンポーネント内のユーザー向け文字列は句点有無・体言止め・敬体を揃える．複数行を `\n` で連結する可能性があるメッセージは句点で閉じる．
 - **チェック観点**：エラーメッセージ生成関数を追加・変更したら，該当関数内の全分岐と既存定数で文末形が一致しているか．
+
+<!-- textlint-enable ja-technical-writing/no-mix-dearu-desumasu -->
 
 ### 16. `handleSearch` 中間状態で `onSelect(null)` は発火する契約
 
@@ -158,7 +164,7 @@
 ### 19. フォーム全体の無効化ポリシーを派生値で束ねる
 
 - **指摘例**（PR #102 gemini-code-assist / Issue #103，`src/components/RouteRegistration.tsx`）：
-  - 入力系 3 種（`StopSearch` × 2 / 徒歩時間 `input` / 通知 `checkbox`）が submit pending 中に disabled 化されておらず，`await` 解決後の `resetForm` でユーザーの新しい入力が吹き飛ぶレースがあった．
+  - 入力系 3 種（`StopSearch` × 2 / 徒歩時間 `input` / 通知 `checkbox`）を submit pending 中に disabled 化していなかった．そのため `await` 解決後の `resetForm` でユーザーの新しい入力を吹き飛ばすレースが起きた．
   - さらに既存コードでは，キャンセル・一覧通知トグル・編集・削除ボタンが `submitting || togglingRouteId !== null` を直書きしているのに対し，登録/更新ボタンのみ `submitting` 単独判定という非対称があり，「トグル処理中でも登録ボタンだけ押せる」状態が生じていた．
 - **対処パターン**：
   - `isFormLocked = submitting || togglingRouteId !== null` のような派生値を 1 箇所で定義し，入力系・キャンセル・登録/更新・一覧のトグル/編集/削除・子コンポーネント（`NotifySettings` 等）の disabled 条件をすべて同値に揃える．子コンポーネント側も個別フラグ（`submitting` / `togglingRouteId`）ではなく派生値（`isFormLocked`）を受け取る契約にすることで，重複ロジックと対称性の崩れをまとめて解消する．
