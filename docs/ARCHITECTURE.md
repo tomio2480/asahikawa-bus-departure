@@ -1,6 +1,6 @@
 # 🏗 旭川バス発車案内 -- アーキテクチャと設計判断
 
-旭川市内の 3 事業者のバス発車案内をブラウザ単体で提供する SPA の設計判断と実装上の勘所をまとめた文書．GTFS データパイプライン・バス停名寄せ・発車案内生成・通知・経路登録バリデーション・地図描画・テーマ切替・CI/CD までを章立てで網羅し，それぞれの「なぜこの形なのか」を記録する．PR ごとに積み重なる知見は `docs/REVIEW_LESSONS.md` に寄せ，本書は恒久的に残る設計判断に限定する．
+旭川市内の 3 事業者のバス発車案内をブラウザ単体で提供する SPA の設計判断と実装上の勘所をまとめた文書．GTFS データパイプライン・バス停名寄せ・発車案内生成・通知・経路登録バリデーション・地図描画・テーマ切替・CI/CD までを章立てで網羅する．それぞれの「なぜこの形なのか」を記録する．PR ごとに積み重なる知見は `docs/REVIEW_LESSONS.md` に寄せ，本書は恒久的に残る設計判断に限定する．
 
 ---
 
@@ -12,7 +12,7 @@
 - [🚌 GTFS データパイプライン](#-gtfs-データパイプライン)
 - [🗓 マルチ期間データの取り扱い](#-マルチ期間データの取り扱い)
 - [📍 バス停の名寄せと統合](#-バス停の名寄せと統合)
-- [🔎 直通到達可能性の判定](#-直通到達可能性の判定)
+- [🔎 直通の到達可能性の判定](#-直通の到達可能性の判定)
 - [🕒 発車案内の生成](#-発車案内の生成)
 - [📝 経路登録のバリデーション設計](#-経路登録のバリデーション設計)
 - [🔔 通知アーキテクチャ](#-通知アーキテクチャ)
@@ -29,7 +29,7 @@
 
 ## 📎 関連ドキュメント
 
-本書（ARCHITECTURE）は設計判断の恒久記録として位置付ける．PR ごとのレビュー指摘から抽出した知見は `docs/REVIEW_LESSONS.md` に蓄積し，そこで一定の汎用性が確認された事項を本書に蒸留する流れを取る．
+本書（ARCHITECTURE）は設計判断の恒久記録として位置付ける．PR ごとのレビュー指摘から抽出した知見は `docs/REVIEW_LESSONS.md` へ蓄積する．そこで一定の汎用性を確認できた事項を本書へ蒸留する流れを取る．
 
 表 1. 本リポジトリのドキュメントと役割分担
 
@@ -50,16 +50,16 @@
 |---|---|
 | フロントエンド | React 19 + TypeScript + Vite 8 |
 | スタイル | Tailwind CSS 4 + DaisyUI 5 |
-| データベース | sql.js（ブラウザ内 SQLite） |
-| 永続化 | IndexedDB（経路登録） / localStorage（通知設定・テーマ） |
+| データベース | sql.js（ブラウザ内 SQLite）|
+| 永続化 | IndexedDB（経路登録）/ localStorage（通知設定・テーマ）|
 | 地図 | Leaflet + React-Leaflet |
-| データ仕様 | GTFS（General Transit Feed Specification） |
-| 経路形状生成 | pfaedle（Docker） + OpenStreetMap |
+| データ仕様 | GTFS（General Transit Feed Specification）|
+| 経路形状生成 | pfaedle（Docker）+ OpenStreetMap |
 | テスト | Vitest + Testing Library |
 | リント・整形 | Biome |
 | CI/CD | GitHub Actions + GitHub Pages |
 
-sql.js はサーバ不要でブラウザ内に SQLite データベースを構築する．GTFS の JSON 変換データを fetch し，起動時にインメモリ DB へロードする．ブラウザ外へのリクエストは地図タイル取得を除き発生しない．
+sql.js はサーバー不要でブラウザ内に SQLite データベースを構築する．GTFS の JSON 変換データを fetch し，起動時にインメモリ DB へロードする．ブラウザ外へのリクエストは地図タイル取得を除き発生しない．
 
 ---
 
@@ -100,9 +100,9 @@ HODA（北海道オープンデータプラットフォーム）から 3 事業�
 
 ### shapes.txt の生成
 
-GTFS には経路の地理的形状（shapes）が含まれない場合がある．pfaedle を用い，OpenStreetMap の道路ネットワークから推定 shapes を生成する．pfaedle は Docker イメージ `ghcr.io/ad-freiburg/pfaedle:latest` を使用する．
+GTFS には経路の地理的形状（shapes）を含まない場合がある．pfaedle を用い，OpenStreetMap の道路ネットワークから推定 shapes を生成する．pfaedle は Docker イメージ `ghcr.io/ad-freiburg/pfaedle:latest` を使用する．
 
-`-o` オプションで出力時に GTFS ファイルを上書きするため，運賃関連ファイル等を事前に退避し実行後に復元する．退避対象は `fare_attributes.txt` ・ `fare_rules.txt` ・ `feed_info.txt` ・ `translations.txt` ・ `attributions.txt` の 5 種．
+`-o` オプションは出力時に GTFS ファイルを上書きする．そのため運賃関連ファイル等をあらかじめ退避し，実行を終えてから復元する．退避対象は `fare_attributes.txt`・`fare_rules.txt`・`feed_info.txt` の 3 つである．さらに `translations.txt` と `attributions.txt` を加えた計 5 種を扱う．
 
 ### JSON 変換
 
@@ -114,14 +114,14 @@ GTFS には経路の地理的形状（shapes）が含まれない場合がある
 
 ### 背景
 
-バス事業者のダイヤ改正は一斉に行われない．GTFS データが更新されると，新ダイヤの適用開始前に旧ダイヤが消える空白期間が生じる．ユーザー体験として，ダイヤ改正直前にもかかわらず運行中の便が見えなくなるのは避けたい．
+バス事業者のダイヤ改正は一斉に行われない．GTFS データの更新により空白期間が生まれる．新ダイヤの適用開始前に旧ダイヤが消える期間である．ユーザー体験として，ダイヤ改正直前にもかかわらず運行中の便が見えなくなるのは避けたい．
 
 ### 設計
 
 最新データと一期間前のデータを並行保持する．
 
-- 最新： `{operator}.json` -- ID は `{operator}:{id}` 形式
-- 前期： `{operator}_prev.json` -- ID は `{operator}:prev~{id}` 形式
+- 最新：`{operator}.json` -- ID は `{operator}:{id}` 形式
+- 前期：`{operator}_prev.json` -- ID は `{operator}:prev~{id}` 形式
 
 `prev~` プレフィックスにより名前空間を分離し，同一テーブル内で共存させる．
 
@@ -184,7 +184,7 @@ WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ?
 
 ---
 
-## 🔎 直通到達可能性の判定
+## 🔎 直通の到達可能性の判定
 
 ### 課題
 
@@ -192,7 +192,7 @@ WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ?
 
 ### 実装
 
-`src/lib/stop-reachability.ts` の `isReachable` が判定する．`EXISTS` 句を使い，同一 trip 上で `from.stop_sequence < to.stop_sequence` を満たすペアが 1 組でも存在すれば真を返す．
+`src/lib/stop-reachability.ts` の `isReachable` が判定する．`EXISTS` 句を使う．同一 trip 上で `from.stop_sequence < to.stop_sequence` を満たすペアが 1 組でも存在すれば真を返す．
 
 ```sql
 SELECT EXISTS (
@@ -206,20 +206,20 @@ SELECT EXISTS (
 ) AS reachable
 ```
 
-`EXISTS` は最初のヒットで探索を止めるため，停留所選択・フォーム送信時のリアルタイム判定に適した計算量になる．乗り換えは対象外で，同一 trip 内で乗車バス停の後に降車バス停が出現することを条件とする（Issue #90）．
+`EXISTS` は最初のヒットで探索を止めるため，停留所選択・フォーム送信時のリアルタイム判定に適した計算量で済む．乗り換えは対象外で，同一 trip 内で乗車バス停の後に降車バス停が出現することを条件とする（Issue #90）．
 
 ### 候補フィルタとバリデーションの分離
 
-`StopSearch` は `ReachabilityFilter` prop を受け，候補サジェストをクラスタ単位で絞り込む．一方で `RouteRegistration` の送信時バリデーションは `searchStops(db, query, 100)` のようにフィルタ無し・limit 100 で広く名前一致を取り，「名称は存在するが到達不可能」のケースを明確に区別する（REVIEW_LESSONS 14）．
+`StopSearch` は `ReachabilityFilter` prop を受け，候補サジェストをクラスタ単位で絞り込む．一方で `RouteRegistration` の送信時バリデーションはフィルタを掛けない．`searchStops(db, query, 100)` のように limit 100 で広く名前一致を取る．これにより「名称は存在するが到達不可能」のケースを明確に区別する（REVIEW_LESSONS 14）．
 
 ### `StopSearch` は完全制御コンポーネント
 
-`StopSearch` は入力文字列 `query` を内部 state として持たず，親が保持する文字列をそのまま `value` prop として受け取る．候補選択やキー入力で発生する文字列変化は `onQueryChange` コールバックで親に通知する．親（`RouteRegistration`）の `FormState` が `fromStopQuery` / `toStopQuery` を含み，`StopSearchResult` の選択状態（`fromStop` / `toStop`）と一対で管理する（Issue #99）．
+`StopSearch` は入力文字列 `query` を内部 state として持たず，親が保持する文字列をそのまま `value` prop として受け取る．候補選択やキー入力で発生する文字列変化は `onQueryChange` コールバックで親に通知する．親（`RouteRegistration`）の `FormState` は `fromStopQuery` と `toStopQuery` を含む．`StopSearchResult` の選択状態（`fromStop` / `toStop`）と一対で管理する（Issue #99）．
 
 半制御（内部 state ＋ `useEffect` による props→state 同期）の構成を採用しない．理由は以下のとおり．
 
-- `selectedStop` prop の変更を内部 `useState` に流し込む `useEffect` が必要になり，「内部発の `onSelect(null)` による `selectedStop=null` 遷移」と「外部発の `handleEdit` / `resetForm`」を区別するための escape-hatch（`suppressNextSelectedSyncRef` 等）が積み重なる．
-- 親の form state と子の query state が二重に存在することで，「選択済みのまま入力だけ書き換えて submit」の検知が状態遷移の順序に依存し，バグを誘発する．
+- `selectedStop` prop の変更を内部 `useState` へ流し込む `useEffect` が要る．内部発の `onSelect(null)` による `selectedStop=null` 遷移がある．外部発の `handleEdit` / `resetForm` による遷移もある．両者を見分ける escape-hatch（`suppressNextSelectedSyncRef` 等）が積み重なる．
+- 親の form state と子の query state が二重に存在する．そのため「選択済みのまま入力だけ書き換えて submit」の検知が状態遷移の順序に依存し，バグを誘発する．
 - React 公式「You Might Not Need an Effect」が推奨する「状態を親に上げて完全制御にする」パターンに整合する．
 
 ---
@@ -240,7 +240,7 @@ SELECT EXISTS (
 全便が出発済みの降車バス停がある場合，翌日のサービス ID で始発以降 3 便を取得する．`isNextDay` フラグで「始発以降の便」バッジを表示する．
 
 **`isDeparted` のチェック：**
-翌日便は `isDeparted` が `undefined` になるため，`=== false` ではなく `!d.isDeparted`（falsy チェック）を使う．Boolean 以外の空値を巻き込む場合は意図的な選択として明示する．
+翌日便は `isDeparted` が `undefined` になる．そのため `=== false` ではなく `!d.isDeparted`（falsy チェック）を使う．Boolean 以外の空値を巻き込む場合は意図的な選択として明示する．
 
 ---
 
@@ -261,7 +261,7 @@ SELECT EXISTS (
 
 ### 同一バス停禁止
 
-乗車と降車に同じクラスタ（同一 `clusterStopIds`）を指定すると意味がないため，送信時に `SAME_STOP_ERROR_MESSAGE` を返す．文言は `src/components/RouteRegistration.tsx` の定数で一元管理し，テストも同じ定数を参照する（REVIEW_LESSONS 15）．
+乗車と降車に同じクラスタ（同一 `clusterStopIds`）を指定すると意味がないため，送信時に `SAME_STOP_ERROR_MESSAGE` を返す．文言は `src/components/RouteRegistration.tsx` の定数で一元管理する．テストも同じ定数を参照する（REVIEW_LESSONS 15）．
 
 ### バリデーション実装の原則
 
@@ -287,7 +287,7 @@ SELECT EXISTS (
 |---|---|---|
 | `useNotificationSettings` | 通知タイミング（分）の確定値と永続化 | `localStorage` |
 | `useNotifyBeforeMinutesInput` | 入力中の文字列と有効性判定・commit | メモリのみ |
-| `useNotification` | 発車 N 分前のブラウザ通知送信 | 実行時（`Notification` API） |
+| `useNotification` | 発車 N 分前のブラウザ通知送信 | 実行時（`Notification` API）|
 
 ### `props→state` 同期の排除
 
@@ -297,13 +297,13 @@ SELECT EXISTS (
 
 ### 永続化失敗への対応
 
-`useNotificationSettings.setMinutes` は `localStorage.setItem` を先に試行し，成功した場合のみ state を更新する．`QuotaExceededError` 等の失敗時は throw して呼び出し側に通知し，画面表示と保存値の乖離を防ぐ．
+`useNotificationSettings.setMinutes` は `localStorage.setItem` を先に試行する．成功した場合のみ state を更新する．`QuotaExceededError` 等の失敗時は throw して呼び出し側に通知し，画面表示と保存値の乖離を防ぐ．
 
 ### 通知タイミング算出
 
-`useNotification` は `useDepartures` の 1 分更新に連動して判定する．徒歩時間（`walkMinutes`）を差し引いた自宅出発目安時刻を基準に「N 分前」を計算する．
+`useNotification` は `useDepartures` の 1 分更新に連動して判定する．徒歩時間（`walkMinutes`）を差し引いた自宅出発の目安時刻を基準に「N 分前」を計算する．
 
-GTFS の 24 時超表記（例：24:05）と 0 時過ぎの現在時刻の差を補正するため， `minutesUntilLeave > 1200` の場合は 1440 分を引く．これにより日付をまたぐ深夜便も正しく扱う．
+GTFS の 24 時超表記（例：24:05）と 0 時過ぎの現在時刻の差を補正する．`minutesUntilLeave > 1200` の場合は 1440 分を引く．これにより日付をまたぐ深夜便も正しく扱う．
 
 通知済みの便は `tripId + departureTime` を key として `notifiedRef` に蓄積し重複送信を防ぐ．現在の `departures` に含まれなくなった key は都度削除する．
 
@@ -313,7 +313,7 @@ GTFS の 24 時超表記（例：24:05）と 0 時過ぎの現在時刻の差を
 
 ### 独自実装の理由
 
-DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上げ・自動消去・手動消去を統合的に扱う仕組みを持たない．また本アプリでは `ToastProvider` を通じた Context 経由で任意フックから `showToast` を呼べる必要があり，このオーケストレーションは既存 CSS フレームワークの範囲外となる．そのため `src/hooks/useToast.tsx` と `src/components/Toast.tsx` の薄い独自実装とした．
+DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上げ・自動消去・手動消去を統合的に扱う仕組みを持たない．また本アプリでは `ToastProvider` を通じた Context 経由で，任意フックから `showToast` を呼べる必要がある．このオーケストレーションは既存 CSS フレームワークの範囲外となる．そのため `src/hooks/useToast.tsx` と `src/components/Toast.tsx` の薄い独自実装とした．
 
 ### Provider / Container / Item の分離
 
@@ -327,15 +327,15 @@ DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上
 
 ### タイマーをアイテム側に置く理由
 
-自動消去タイマーを Provider 側でスケジュールすると，手動消去時のクリーンアップやアンマウント時の残留タイマーを管理する難易度が上がる．各 `ToastItem` の `useEffect` で `setTimeout` を所有し，クリーンアップ関数で `clearTimeout` を呼ぶことで，コンポーネントライフサイクルとタイマー寿命を一致させる．
+自動消去タイマーを Provider 側でスケジュールすると，手動消去時のクリーンアップやアンマウント時の残留タイマーを管理する難易度が上がる．各 `ToastItem` の `useEffect` で `setTimeout` を所有する．クリーンアップ関数で `clearTimeout` を呼ぶ．これによりコンポーネントライフサイクルとタイマー寿命を一致させる．
 
 ### `dismissToast` 参照の取得
 
-`ToastItem` は props 経由ではなく `useToast()` から `dismissToast` を取得する．Provider 内で `useCallback` により参照が安定しているため， `useEffect` の依存配列に含めてもタイマーが再スケジュールされず，予期せぬリセットを防げる．
+`ToastItem` は props 経由ではなく `useToast()` から `dismissToast` を取得する．Provider 内で `useCallback` により参照が安定している．そのため `useEffect` の依存配列に含めてもタイマーが再スケジュールされず，予期せぬリセットを防げる．
 
 ### アクセシビリティ
 
-`variant === "error"` は `role="alert"` / `aria-live="assertive"` で即時読み上げ，それ以外は `role="status"` / `aria-live="polite"` で穏やかに読み上げる．閉じるボタンには `aria-label="閉じる"` を付与する．
+`variant === "error"` は `role="alert"` / `aria-live="assertive"` で即時読み上げる．それ以外は `role="status"` / `aria-live="polite"` で穏やかに読み上げる．閉じるボタンには `aria-label="閉じる"` を付与する．
 
 ---
 
@@ -345,10 +345,10 @@ DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上
 
 `src/components/MapView.tsx` に実装．`react-leaflet` の宣言的 API を使いつつ，z-order の厳密制御のため Leaflet Pane を直接扱う部分がある．
 
-- `MapContainer` ：Leaflet の地図コンテナ
-- `FitBounds` ：マーカーとハイライト区間から表示範囲を自動調整
-- `TileFilter` ：テーマに応じたセピアフィルタを CSS で適用
-- `ScrollZoomHandler` ：Ctrl/Cmd + スクロールでのみズーム許可
+- `MapContainer`：Leaflet の地図コンテナ
+- `FitBounds`：マーカーとハイライト区間から表示範囲を自動調整
+- `TileFilter`：テーマに応じたセピアフィルタを CSS で適用
+- `ScrollZoomHandler`：Ctrl/Cmd + スクロールでのみズーム許可
 
 ### ポリラインの構成
 
@@ -394,7 +394,7 @@ CSS セレクタで `data-theme` に応じたフィルタを適用する．
 [data-theme="dark"] .leaflet-tile-pane { filter: sepia(1) saturate(0.4) brightness(0.55); }
 ```
 
-当初 `MutationObserver` でテーマ変更を監視して JS から `filter` を書き換えていたが，CSS セレクタ方式で同等の結果が得られるため簡素化した．
+当初は `MutationObserver` でテーマ変更を監視し，JavaScript から `filter` を書き換えていた．CSS セレクタ方式で同等の結果が得られるため簡素化した．
 
 ### `matchMedia` の安全ガード
 
@@ -410,7 +410,7 @@ if (typeof window.matchMedia !== "function") return "light";
 
 ### 状態管理
 
-`App.tsx` で `hoveredRouteKey` と `pinnedRouteKey` を独立管理する．当初 `activeRouteKey = pinnedRouteKey ?? hoveredRouteKey` で統合していたが，固定中に別の経路をホバーできない問題があったため分離した．
+`App.tsx` で `hoveredRouteKey` と `pinnedRouteKey` を独立管理する．当初は `activeRouteKey = pinnedRouteKey ?? hoveredRouteKey` で統合していた．固定中に別の経路をホバーできない問題があったため分離した．
 
 ### ルートキーの形式
 
@@ -452,7 +452,7 @@ export const NOTIFY_MAX_MINUTES = 60;
 export const NOTIFY_DEFAULT_MINUTES = 5;
 ```
 
-参照箇所は `useNotificationSettings`（永続化クランプ・デフォルト）， `useNotifyBeforeMinutesInput`（入力バリデーション範囲）， `RouteRegistration`（HTML `min` / `max` 属性）の 3 つ．数値を 1 箇所に閉じ込めることで，範囲変更時の取りこぼしを防ぐ（REVIEW_LESSONS 11）．
+参照箇所は 3 つある．`useNotificationSettings` は永続化のクランプと既定値に使う．`useNotifyBeforeMinutesInput` は入力バリデーションの範囲に使う．`RouteRegistration` は HTML の `min` / `max` 属性に使う．数値を 1 箇所に閉じ込めることで，範囲変更時の取りこぼしを防ぐ（REVIEW_LESSONS 11）．
 
 ---
 
@@ -466,17 +466,17 @@ export const NOTIFY_DEFAULT_MINUTES = 5;
 |---|---|
 | `src/components/` | DOM 描画とイベント捕捉．表示ロジックに限定 |
 | `src/hooks/` | 状態管理・副作用・フレームワーク依存ロジック |
-| `src/lib/` | 純粋ロジック（SQL クエリ・距離計算・ストア操作） |
+| `src/lib/` | 純粋ロジック（SQL クエリ・距離計算・ストア操作）|
 | `src/constants/` | 複数箇所で共有される定数 |
 | `src/types/` | ドメイン型定義 |
 | `scripts/` | GTFS 変換・形状生成・検証など CLI ツール |
-| `test/` | 全テスト（コンポーネント・フック・lib を横断） |
-| `public/data/` | 事業者ごとの GTFS JSON（Actions が更新） |
-| `public/sql-wasm*.wasm` | sql.js の wasm（Vite の `configResolved` でコピー．Git 管理外） |
+| `test/` | 全テスト（コンポーネント・フック・lib を横断）|
+| `public/data/` | 事業者ごとの GTFS JSON（Actions が更新）|
+| `public/sql-wasm*.wasm` | sql.js の wasm（Vite の `configResolved` でコピー．Git 管理外）|
 
 ### hooks / lib の線引き
 
-React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分ける．DB クエリは `lib/` に寄せ，React のライフサイクルに乗せる側は `hooks/` に置く．テストもこの分類に沿い，lib は純関数テスト，hooks は `@testing-library/react` の `renderHook` や component テスト経由で検証する．
+React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分ける．DB クエリは `lib/` に寄せ，React のライフサイクルに乗せる側は `hooks/` に置く．テストもこの分類に沿う．lib は純関数テストとする．hooks は `@testing-library/react` の `renderHook` や component テスト経由で検証する．
 
 ---
 
@@ -489,7 +489,7 @@ React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分
 | ワークフロー | トリガ | 内容 |
 |---|---|---|
 | `ci.yml` | Pull Request | 整形・lint・テスト・ビルドの検査 |
-| `md-lint.yml` | Pull Request（`*.md` を含む場合） | Markdown の lint |
+| `md-lint.yml` | Pull Request（`*.md` を含む場合）| Markdown の lint |
 | `claude-review.yml` | `@claude` メンション | レビューの副担当 |
 | `update-gtfs.yml` | 毎週月曜 03:00 UTC / 手動 | GTFS 取得・pfaedle 生成・変換・コミット |
 | `update-osm.yml` | 毎月 1 日 / 手動 | OSM データのキャッシュ更新 |
@@ -564,7 +564,7 @@ GTFS の `fare_rules` は出発ゾーンと到着ゾーンの組み合わせで�
 
 ### pfaedle の shapes 精度
 
-OSM の道路ネットワークから経路を推定するため，実際のバス路線と異なる経路が生成される場合がある．地図表示はあくまで参考情報である旨を UI 側で暗黙的に伝える（実線一本で正確なルートは示さない配色）．
+OSM の道路ネットワークから経路を推定するため，実際のバス路線と異なる経路を生成する場合がある．地図表示はあくまで参考情報である旨を UI 側で暗黙的に伝える（実線一本で正確なルートは示さない配色）．
 
 ### 前期間データは作り直せない
 
