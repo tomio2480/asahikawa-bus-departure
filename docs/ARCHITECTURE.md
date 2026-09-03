@@ -50,11 +50,11 @@
 |---|---|
 | フロントエンド | React 19 + TypeScript + Vite 8 |
 | スタイル | Tailwind CSS 4 + DaisyUI 5 |
-| データベース | sql.js（ブラウザ内 SQLite） |
-| 永続化 | IndexedDB（経路登録） / localStorage（通知設定・テーマ） |
+| データベース | sql.js（ブラウザ内 SQLite）|
+| 永続化 | IndexedDB（経路登録）/ localStorage（通知設定・テーマ）|
 | 地図 | Leaflet + React-Leaflet |
-| データ仕様 | GTFS（General Transit Feed Specification） |
-| 経路形状生成 | pfaedle（Docker） + OpenStreetMap |
+| データ仕様 | GTFS（General Transit Feed Specification）|
+| 経路形状生成 | pfaedle（Docker）+ OpenStreetMap |
 | テスト | Vitest + Testing Library |
 | リント・整形 | Biome |
 | CI/CD | GitHub Actions + GitHub Pages |
@@ -102,7 +102,7 @@ HODA（北海道オープンデータプラットフォーム）から 3 事業�
 
 GTFS には経路の地理的形状（shapes）が含まれない場合がある．pfaedle を用い，OpenStreetMap の道路ネットワークから推定 shapes を生成する．pfaedle は Docker イメージ `ghcr.io/ad-freiburg/pfaedle:latest` を使用する．
 
-`-o` オプションで出力時に GTFS ファイルを上書きするため，運賃関連ファイル等を事前に退避し実行後に復元する．退避対象は `fare_attributes.txt` ・ `fare_rules.txt` ・ `feed_info.txt` ・ `translations.txt` ・ `attributions.txt` の 5 種．
+`-o` オプションで出力時に GTFS ファイルを上書きするため，運賃関連ファイル等を事前に退避し実行後に復元する．退避対象は `fare_attributes.txt`・`fare_rules.txt`・`feed_info.txt`・`translations.txt`・`attributions.txt` の 5 種．
 
 ### JSON 変換
 
@@ -120,8 +120,8 @@ GTFS には経路の地理的形状（shapes）が含まれない場合がある
 
 最新データと一期間前のデータを並行保持する．
 
-- 最新： `{operator}.json` -- ID は `{operator}:{id}` 形式
-- 前期： `{operator}_prev.json` -- ID は `{operator}:prev~{id}` 形式
+- 最新：`{operator}.json` -- ID は `{operator}:{id}` 形式
+- 前期：`{operator}_prev.json` -- ID は `{operator}:prev~{id}` 形式
 
 `prev~` プレフィックスにより名前空間を分離し，同一テーブル内で共存させる．
 
@@ -287,7 +287,7 @@ SELECT EXISTS (
 |---|---|---|
 | `useNotificationSettings` | 通知タイミング（分）の確定値と永続化 | `localStorage` |
 | `useNotifyBeforeMinutesInput` | 入力中の文字列と有効性判定・commit | メモリのみ |
-| `useNotification` | 発車 N 分前のブラウザ通知送信 | 実行時（`Notification` API） |
+| `useNotification` | 発車 N 分前のブラウザ通知送信 | 実行時（`Notification` API）|
 
 ### `props→state` 同期の排除
 
@@ -345,10 +345,10 @@ DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上
 
 `src/components/MapView.tsx` に実装．`react-leaflet` の宣言的 API を使いつつ，z-order の厳密制御のため Leaflet Pane を直接扱う部分がある．
 
-- `MapContainer` ：Leaflet の地図コンテナ
-- `FitBounds` ：マーカーとハイライト区間から表示範囲を自動調整
-- `TileFilter` ：テーマに応じたセピアフィルタを CSS で適用
-- `ScrollZoomHandler` ：Ctrl/Cmd + スクロールでのみズーム許可
+- `MapContainer`：Leaflet の地図コンテナ
+- `FitBounds`：マーカーとハイライト区間から表示範囲を自動調整
+- `TileFilter`：テーマに応じたセピアフィルタを CSS で適用
+- `ScrollZoomHandler`：Ctrl/Cmd + スクロールでのみズーム許可
 
 ### ポリラインの構成
 
@@ -466,13 +466,13 @@ export const NOTIFY_DEFAULT_MINUTES = 5;
 |---|---|
 | `src/components/` | DOM 描画とイベント捕捉．表示ロジックに限定 |
 | `src/hooks/` | 状態管理・副作用・フレームワーク依存ロジック |
-| `src/lib/` | 純粋ロジック（SQL クエリ・距離計算・ストア操作） |
+| `src/lib/` | 純粋ロジック（SQL クエリ・距離計算・ストア操作）|
 | `src/constants/` | 複数箇所で共有される定数 |
 | `src/types/` | ドメイン型定義 |
 | `scripts/` | GTFS 変換・形状生成・検証など CLI ツール |
-| `test/` | 全テスト（コンポーネント・フック・lib を横断） |
-| `public/data/` | 事業者ごとの GTFS JSON（Actions が更新） |
-| `public/sql-wasm*.wasm` | sql.js の wasm（Vite の `configResolved` でコピー．Git 管理外） |
+| `test/` | 全テスト（コンポーネント・フック・lib を横断）|
+| `public/data/` | 事業者ごとの GTFS JSON（Actions が更新）|
+| `public/sql-wasm*.wasm` | sql.js の wasm（Vite の `configResolved` でコピー．Git 管理外）|
 
 ### hooks / lib の線引き
 
@@ -489,7 +489,7 @@ React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分
 | ワークフロー | トリガ | 内容 |
 |---|---|---|
 | `ci.yml` | Pull Request | 整形・lint・テスト・ビルドの検査 |
-| `md-lint.yml` | Pull Request（`*.md` を含む場合） | Markdown の lint |
+| `md-lint.yml` | Pull Request（`*.md` を含む場合）| Markdown の lint |
 | `claude-review.yml` | `@claude` メンション | レビューの副担当 |
 | `update-gtfs.yml` | 毎週月曜 03:00 UTC / 手動 | GTFS 取得・pfaedle 生成・変換・コミット |
 | `update-osm.yml` | 毎月 1 日 / 手動 | OSM データのキャッシュ更新 |
