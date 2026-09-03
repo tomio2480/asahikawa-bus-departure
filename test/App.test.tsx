@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { findA11yViolations } from "./a11y";
 
 vi.mock("../src/hooks/useDatabase", () => ({
 	useDatabase: vi.fn(),
@@ -161,6 +162,31 @@ describe("App", () => {
 		render(<App />);
 		expect(screen.getByTestId("departure-board")).toBeInTheDocument();
 		expect(screen.getByTestId("route-registration")).toBeInTheDocument();
+	});
+
+	it("読み込み完了後のページ構造に axe-core の違反が無い（region 有効）", async () => {
+		// 部品はモックだが，header / main / footer とトーストの置き場所は本物である．
+		// ランドマークの構造だけを見るため pageLevel で region を有効にする．
+		setupDefaultMocks({
+			db: {
+				db: {} as ReturnType<typeof useDatabase>["db"],
+				error: null,
+				loading: false,
+			},
+			routes: {
+				routes: [],
+				loading: false,
+				error: null,
+				add: vi.fn(),
+				update: vi.fn(),
+				remove: vi.fn(),
+				reload: vi.fn(),
+			},
+		});
+		render(<App />);
+		await expect(
+			findA11yViolations(document.body, { pageLevel: true }),
+		).resolves.toEqual([]);
 	});
 
 	it("読み込み完了後に有効期限警告が表示される", () => {

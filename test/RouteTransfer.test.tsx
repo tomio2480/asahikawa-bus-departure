@@ -7,6 +7,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RouteTransfer } from "../src/components/RouteTransfer";
+import { findA11yViolations } from "./a11y";
 
 // route-store モジュールのモック
 vi.mock("../src/lib/route-store", () => ({
@@ -328,5 +329,14 @@ describe("RouteTransfer", () => {
 				expect(mockOnImportComplete).not.toHaveBeenCalled();
 			});
 		});
+	});
+});
+
+describe("RouteTransfer のアクセシビリティ", () => {
+	it("初期表示に axe-core の違反が無い", async () => {
+		// ファイル選択の input はブラウザでは display:none だが，jsdom には CSS が
+		// 無く可視として扱われる．CSS の有無によらず名前を持たせて通す．
+		const { container } = render(<RouteTransfer onImportComplete={vi.fn()} />);
+		await expect(findA11yViolations(container)).resolves.toEqual([]);
 	});
 });

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastContainer } from "../src/components/Toast";
 import { ToastProvider, useToast } from "../src/hooks/useToast";
+import { findA11yViolations } from "./a11y";
 
 /** テスト用のトリガコンポーネント：マウント時に showToast を呼ぶ */
 function Trigger({
@@ -182,5 +183,19 @@ describe("ToastContainer", () => {
 
 		await user.click(screen.getByRole("button", { name: "閉じる" }));
 		expect(screen.queryByText("閉じられる")).not.toBeInTheDocument();
+	});
+
+	it("表示中のトーストに axe-core の違反が無い", async () => {
+		// axe.run は内部で setTimeout を使う．beforeEach の fake timers の
+		// 設定に依存しないよう，この検査だけ実時間へ戻す．
+		vi.useRealTimers();
+		const { container } = render(
+			<ToastProvider>
+				<ToastContainer />
+				<Trigger message="保存に失敗しました" variant="error" />
+			</ToastProvider>,
+		);
+		expect(screen.getByText("保存に失敗しました")).toBeInTheDocument();
+		await expect(findA11yViolations(container)).resolves.toEqual([]);
 	});
 });

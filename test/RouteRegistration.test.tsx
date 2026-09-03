@@ -24,6 +24,7 @@ import { ToastProvider } from "../src/hooks/useToast";
 import { createSchema, loadGtfsData } from "../src/lib/gtfs-loader";
 import type { GtfsData } from "../src/types/gtfs";
 import type { RegisteredRouteEntry } from "../src/types/route-entry";
+import { findA11yViolations } from "./a11y";
 
 /**
  * ToastProvider + ToastContainer を含めてレンダリングするヘルパ。
@@ -2587,5 +2588,12 @@ describe("RouteRegistration（送信中の入力系無効化 / Issue #103）", (
 		).toBeDisabled();
 		expect(screen.getByRole("button", { name: "編集" })).toBeDisabled();
 		expect(screen.getByRole("button", { name: "削除" })).toBeDisabled();
+	});
+});
+
+describe("RouteRegistration のアクセシビリティ", () => {
+	it("経路未登録のフォームに axe-core の違反が無い", async () => {
+		renderComponent();
+		await expect(findA11yViolations(document.body)).resolves.toEqual([]);
 	});
 });
