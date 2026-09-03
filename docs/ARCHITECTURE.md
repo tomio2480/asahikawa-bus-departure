@@ -1,6 +1,6 @@
 # 🏗 旭川バス発車案内 -- アーキテクチャと設計判断
 
-旭川市内の 3 事業者のバス発車案内をブラウザ単体で提供する SPA の設計判断と実装上の勘所をまとめた文書．GTFS データパイプライン・バス停名寄せ・発車案内生成・通知・経路登録バリデーション・地図描画・テーマ切替・CI/CD までを章立てで網羅し，それぞれの「なぜこの形なのか」を記録する．PR ごとに積み重なる知見は `docs/REVIEW_LESSONS.md` に寄せ，本書は恒久的に残る設計判断に限定する．
+旭川市内の 3 事業者のバス発車案内をブラウザ単体で提供する SPA の設計判断と実装上の勘所をまとめた文書．GTFS データパイプライン・バス停名寄せ・発車案内生成・通知・経路登録バリデーション・地図描画・テーマ切替・CI/CD までを章立てで網羅する．それぞれの「なぜこの形なのか」を記録する．PR ごとに積み重なる知見は `docs/REVIEW_LESSONS.md` に寄せ，本書は恒久的に残る設計判断に限定する．
 
 ---
 
@@ -29,7 +29,7 @@
 
 ## 📎 関連ドキュメント
 
-本書（ARCHITECTURE）は設計判断の恒久記録として位置付ける．PR ごとのレビュー指摘から抽出した知見は `docs/REVIEW_LESSONS.md` に蓄積し，そこで一定の汎用性が確認された事項を本書に蒸留する流れを取る．
+本書（ARCHITECTURE）は設計判断の恒久記録として位置付ける．PR ごとのレビュー指摘から抽出した知見は `docs/REVIEW_LESSONS.md` へ蓄積する．そこで一定の汎用性を確認できた事項を本書へ蒸留する流れを取る．
 
 表 1. 本リポジトリのドキュメントと役割分担
 
@@ -102,7 +102,7 @@ HODA（北海道オープンデータプラットフォーム）から 3 事業�
 
 GTFS には経路の地理的形状（shapes）を含まない場合がある．pfaedle を用い，OpenStreetMap の道路ネットワークから推定 shapes を生成する．pfaedle は Docker イメージ `ghcr.io/ad-freiburg/pfaedle:latest` を使用する．
 
-`-o` オプションは出力時に GTFS ファイルを上書きする．そのため運賃関連ファイル等をあらかじめ退避し，実行を終えてから復元する．退避対象は `fare_attributes.txt`・`fare_rules.txt`・`feed_info.txt`・`translations.txt`・`attributions.txt` の 5 種．
+`-o` オプションは出力時に GTFS ファイルを上書きする．そのため運賃関連ファイル等をあらかじめ退避し，実行を終えてから復元する．退避対象は `fare_attributes.txt`・`fare_rules.txt`・`feed_info.txt` の 3 つである．さらに `translations.txt` と `attributions.txt` を加えた計 5 種を扱う．
 
 ### JSON 変換
 
@@ -192,7 +192,7 @@ WHERE stop_lat BETWEEN ? AND ? AND stop_lon BETWEEN ? AND ?
 
 ### 実装
 
-`src/lib/stop-reachability.ts` の `isReachable` が判定する．`EXISTS` 句を使い，同一 trip 上で `from.stop_sequence < to.stop_sequence` を満たすペアが 1 組でも存在すれば真を返す．
+`src/lib/stop-reachability.ts` の `isReachable` が判定する．`EXISTS` 句を使う．同一 trip 上で `from.stop_sequence < to.stop_sequence` を満たすペアが 1 組でも存在すれば真を返す．
 
 ```sql
 SELECT EXISTS (
@@ -210,16 +210,16 @@ SELECT EXISTS (
 
 ### 候補フィルタとバリデーションの分離
 
-`StopSearch` は `ReachabilityFilter` prop を受け，候補サジェストをクラスタ単位で絞り込む．一方で `RouteRegistration` の送信時バリデーションは `searchStops(db, query, 100)` のようにフィルタ無し・limit 100 で広く名前一致を取り，「名称は存在するが到達不可能」のケースを明確に区別する（REVIEW_LESSONS 14）．
+`StopSearch` は `ReachabilityFilter` prop を受け，候補サジェストをクラスタ単位で絞り込む．一方で `RouteRegistration` の送信時バリデーションはフィルタを掛けない．`searchStops(db, query, 100)` のように limit 100 で広く名前一致を取る．これにより「名称は存在するが到達不可能」のケースを明確に区別する（REVIEW_LESSONS 14）．
 
 ### `StopSearch` は完全制御コンポーネント
 
-`StopSearch` は入力文字列 `query` を内部 state として持たず，親が保持する文字列をそのまま `value` prop として受け取る．候補選択やキー入力で発生する文字列変化は `onQueryChange` コールバックで親に通知する．親（`RouteRegistration`）の `FormState` が `fromStopQuery` / `toStopQuery` を含み，`StopSearchResult` の選択状態（`fromStop` / `toStop`）と一対で管理する（Issue #99）．
+`StopSearch` は入力文字列 `query` を内部 state として持たず，親が保持する文字列をそのまま `value` prop として受け取る．候補選択やキー入力で発生する文字列変化は `onQueryChange` コールバックで親に通知する．親（`RouteRegistration`）の `FormState` は `fromStopQuery` と `toStopQuery` を含む．`StopSearchResult` の選択状態（`fromStop` / `toStop`）と一対で管理する（Issue #99）．
 
 半制御（内部 state ＋ `useEffect` による props→state 同期）の構成を採用しない．理由は以下のとおり．
 
-- `selectedStop` prop の変更を内部 `useState` へ流し込む `useEffect` が必要になり，「内部発の `onSelect(null)` による `selectedStop=null` 遷移」と「外部発の `handleEdit` / `resetForm`」を区別するための escape-hatch（`suppressNextSelectedSyncRef` 等）が積み重なる．
-- 親の form state と子の query state が二重に存在することで，「選択済みのまま入力だけ書き換えて submit」の検知が状態遷移の順序に依存し，バグを誘発する．
+- `selectedStop` prop の変更を内部 `useState` へ流し込む `useEffect` が要る．内部発の `onSelect(null)` による `selectedStop=null` 遷移がある．外部発の `handleEdit` / `resetForm` による遷移もある．両者を見分ける escape-hatch（`suppressNextSelectedSyncRef` 等）が積み重なる．
+- 親の form state と子の query state が二重に存在する．そのため「選択済みのまま入力だけ書き換えて submit」の検知が状態遷移の順序に依存し，バグを誘発する．
 - React 公式「You Might Not Need an Effect」が推奨する「状態を親に上げて完全制御にする」パターンに整合する．
 
 ---
@@ -240,7 +240,7 @@ SELECT EXISTS (
 全便が出発済みの降車バス停がある場合，翌日のサービス ID で始発以降 3 便を取得する．`isNextDay` フラグで「始発以降の便」バッジを表示する．
 
 **`isDeparted` のチェック：**
-翌日便は `isDeparted` が `undefined` になるため，`=== false` ではなく `!d.isDeparted`（falsy チェック）を使う．Boolean 以外の空値を巻き込む場合は意図的な選択として明示する．
+翌日便は `isDeparted` が `undefined` になる．そのため `=== false` ではなく `!d.isDeparted`（falsy チェック）を使う．Boolean 以外の空値を巻き込む場合は意図的な選択として明示する．
 
 ---
 
@@ -261,7 +261,7 @@ SELECT EXISTS (
 
 ### 同一バス停禁止
 
-乗車と降車に同じクラスタ（同一 `clusterStopIds`）を指定すると意味がないため，送信時に `SAME_STOP_ERROR_MESSAGE` を返す．文言は `src/components/RouteRegistration.tsx` の定数で一元管理し，テストも同じ定数を参照する（REVIEW_LESSONS 15）．
+乗車と降車に同じクラスタ（同一 `clusterStopIds`）を指定すると意味がないため，送信時に `SAME_STOP_ERROR_MESSAGE` を返す．文言は `src/components/RouteRegistration.tsx` の定数で一元管理する．テストも同じ定数を参照する（REVIEW_LESSONS 15）．
 
 ### バリデーション実装の原則
 
@@ -297,13 +297,13 @@ SELECT EXISTS (
 
 ### 永続化失敗への対応
 
-`useNotificationSettings.setMinutes` は `localStorage.setItem` を先に試行し，成功した場合のみ state を更新する．`QuotaExceededError` 等の失敗時は throw して呼び出し側に通知し，画面表示と保存値の乖離を防ぐ．
+`useNotificationSettings.setMinutes` は `localStorage.setItem` を先に試行する．成功した場合のみ state を更新する．`QuotaExceededError` 等の失敗時は throw して呼び出し側に通知し，画面表示と保存値の乖離を防ぐ．
 
 ### 通知タイミング算出
 
 `useNotification` は `useDepartures` の 1 分更新に連動して判定する．徒歩時間（`walkMinutes`）を差し引いた自宅出発の目安時刻を基準に「N 分前」を計算する．
 
-GTFS の 24 時超表記（例：24:05）と 0 時過ぎの現在時刻の差を補正するため， `minutesUntilLeave > 1200` の場合は 1440 分を引く．これにより日付をまたぐ深夜便も正しく扱う．
+GTFS の 24 時超表記（例：24:05）と 0 時過ぎの現在時刻の差を補正する．`minutesUntilLeave > 1200` の場合は 1440 分を引く．これにより日付をまたぐ深夜便も正しく扱う．
 
 通知済みの便は `tripId + departureTime` を key として `notifiedRef` に蓄積し重複送信を防ぐ．現在の `departures` に含まれなくなった key は都度削除する．
 
@@ -313,7 +313,7 @@ GTFS の 24 時超表記（例：24:05）と 0 時過ぎの現在時刻の差を
 
 ### 独自実装の理由
 
-DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上げ・自動消去・手動消去を統合的に扱う仕組みを持たない．また本アプリでは `ToastProvider` を通じた Context 経由で任意フックから `showToast` を呼べる必要があり，このオーケストレーションは既存 CSS フレームワークの範囲外となる．そのため `src/hooks/useToast.tsx` と `src/components/Toast.tsx` の薄い独自実装とした．
+DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上げ・自動消去・手動消去を統合的に扱う仕組みを持たない．また本アプリでは `ToastProvider` を通じた Context 経由で，任意フックから `showToast` を呼べる必要がある．このオーケストレーションは既存 CSS フレームワークの範囲外となる．そのため `src/hooks/useToast.tsx` と `src/components/Toast.tsx` の薄い独自実装とした．
 
 ### Provider / Container / Item の分離
 
@@ -327,15 +327,15 @@ DaisyUI の `alert` は静的な表示向きで，複数トーストの積み上
 
 ### タイマーをアイテム側に置く理由
 
-自動消去タイマーを Provider 側でスケジュールすると，手動消去時のクリーンアップやアンマウント時の残留タイマーを管理する難易度が上がる．各 `ToastItem` の `useEffect` で `setTimeout` を所有し，クリーンアップ関数で `clearTimeout` を呼ぶことで，コンポーネントライフサイクルとタイマー寿命を一致させる．
+自動消去タイマーを Provider 側でスケジュールすると，手動消去時のクリーンアップやアンマウント時の残留タイマーを管理する難易度が上がる．各 `ToastItem` の `useEffect` で `setTimeout` を所有する．クリーンアップ関数で `clearTimeout` を呼ぶ．これによりコンポーネントライフサイクルとタイマー寿命を一致させる．
 
 ### `dismissToast` 参照の取得
 
-`ToastItem` は props 経由ではなく `useToast()` から `dismissToast` を取得する．Provider 内で `useCallback` により参照が安定しているため， `useEffect` の依存配列に含めてもタイマーが再スケジュールされず，予期せぬリセットを防げる．
+`ToastItem` は props 経由ではなく `useToast()` から `dismissToast` を取得する．Provider 内で `useCallback` により参照が安定している．そのため `useEffect` の依存配列に含めてもタイマーが再スケジュールされず，予期せぬリセットを防げる．
 
 ### アクセシビリティ
 
-`variant === "error"` は `role="alert"` / `aria-live="assertive"` で即時読み上げ，それ以外は `role="status"` / `aria-live="polite"` で穏やかに読み上げる．閉じるボタンには `aria-label="閉じる"` を付与する．
+`variant === "error"` は `role="alert"` / `aria-live="assertive"` で即時読み上げる．それ以外は `role="status"` / `aria-live="polite"` で穏やかに読み上げる．閉じるボタンには `aria-label="閉じる"` を付与する．
 
 ---
 
@@ -394,7 +394,7 @@ CSS セレクタで `data-theme` に応じたフィルタを適用する．
 [data-theme="dark"] .leaflet-tile-pane { filter: sepia(1) saturate(0.4) brightness(0.55); }
 ```
 
-当初 `MutationObserver` でテーマ変更を監視して JavaScript から `filter` を書き換えていたが，CSS セレクタ方式で同等の結果が得られるため簡素化した．
+当初は `MutationObserver` でテーマ変更を監視し，JavaScript から `filter` を書き換えていた．CSS セレクタ方式で同等の結果が得られるため簡素化した．
 
 ### `matchMedia` の安全ガード
 
@@ -410,7 +410,7 @@ if (typeof window.matchMedia !== "function") return "light";
 
 ### 状態管理
 
-`App.tsx` で `hoveredRouteKey` と `pinnedRouteKey` を独立管理する．当初 `activeRouteKey = pinnedRouteKey ?? hoveredRouteKey` で統合していたが，固定中に別の経路をホバーできない問題があったため分離した．
+`App.tsx` で `hoveredRouteKey` と `pinnedRouteKey` を独立管理する．当初は `activeRouteKey = pinnedRouteKey ?? hoveredRouteKey` で統合していた．固定中に別の経路をホバーできない問題があったため分離した．
 
 ### ルートキーの形式
 
@@ -452,7 +452,7 @@ export const NOTIFY_MAX_MINUTES = 60;
 export const NOTIFY_DEFAULT_MINUTES = 5;
 ```
 
-参照箇所は `useNotificationSettings`（永続化クランプ・デフォルト）， `useNotifyBeforeMinutesInput`（入力バリデーション範囲）， `RouteRegistration`（HTML `min` / `max` 属性）の 3 つ．数値を 1 箇所に閉じ込めることで，範囲変更時の取りこぼしを防ぐ（REVIEW_LESSONS 11）．
+参照箇所は 3 つある．`useNotificationSettings` は永続化のクランプと既定値に使う．`useNotifyBeforeMinutesInput` は入力バリデーションの範囲に使う．`RouteRegistration` は HTML の `min` / `max` 属性に使う．数値を 1 箇所に閉じ込めることで，範囲変更時の取りこぼしを防ぐ（REVIEW_LESSONS 11）．
 
 ---
 
@@ -476,7 +476,7 @@ export const NOTIFY_DEFAULT_MINUTES = 5;
 
 ### hooks / lib の線引き
 
-React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分ける．DB クエリは `lib/` に寄せ，React のライフサイクルに乗せる側は `hooks/` に置く．テストもこの分類に沿い，lib は純関数テスト，hooks は `@testing-library/react` の `renderHook` や component テスト経由で検証する．
+React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分ける．DB クエリは `lib/` に寄せ，React のライフサイクルに乗せる側は `hooks/` に置く．テストもこの分類に沿う．lib は純関数テストとする．hooks は `@testing-library/react` の `renderHook` や component テスト経由で検証する．
 
 ---
 
