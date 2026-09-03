@@ -48,6 +48,30 @@ describe("findA11yViolations", () => {
 		await expect(findA11yViolations(document.body)).resolves.toEqual([]);
 	});
 
+	it("pageLevel を指定するとランドマーク外の内容を region 違反として報告する", async () => {
+		// ページ全体（App）を検査するときは，ランドマークの構造そのものが対象になる．
+		document.body.innerHTML =
+			"<main><p>本文</p></main><div>ランドマークの外の内容</div>";
+
+		const violations = await findA11yViolations(document.body, {
+			pageLevel: true,
+		});
+
+		expect(violations).toHaveLength(1);
+		expect(violations[0]).toMatch(/^region: /);
+	});
+
+	it("pageLevel でも aria-live を持つ要素はランドマーク外に置ける", async () => {
+		// axe の region 規則は，aria-live や alert / status 役割をランドマークと
+		// 同等に扱う．App のトーストは main / footer の外にあるが，この扱いで通る．
+		document.body.innerHTML =
+			'<main><p>本文</p></main><div role="status" aria-live="polite">保存しました</div>';
+
+		await expect(
+			findA11yViolations(document.body, { pageLevel: true }),
+		).resolves.toEqual([]);
+	});
+
 	it("複数の違反をそれぞれ 1 行で返す", async () => {
 		const root = document.createElement("div");
 		root.innerHTML = '<img src="a.png"><input type="text">';

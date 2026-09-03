@@ -13,6 +13,15 @@ const RULES_DISABLED_FOR_COMPONENT_TESTS: axe.RunOptions["rules"] = {
 	region: { enabled: false },
 };
 
+type FindA11yViolationsOptions = {
+	/**
+	 * ページ全体（App）を検査するときに true にする．
+	 * ランドマークの構造そのものが対象になるため，region を有効へ戻す．
+	 * aria-live や alert / status 役割の要素は axe がランドマークと同等に扱う．
+	 */
+	pageLevel?: boolean;
+};
+
 /**
  * DOM ツリーへ接続済みの要素を axe-core で検査し，違反を 1 件 1 行で返す．
  * 形式は `<rule-id>: <help> (<selector>, ...)` とする．
@@ -20,10 +29,12 @@ const RULES_DISABLED_FOR_COMPONENT_TESTS: axe.RunOptions["rules"] = {
  */
 export async function findA11yViolations(
 	container: Element,
+	options: FindA11yViolationsOptions = {},
 ): Promise<string[]> {
-	const results = await axe.run(container, {
-		rules: RULES_DISABLED_FOR_COMPONENT_TESTS,
-	});
+	const rules = options.pageLevel
+		? { ...RULES_DISABLED_FOR_COMPONENT_TESTS, region: { enabled: true } }
+		: RULES_DISABLED_FOR_COMPONENT_TESTS;
+	const results = await axe.run(container, { rules });
 	return results.violations.map((violation) => {
 		const targets = violation.nodes
 			.map((node) => node.target.join(" "))

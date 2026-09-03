@@ -59,7 +59,7 @@
 | 発車案内の表 | 並び替え列へ `aria-sort` を付与．操作は `th` 内のボタンへ委ねる |
 | 経路ハイライト | 一覧行へ `tabIndex` と `onKeyDown` を付与する |
 | 地図（`MapView.tsx`）| 移動と拡大縮小は Leaflet 既定のキーボード操作が担う．経路ポリラインの選択と，内容の代替表現は未整備 |
-| 自動検出 | Biome の `lint/a11y` が `recommended` 経由で有効．`axe-core` が主要 4 部品のテストで走る |
+| 自動検出 | Biome の `lint/a11y` が `recommended` 経由で有効．`axe-core` が主要 5 部品と `App` のテストで走る |
 
 地図の基本操作は Leaflet 1.9.4 が既定で備える．コンテナは `tabindex="0"` を持ち，フォーカスを受け取る．矢印キーによる移動と，`+` / `-` による拡大縮小が使える．ズームボタンにも `role="button"` と `aria-label` が付く．`MapView.tsx` に ARIA 属性を書いていなくても，描画後の地図が配慮を欠くわけではない．
 
@@ -71,7 +71,9 @@
 
 現行の検出手段は Biome の `lint/a11y` である．`biome.json` が `recommended: true` を指定するため，a11y の規則群も有効になる．`ci.yml` の Biome check が Pull Request ごとに走る．
 
-上位の手段として `axe-core` を Vitest のコンポーネントテストで走らせる（Issue #164）．`test/a11y.ts` の `findA11yViolations` が接続済みの要素を検査し，違反を 1 件 1 行で返す．対象は `DepartureBoard`・`StopSearch`・`RouteRegistration`・`Toast` の 4 部品である．部品を足したときは，同じ形で検査を 1 件加える．
+上位の手段として `axe-core` を Vitest のコンポーネントテストで走らせる（Issue #164）．`test/a11y.ts` の `findA11yViolations` が接続済みの要素を検査し，違反を 1 件 1 行で返す．対象は `DepartureBoard`・`StopSearch`・`RouteRegistration`・`RouteTransfer`・`Toast` の 5 部品である．部品を足したときは，同じ形で検査を 1 件加える．
+
+ページ全体の構造は `App` のテストが `pageLevel: true` で検査する．このときだけ `region` を有効へ戻し，`header` / `main` / `footer` の配置が崩れていないかを見る．`jsdom` には CSS が無いため，`display: none` で隠す要素も可視として扱われる．隠す要素へも名前を持たせ，CSS が無くても通る形を保つ．
 
 表 3. 検討した自動検出ツールと採否
 

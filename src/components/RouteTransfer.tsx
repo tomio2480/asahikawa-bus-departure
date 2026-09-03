@@ -125,6 +125,7 @@ export function RouteTransfer({ onImportComplete }: RouteTransferProps) {
 				type="file"
 				accept=".json"
 				className="hidden"
+				aria-label="経路データの JSON ファイルを選択"
 				onChange={handleFileChange}
 			/>
 			{message && (
