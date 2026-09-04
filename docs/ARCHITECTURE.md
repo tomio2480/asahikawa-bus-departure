@@ -493,6 +493,8 @@ React 依存（`useState` / `useEffect` / Context 等）の有無を基準に分
 |---|---|---|
 | `ci.yml` | Pull Request | 整形・lint・テスト・ビルドの検査 |
 | `md-lint.yml` | Pull Request（`*.md` を含む場合）| Markdown の lint |
+| `session-url-check.yml` | Pull Request | Claude のセッション URL 混入の検査 |
+| `npm-audit.yml` | 毎週月曜 06:00 JST / 手動 | 依存の脆弱性の監査 |
 | `claude-review.yml` | `@claude` メンション | レビューの副担当 |
 | `update-gtfs.yml` | 毎週月曜 03:00 UTC / 手動 | GTFS 取得・pfaedle 生成・変換・コミット |
 | `update-osm.yml` | 毎月 1 日 / 手動 | OSM データのキャッシュ更新 |
@@ -552,6 +554,16 @@ pfaedle が動かなかった回でも，変換そのものは成功する．`sc
 ### Actions の固定化
 
 信頼できる状態で実行するため， `uses:` 指定はコミット SHA で固定する．バージョン番号の移動を防ぎ，サプライチェーン攻撃の影響範囲を抑える．
+
+### 依存の脆弱性を受け取る経路
+
+経路は 2 本ある．Dependabot の alerts と security updates が 1 本目である．勧告を Security タブへ出し，修正版へ上げる PR を起票する．マージは自動では行わない．
+
+2 本目が `npm-audit.yml` の週次実行である．設定が将来外れても検査が残るよう，リポジトリ内の宣言として持つ．閾値は `high` とし，開発依存も対象へ残す．ビルド経路の汚染は公開物へ届くためである．
+
+`npm ci` は踏まない．`npm audit` は `package-lock.json` だけで走る．依存の `postinstall` を実行せずに済む点でも，この経路の方が安全である．
+
+どちらの経路も拾わない穴が 1 つ残る．勧告の無い，宣言範囲の内側で完結する更新である．判断の経緯と残る穴は [調査記録](notes/2026-09-04-vulnerability-alert-path.md) に残した．
 
 ---
 
