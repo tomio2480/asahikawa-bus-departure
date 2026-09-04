@@ -15,7 +15,7 @@ updates:
       # minor と patch を 1 本へ束ね，major だけ個別 PR として残す．
       # 注意: package.json の宣言が既に許す範囲へ収まる更新は，ここへ載らない．
       # 例は vitest の ^3.0.0 に対する 3.2.4 から 3.2.7 である．
-      # security updates も無効のため，npm audit の手動実行で補う．
+      # この穴は .github/workflows/npm-audit.yml の週次実行で補う．
       # 経緯は docs/notes/2026-09-02-dependabot-npm-grouping.md の訂正の節を参照．
       npm-minor-and-patch:
         update-types:

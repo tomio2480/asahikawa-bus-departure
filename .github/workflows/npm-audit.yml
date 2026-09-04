@@ -1,0 +1,49 @@
+name: npm audit
+
+# 依存の脆弱性の勧告を受け取る経路．Issue #172 の判断に基づく．
+#
+# 本リポジトリは Dependabot の alerts と security updates をどちらも無効に
+# していたため，勧告が自動で届く経路が 1 つも無かった．前回 vitest の
+# critical に気づいたのは npm install の出力からであり，再現性が無い．
+# 経緯は docs/notes/2026-09-04-vulnerability-alert-path.md を参照．
+#
+# 週次とし，pull_request では動かさない．PR 時に動かすと，当該 PR と無関係の
+# 勧告でマージが止まる．勧告への対応は独立した作業として扱いたい．
+#
+# 失敗は既定のメール通知で届く．cron を最後に変更した利用者が宛先となる．
+# なお schedule は，リポジトリが 60 日間動かないと自動で停止する．
+# 手で走らせる経路として workflow_dispatch も置く．
+
+on:
+  schedule:
+    # 日曜 21:00 UTC．JST では月曜の 06:00 にあたる．
+    - cron: "0 21 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      # npm ci は踏まない．npm audit は package-lock.json だけで走るためである．
+      # 依存の postinstall を実行せずに済む点でも，この経路の方が安全である．
+      #
+      # 閾値は high とする．本リポジトリの依存は開発時のものが大半であり，
+      # moderate 以下まで落とすと，公開物へ影響しない勧告で通知が埋まる．
+      # 開発依存も対象へ残す．ビルド経路の汚染は公開物へ届くためである．
+      - name: Audit
+        run: npm audit --audit-level=high
