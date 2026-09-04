@@ -32,6 +32,8 @@
 
 当初は「セキュリティ更新も同じ枠を使う」と書いていた．この前提は成り立たない．本リポジトリでは Dependabot の security updates が無効である．2026-09-04 に確認した．詳細は [📦 npm の依存を Dependabot の追跡へ載せた](2026-09-02-dependabot-npm-grouping.md) の訂正の節を参照．
 
+security updates は同日中に有効化した．経緯は [🛡 脆弱性の勧告が届く経路を用意する](2026-09-04-vulnerability-alert-path.md) を参照．有効化により起票される PR が上の 5 本の枠を使うかは，まだ実測していない．
+
 ---
 
 ## 🔁 順序とコンフリクトの畳み方

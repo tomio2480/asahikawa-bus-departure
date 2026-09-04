@@ -15,7 +15,12 @@ import { describe, expect, it } from "vitest";
 const repoRoot = join(import.meta.dirname, "..");
 
 /** setup-node を使う workflow。node を使わないものは対象外とする。 */
-const WORKFLOWS_USING_NODE = ["ci.yml", "deploy.yml", "update-gtfs.yml"];
+const WORKFLOWS_USING_NODE = [
+	"ci.yml",
+	"deploy.yml",
+	"npm-audit.yml",
+	"update-gtfs.yml",
+];
 
 function readRepoFile(...segments: string[]): string {
 	return readFileSync(join(repoRoot, ...segments), "utf8");

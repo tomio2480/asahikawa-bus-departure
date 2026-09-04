@@ -102,8 +102,11 @@ version updates の側にも穴がある．`package.json` の宣言が既に許�
 結果として，critical の勧告は届かなかった．受け取る経路が 1 つも無い．
 気づいたのは `npm install` の出力からである．経緯は Issue #169 と PR #170 を参照．
 
-`versioning-strategy` へ `lockfile-only` を指定する案がある．
-挙動は未検証であり，採否は別途判断する．
+この 2 つは同日中に有効化した．あわせて週次の `npm audit` を workflow へ載せた．
+`versioning-strategy` への `lockfile-only` 指定は見送った．
+判断の理由と有効化の記録は
+[🛡 脆弱性の勧告が届く経路を用意する](2026-09-04-vulnerability-alert-path.md) を参照．
+上の表は，有効化する前の状態を示す．
 
 ---
 
