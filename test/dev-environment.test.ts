@@ -42,7 +42,7 @@ describe("Node の版指定", () => {
 
 	/**
 	 * `>=` で書くと jsdom が拒む 23 系・25 系まで対象へ含めてしまう。
-	 * 開発と CI は 22 系だけを使うため、範囲もその 1 本へ閉じる。
+	 * 開発と CI は `.nvmrc` の 1 系だけを使うため、範囲もその 1 本へ閉じる。
 	 */
 	it("engines.node が .nvmrc と同じメジャー版の系へ閉じている", () => {
 		const nvmrc = readRepoFile(".nvmrc").trim();
