@@ -11,13 +11,17 @@ const mockPrepare = vi.hoisted(() =>
 );
 
 vi.mock("sql.js", () => {
-	const mockDb = {
-		exec: mockExec,
-		run: mockRun,
-		prepare: mockPrepare,
-		close: mockClose,
-	};
-	const MockDatabase = vi.fn(() => mockDb);
+	// フックは `new SQL.Database()` で生成する．Vitest 4 以降の vi.fn() は
+	// new で呼ばれるとインスタンスを構築するため，実装に class を渡す．
+	// アロー関数のままでは "is not a constructor" で失敗する．
+	const MockDatabase = vi.fn(
+		class {
+			exec = mockExec;
+			run = mockRun;
+			prepare = mockPrepare;
+			close = mockClose;
+		},
+	);
 	return {
 		default: vi.fn(() =>
 			Promise.resolve({
